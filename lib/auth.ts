@@ -16,7 +16,7 @@ export const hashToken = (token: string) => crypto.createHash("sha256").update(t
 const newToken = () => crypto.randomBytes(32).toString("base64url");
 const appUrl = () => process.env.APP_URL ?? "http://localhost:3000";
 
-/** Emails a one-time login link. Unknown addresses do nothing, so callers cannot probe for accounts. */
+/** Emails a one-time login link to the confirmation page. Unknown addresses do nothing, so callers cannot probe for accounts. */
 export async function requestLogin(email: string): Promise<void> {
   const found = await pool.query("select id, restaurant_id from auth_find_staff($1)", [email]);
   const staff = found.rows[0];
@@ -26,7 +26,7 @@ export async function requestLogin(email: string): Promise<void> {
     "insert into login_tokens (token_hash, staff_user_id, restaurant_id, expires_at) values ($1, $2, $3, $4)",
     [hashToken(token), staff.id, staff.restaurant_id, new Date(Date.now() + LOGIN_TTL_MS)],
   );
-  await sendLoginEmail(email, `${appUrl()}/api/auth/verify?token=${token}`);
+  await sendLoginEmail(email, `${appUrl()}/login/confirm?token=${token}`);
 }
 
 /** Spends a login token (single use) and opens a session. Returns null if the token is bad, used or expired. */

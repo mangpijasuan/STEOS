@@ -1,14 +1,14 @@
 import { priceCart } from "@/lib/cart";
 import { HttpError, handle, json } from "@/lib/http";
-import { allow } from "@/lib/ratelimit";
+import { allow, clientIp } from "@/lib/ratelimit";
 import { loadStore, orderingEnabled, pickupSlots, slugParam } from "@/lib/storefront";
 import { quoteInput } from "@/lib/validation";
 
 // Prices a cart on the server. Nothing is saved or charged; checkout reuses the same pricing function.
 export const POST = handle(async (req, ctx) => {
   const slug = await slugParam(ctx);
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
-  if (!allow(`quote:${ip}`, 60, 60_000)) throw new HttpError(429, "Too many requests. Try again in a minute.");
+  const ip = clientIp(req);
+  if (!(await allow(`quote:${ip}`, 60, 60_000))) throw new HttpError(429, "Too many requests. Try again in a minute.");
 
   const input = quoteInput.parse(await req.json());
   const store = await loadStore(slug);

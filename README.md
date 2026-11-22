@@ -36,8 +36,9 @@ In development the sign-in link is printed in the server console instead of bein
 
 | Route | Who | Purpose |
 | --- | --- | --- |
-| POST auth/request | public, rate limited | Email a one-time sign-in link |
-| GET auth/verify?token= | public | Spend the link, set the session cookie |
+| POST auth/request | public, rate limited | Email a one-time sign-in link (it opens `/login/confirm`) |
+| POST auth/verify | public, same-origin form | Spend the link (form field `token`), set the session cookie |
+| GET auth/verify?token= | public | Old-style links: forwards to `/login/confirm` without spending the token |
 | POST auth/logout | signed in | End the session |
 | GET staff/me | staff | Who am I |
 | GET staff/menu | staff | Full menu with items and modifiers |
@@ -64,7 +65,7 @@ In development the sign-in link is printed in the server console instead of bein
 | GET staff/pricing?monthlySalesCents=&avgOrderCents= | owner | Plans, the active one, and each plan's monthly cost estimate |
 | PUT staff/pricing | owner | Choose a plan; applies to new orders only |
 | GET staff/reports/summary?days= | owner | Sales, tax, tips, fees, refunds, top items, by day |
-| POST internal/expire-orders | `CRON_SECRET` | Release orders unanswered after 5 minutes. Call every minute |
+| POST internal/expire-orders | `CRON_SECRET` | Release orders unanswered after 5 minutes and clear old rate-limit rows. Call every minute |
 
 ## Decisions made in Sprint 1
 
@@ -75,8 +76,7 @@ In development the sign-in link is printed in the server console instead of bein
 ## Before any live use
 
 - Wire a real email provider into `lib/mailer.ts` (production mode refuses to run without one).
-- Email scanners can pre-open the sign-in link and spend it. If that happens, make `auth/verify` a confirmation page with a button.
-- The login rate limiter is in memory, which is fine for one server process.
+- Per-IP rate limits read the first `X-Forwarded-For` address. Host the app behind a proxy that overwrites that header, or clients can set it themselves and get around per-IP limits.
 - There is no menu editing screen yet. The dashboard lists the menu and toggles sold-out. The editing API is complete and tested.
 
 ## Decisions made in Sprint 2
@@ -123,6 +123,11 @@ The Stripe code path has not been run against Stripe yet, only the fake provider
 
 **Worth knowing about the all-in plans.** With Stripe direct charges the restaurant's own account pays the card fees, so on an all-in plan SROS keeps only the target percentage minus those fees, and nothing on very small orders. On a $20 order at 6% that is about $0.32. Plans with "+ card fees" earn more per order but cost the restaurant more. Compare them in the pilot before settling on a price.
 
-## Next (Sprint 6)
+## Sprint 6: hardening (in progress)
 
-Hardening: confirmation page for the email sign-in link, a real email provider, rate limits in the database instead of memory, logging and error alerts, backups, and the first run against the Stripe sandbox.
+Done:
+
+- **Sign-in confirmation page.** The emailed link opens `/login/confirm`, which shows a "Sign in" button. Only pressing it (a same-origin form post to `auth/verify`) spends the token, so email scanners that open links can no longer use them up. Posts from other sites are refused. Links sent before this change still work. An expired or used link returns to `/login` with an explanation.
+- **Rate limits in the database.** `lib/ratelimit.ts` counts hits per fixed window in the `rate_limits` table (migration 0007), so limits hold across server processes and restarts. Keys are stored as SHA-256 hashes, never raw emails or IP addresses. The every-minute job deletes finished windows.
+
+Still to do: a real email provider, logging and error alerts, backups, and the first run against the Stripe sandbox.

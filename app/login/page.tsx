@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { use, useState, type FormEvent } from "react";
 
-export default function Login() {
+export default function Login({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  const { error } = use(searchParams);
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -23,6 +24,9 @@ export default function Login() {
   return (
     <main>
       <h1>Staff sign in</h1>
+      {error === "expired" && !message && (
+        <p role="alert">That sign-in link has expired or was already used. Request a new one below.</p>
+      )}
       <form onSubmit={submit}>
         <label>
           Email
