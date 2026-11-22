@@ -26,7 +26,12 @@ export async function requestLogin(email: string): Promise<void> {
     "insert into login_tokens (token_hash, staff_user_id, restaurant_id, expires_at) values ($1, $2, $3, $4)",
     [hashToken(token), staff.id, staff.restaurant_id, new Date(Date.now() + LOGIN_TTL_MS)],
   );
-  await sendLoginEmail(email, `${appUrl()}/login/confirm?token=${token}`);
+  try {
+    await sendLoginEmail(email, `${appUrl()}/login/confirm?token=${token}`);
+  } catch (error) {
+    // Log and carry on: an error response here would reveal that the address has an account.
+    console.error(`[auth] Login email to staff ${staff.id} failed:`, (error as Error).message);
+  }
 }
 
 /** Spends a login token (single use) and opens a session. Returns null if the token is bad, used or expired. */

@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { SESSION_COOKIE, requestLogin, staffFromSessionToken } from "../lib/auth";
 import { pool } from "../lib/db";
 import { outbox } from "../lib/mailer";
@@ -87,6 +87,33 @@ describe("sign-in confirmation page", () => {
   it("rejects a missing or made-up token", async () => {
     expect(sessionFrom(await confirm(""))).toBeNull();
     expect(sessionFrom(await confirm("not-a-real-token"))).toBeNull();
+  });
+});
+
+describe("login email failures", () => {
+  it("answers the same way when the email provider fails", async () => {
+    vi.stubEnv("EMAIL_PROVIDER", "resend");
+    vi.stubEnv("RESEND_API_KEY", "re_test_key");
+    vi.stubEnv("EMAIL_FROM", "login@example.com");
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ message: "down" }, { status: 500 })));
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const res = await loginRequestRoute(
+        new Request("http://localhost:3000/api/auth/request", {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-forwarded-for": `10.8.0.${Math.floor(Math.random() * 250)}` },
+          body: JSON.stringify({ email: f.ownerEmail }),
+        }),
+        {},
+      );
+      expect(res.status).toBe(200);
+      expect(quiet).toHaveBeenCalledOnce();
+      expect(String(quiet.mock.calls[0][1])).not.toContain("token=");
+    } finally {
+      quiet.mockRestore();
+      vi.unstubAllEnvs();
+      vi.unstubAllGlobals();
+    }
   });
 });
 

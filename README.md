@@ -21,7 +21,7 @@ npm run dev                     # http://localhost:3000, sign in at /login
 npm test                        # needs a second database named siamsil_test (same roles)
 ```
 
-In development the sign-in link is printed in the server console instead of being emailed.
+In development the sign-in link is printed in the server console instead of being emailed (`EMAIL_PROVIDER=console`).
 
 ## How tenant isolation works
 
@@ -75,7 +75,7 @@ In development the sign-in link is printed in the server console instead of bein
 
 ## Before any live use
 
-- Wire a real email provider into `lib/mailer.ts` (production mode refuses to run without one).
+- Set up Resend for login emails (see "Login emails" below). Production refuses to send links any other way.
 - Per-IP rate limits read the first `X-Forwarded-For` address. Host the app behind a proxy that overwrites that header, or clients can set it themselves and get around per-IP limits.
 - There is no menu editing screen yet. The dashboard lists the menu and toggles sold-out. The editing API is complete and tested.
 
@@ -130,4 +130,15 @@ Done:
 - **Sign-in confirmation page.** The emailed link opens `/login/confirm`, which shows a "Sign in" button. Only pressing it (a same-origin form post to `auth/verify`) spends the token, so email scanners that open links can no longer use them up. Posts from other sites are refused. Links sent before this change still work. An expired or used link returns to `/login` with an explanation.
 - **Rate limits in the database.** `lib/ratelimit.ts` counts hits per fixed window in the `rate_limits` table (migration 0007), so limits hold across server processes and restarts. Keys are stored as SHA-256 hashes, never raw emails or IP addresses. The every-minute job deletes finished windows.
 
-Still to do: a real email provider, logging and error alerts, backups, and the first run against the Stripe sandbox.
+- **Login emails through Resend.** `lib/mailer.ts` calls the Resend API directly (no extra package). If sending fails, the error is logged and the visitor still sees the usual "a link is on its way" answer, so a failure cannot reveal which emails have accounts. The log names the staff id, never the email or the link.
+
+Still to do: logging and error alerts, backups, and the first run against the Stripe sandbox.
+
+### Login emails
+
+1. Create a Resend account, add your sending domain and add the DNS records it shows (SPF and DKIM) until Resend marks the domain verified.
+2. Create an API key with sending access.
+3. Set `EMAIL_PROVIDER=resend`, `RESEND_API_KEY=re_...` and `EMAIL_FROM="Siamsil <login@yourdomain.com>"`, and make sure `APP_URL` is the public address, because links are built from it.
+4. Request a sign-in link at `/login` and check it arrives. If it does not, the server log has a line starting `[auth] Login email ... failed` with Resend's reason (an unverified domain is the usual one).
+
+The Resend code is tested against a stubbed API only; the step-4 check is its first real run. Without a verified domain, Resend only delivers to your own account's address.
