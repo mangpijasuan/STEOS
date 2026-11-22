@@ -123,6 +123,10 @@ export const orders = pgTable("orders", {
   publicTokenHash: text("public_token_hash").notNull(),
   acceptDeadline: timestamp("accept_deadline", { withTimezone: true }),
   decidedAt: timestamp("decided_at", { withTimezone: true }),
+  prepMinutes: integer("prep_minutes"),
+  readyAt: timestamp("ready_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
   ...timestamps,
 });
 

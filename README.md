@@ -58,7 +58,9 @@ In development the sign-in link is printed in the server console instead of bein
 | GET orders/token | private link | Customer's order status (polled every 5 seconds) |
 | POST webhooks/stripe | Stripe signature | Payment events, de-duplicated |
 | GET staff/orders | staff | Orders waiting, accepted or ready |
-| POST staff/orders/id/accept, decline | staff | Accept captures the money; decline releases the hold |
+| POST staff/orders/id/accept, decline | staff | Accept (with optional `prepMinutes`) captures the money; decline releases the hold |
+| POST staff/orders/id/ready, complete | staff | Kitchen line: accepted, ready, picked up |
+| POST staff/orders/id/cancel | owner | Cancel an accepted order and refund in full, including the SROS fee |
 | POST internal/expire-orders | `CRON_SECRET` | Release orders unanswered after 5 minutes. Call every minute |
 
 ## Decisions made in Sprint 1
@@ -101,6 +103,14 @@ In development the sign-in link is printed in the server console instead of bein
 
 The Stripe code path has not been run against Stripe yet, only the fake provider. Treat the first sandbox run as part of Sprint 3 acceptance.
 
-## Next (Sprint 4)
+## Sprint 4: kitchen screen
 
-Kitchen dashboard: live order queue, sound and screen alerts, accept with prep time, mark ready, complete, cancel.
+- `/kitchen` shows new orders with a response countdown, accept with a prep time, mark ready, picked up, and (owners) cancel with a full refund.
+- Sound: browsers only allow audio after a tap, so staff press "Turn on sound" once per session. A double beep repeats every 8 seconds while any order is waiting, and the tab title shows the count.
+- Staff can pause or resume online ordering from the same screen.
+- The screen polls every 4 seconds. Realtime push (server-sent events) is a later improvement; polling is simpler and survives dropped connections.
+- Printing and a dedicated tablet mode are not built yet.
+
+## Next (Sprint 5)
+
+Pricing engine as a setting per restaurant (Model A, Model B, founding rate), fee reports, and sales reports.

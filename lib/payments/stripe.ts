@@ -40,6 +40,11 @@ export class StripeProvider implements PaymentProvider {
     await this.stripe.paymentIntents.cancel(id, undefined, { stripeAccount: account ?? undefined });
   }
 
+  async refund(id: string, account: string | null) {
+    // Direct charge: refund on the connected account and give back SROS's application fee too.
+    await this.stripe.refunds.create({ payment_intent: id, refund_application_fee: true }, { stripeAccount: account ?? undefined });
+  }
+
   parseWebhook(rawBody: string, signature: string | null): PaymentEvent | null {
     const secret = process.env.STRIPE_WEBHOOK_SECRET;
     if (!secret) throw new HttpError(503, "Webhook secret is not configured");

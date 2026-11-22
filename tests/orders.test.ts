@@ -11,6 +11,9 @@ import { POST as webhook } from "../app/api/webhooks/stripe/route";
 import { POST as accept } from "../app/api/staff/orders/[id]/accept/route";
 import { POST as decline } from "../app/api/staff/orders/[id]/decline/route";
 import { GET as listOrders } from "../app/api/staff/orders/route";
+import { POST as ready } from "../app/api/staff/orders/[id]/ready/route";
+import { POST as complete } from "../app/api/staff/orders/[id]/complete/route";
+import { POST as cancelOrder } from "../app/api/staff/orders/[id]/cancel/route";
 import { PUT as putHours } from "../app/api/staff/hours/route";
 import { POST as cron } from "../app/api/internal/expire-orders/route";
 import { asOwner, createFixture, deleteFixture, type Fixture } from "./helpers";
@@ -88,6 +91,7 @@ beforeAll(async () => {
 beforeEach(() => {
   provider.calls = [];
   provider.failCapture = false;
+  provider.failRefund = false;
 });
 
 afterAll(async () => {
@@ -261,5 +265,69 @@ describe("tenant isolation", () => {
 
   it("the app role sees no orders without a tenant", async () => {
     expect((await pool.query("select id from orders")).rows).toHaveLength(0);
+  });
+});
+
+async function acceptedOrder() {
+  const { body } = await placeOrder();
+  const id = await orderIdFor(body.order.number, a.restaurantId);
+  await authorize(id, a.restaurantId);
+  expect((await accept(req("POST", { token: ownerToken, body: { prepMinutes: 25 } }), idCtx(id))).status).toBe(200);
+  return { id, token: body.orderToken as string };
+}
+const statusOf = async (id: string) => (await asOwner((c) => c.query("select status from orders where id = $1", [id]))).rows[0].status;
+
+describe("kitchen workflow", () => {
+  it("stores the promised prep time and shows it to the customer", async () => {
+    const { id, token } = await acceptedOrder();
+    const view = await (await orderStatus(req("GET"), { params: Promise.resolve({ token }) })).json();
+    expect(view.prepMinutes).toBe(25);
+    expect(await statusOf(id)).toBe("accepted");
+  });
+
+  it("moves accepted -> ready -> completed and refuses going backwards", async () => {
+    const { id } = await acceptedOrder();
+    expect((await ready(req("POST", { token: ownerToken }), idCtx(id))).status).toBe(200);
+    expect(await statusOf(id)).toBe("ready");
+    expect((await ready(req("POST", { token: ownerToken }), idCtx(id))).status).toBe(409);
+    expect((await complete(req("POST", { token: ownerToken }), idCtx(id))).status).toBe(200);
+    expect(await statusOf(id)).toBe("completed");
+    expect((await complete(req("POST", { token: ownerToken }), idCtx(id))).status).toBe(409);
+    const queue = await (await listOrders(req("GET", { token: ownerToken }), slugCtx(""))).json();
+    expect(queue.orders.map((o: { id: string }) => o.id)).not.toContain(id);
+  });
+
+  it("cannot mark an order ready before the kitchen accepted it", async () => {
+    const { body } = await placeOrder();
+    const id = await orderIdFor(body.order.number, a.restaurantId);
+    await authorize(id, a.restaurantId);
+    expect((await ready(req("POST", { token: ownerToken }), idCtx(id))).status).toBe(409);
+  });
+
+  it("cancelling an accepted order refunds the customer in full", async () => {
+    const { id } = await acceptedOrder();
+    expect((await cancelOrder(req("POST", { token: ownerToken }), idCtx(id))).status).toBe(200);
+    expect(provider.calls.map((c) => c.action)).toContain("refund");
+    const row = (await asOwner((c) => c.query("select o.status, p.status as pay from orders o join payments p on p.order_id = o.id where o.id = $1", [id]))).rows[0];
+    expect(row).toMatchObject({ status: "cancelled", pay: "refunded" });
+    expect((await cancelOrder(req("POST", { token: ownerToken }), idCtx(id))).status).toBe(409);
+  });
+
+  it("keeps the order if the refund fails", async () => {
+    const { id } = await acceptedOrder();
+    provider.failRefund = true;
+    expect((await cancelOrder(req("POST", { token: ownerToken }), idCtx(id))).status).toBe(502);
+    provider.failRefund = false;
+    expect(await statusOf(id)).toBe("accepted");
+  });
+
+  it("only owners can cancel, and other restaurants cannot touch the order", async () => {
+    const { id } = await acceptedOrder();
+    const staffToken = await signIn(a.staffEmail);
+    expect((await cancelOrder(req("POST", { token: staffToken }), idCtx(id))).status).toBe(403);
+    expect((await ready(req("POST", { token: staffToken }), idCtx(id))).status).toBe(200);
+    const bToken = await signIn(b.ownerEmail);
+    expect((await complete(req("POST", { token: bToken }), idCtx(id))).status).toBe(404);
+    expect((await cancelOrder(req("POST", { token: bToken }), idCtx(id))).status).toBe(404);
   });
 });

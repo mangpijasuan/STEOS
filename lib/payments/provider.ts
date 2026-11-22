@@ -27,6 +27,8 @@ export interface PaymentProvider {
   createAuthorization(input: AuthorizationInput): Promise<Authorization>;
   capture(providerPaymentId: string, connectedAccountId: string | null): Promise<void>;
   cancel(providerPaymentId: string, connectedAccountId: string | null): Promise<void>;
+  /** Returns the whole payment to the customer, including SROS's application fee. */
+  refund(providerPaymentId: string, connectedAccountId: string | null): Promise<void>;
   /** Checks the signature and translates the event. Returns null for events we do not use. */
   parseWebhook(rawBody: string, signature: string | null): PaymentEvent | null;
   publicConfig(connectedAccountId: string | null): { publishableKey: string | null; connectedAccountId: string | null };

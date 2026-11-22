@@ -204,6 +204,7 @@ export async function getOrderByToken(token: string) {
       customerName: order.customerName,
       pickupAt: order.pickupAt.toISOString(),
       pickupType: order.pickupType,
+      prepMinutes: order.prepMinutes,
       subtotalCents: order.subtotalCents,
       taxCents: order.taxCents,
       tipCents: order.tipCents,
@@ -259,7 +260,7 @@ export async function applyPaymentEvent(event: PaymentEvent): Promise<"applied" 
 export type Decision = "accept" | "decline" | "expire";
 
 /** Kitchen decision on an order that is waiting. Accept captures the money; decline and expiry release the hold. */
-export async function decideOrder(restaurantId: string, orderId: string, decision: Decision, now = new Date()) {
+export async function decideOrder(restaurantId: string, orderId: string, decision: Decision, now = new Date(), prepMinutes?: number) {
   const provider = await getProvider();
   return withTenant(restaurantId, async (db) => {
     const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).for("update");
@@ -279,7 +280,7 @@ export async function decideOrder(restaurantId: string, orderId: string, decisio
         throw new HttpError(502, "The payment could not be captured. Try again.");
       }
       await db.update(payments).set({ status: "captured" }).where(eq(payments.id, payment.id));
-      await db.update(orders).set({ status: "accepted", decidedAt: now }).where(eq(orders.id, order.id));
+      await db.update(orders).set({ status: "accepted", decidedAt: now, prepMinutes: prepMinutes ?? null }).where(eq(orders.id, order.id));
       return { status: "accepted" as const };
     }
 
@@ -288,6 +289,42 @@ export async function decideOrder(restaurantId: string, orderId: string, decisio
     await db.update(payments).set({ status: "canceled" }).where(eq(payments.id, payment.id));
     await db.update(orders).set({ status, decidedAt: now }).where(eq(orders.id, order.id));
     return { status };
+  });
+}
+
+export type Step = "ready" | "complete";
+
+/** Moves an accepted order along the kitchen line: accepted -> ready -> completed. */
+export async function advanceOrder(restaurantId: string, orderId: string, step: Step, now = new Date()) {
+  return withTenant(restaurantId, async (db) => {
+    const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).for("update");
+    if (!order) throw new HttpError(404, "Order not found");
+    const allowed: Record<Step, string[]> = { ready: ["accepted"], complete: ["accepted", "ready"] };
+    if (!allowed[step].includes(order.status)) throw new HttpError(409, `This order is ${order.status.replaceAll("_", " ")}`);
+    const patch = step === "ready" ? { status: "ready", readyAt: now } : { status: "completed", completedAt: now, readyAt: order.readyAt ?? now };
+    await db.update(orders).set(patch).where(eq(orders.id, order.id));
+    return { status: patch.status };
+  });
+}
+
+/** Cancels an order the kitchen already accepted. The customer gets a full refund. */
+export async function cancelAcceptedOrder(restaurantId: string, orderId: string, now = new Date()) {
+  const provider = await getProvider();
+  return withTenant(restaurantId, async (db) => {
+    const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).for("update");
+    if (!order) throw new HttpError(404, "Order not found");
+    if (!["accepted", "ready"].includes(order.status)) throw new HttpError(409, `This order is ${order.status.replaceAll("_", " ")}`);
+    const payment = await loadPayment(db, order.id);
+    if (!payment || payment.status !== "captured") throw new HttpError(409, "There is no captured payment to refund");
+    const [r] = await db.select({ account: restaurants.stripeAccountId }).from(restaurants);
+    try {
+      await provider.refund(payment.providerPaymentId, r?.account ?? null);
+    } catch {
+      throw new HttpError(502, "The refund could not be made. Try again.");
+    }
+    await db.update(payments).set({ status: "refunded" }).where(eq(payments.id, payment.id));
+    await db.update(orders).set({ status: "cancelled", cancelledAt: now }).where(eq(orders.id, order.id));
+    return { status: "cancelled" as const };
   });
 }
 
@@ -323,6 +360,9 @@ export async function listActiveOrders(db: Tx) {
     pickupAt: o.pickupAt.toISOString(),
     totalCents: o.totalCents,
     acceptDeadline: o.acceptDeadline?.toISOString() ?? null,
+    prepMinutes: o.prepMinutes,
+    createdAt: o.createdAt.toISOString(),
+    tipCents: o.tipCents,
     items: items.filter((i) => i.orderId === o.id).map((i) => ({ name: i.name, quantity: i.quantity, options: i.options, note: i.note })),
   }));
 }
