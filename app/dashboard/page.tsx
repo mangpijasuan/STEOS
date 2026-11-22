@@ -48,6 +48,7 @@ export default function Dashboard() {
   return (
     <main>
       <p><a href="/kitchen" style={{ fontSize: 18, fontWeight: 700 }}>Open the kitchen screen →</a></p>
+      <p>{me?.role === "owner" && (<><a href="/reports">Sales report</a> · <a href="/pricing">Pricing plan</a></>)}</p>
       <h1>Menu</h1>
       {me && (
         <p>

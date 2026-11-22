@@ -61,6 +61,9 @@ In development the sign-in link is printed in the server console instead of bein
 | POST staff/orders/id/accept, decline | staff | Accept (with optional `prepMinutes`) captures the money; decline releases the hold |
 | POST staff/orders/id/ready, complete | staff | Kitchen line: accepted, ready, picked up |
 | POST staff/orders/id/cancel | owner | Cancel an accepted order and refund in full, including the SROS fee |
+| GET staff/pricing?monthlySalesCents=&avgOrderCents= | owner | Plans, the active one, and each plan's monthly cost estimate |
+| PUT staff/pricing | owner | Choose a plan; applies to new orders only |
+| GET staff/reports/summary?days= | owner | Sales, tax, tips, fees, refunds, top items, by day |
 | POST internal/expire-orders | `CRON_SECRET` | Release orders unanswered after 5 minutes. Call every minute |
 
 ## Decisions made in Sprint 1
@@ -111,6 +114,15 @@ The Stripe code path has not been run against Stripe yet, only the fake provider
 - The screen polls every 4 seconds. Realtime push (server-sent events) is a later improvement; polling is simpler and survives dropped connections.
 - Printing and a dedicated tablet mode are not built yet.
 
-## Next (Sprint 5)
+## Sprint 5: pricing plans and reports
 
-Pricing engine as a setting per restaurant (Model A, Model B, founding rate), fee reports, and sales reports.
+- Plans live in `lib/pricing.ts`: simple 3% + card fees, all-in 6%, founding 7% all-in, and a growth plan (5% + card fees + $79/month) that is listed but cannot be chosen until monthly billing exists. All rates are experiments.
+- Owners choose their own plan at `/pricing`, with a calculator for their monthly sales. The choice applies to new orders only. Each order stores a fee snapshot including the plan, so changing a plan or a rate never rewrites history.
+- `/reports` (owners only) shows sales, tax, tips, SROS fees, estimated card fees, refunds, top items and a daily breakdown. Card fees are estimated at 2.9% + 30 cents; Stripe has the exact figures.
+- `npm run report:platform -- 30` prints what SROS earned across all restaurants in the last 30 days. It uses the owner database connection, so run it only on your own machine or server.
+
+**Worth knowing about the all-in plans.** With Stripe direct charges the restaurant's own account pays the card fees, so on an all-in plan SROS keeps only the target percentage minus those fees, and nothing on very small orders. On a $20 order at 6% that is about $0.32. Plans with "+ card fees" earn more per order but cost the restaurant more. Compare them in the pilot before settling on a price.
+
+## Next (Sprint 6)
+
+Hardening: confirmation page for the email sign-in link, a real email provider, rate limits in the database instead of memory, logging and error alerts, backups, and the first run against the Stripe sandbox.

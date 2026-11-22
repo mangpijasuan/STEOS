@@ -70,7 +70,7 @@ export async function createCheckout(store: Store, input: CheckoutInput, idempot
 
   const provider = await getProvider();
   const account = await withTenant(restaurant.id, async (db) => {
-    const r = await db.select({ a: restaurants.stripeAccountId, bps: restaurants.platformFeeBps, model: restaurants.feeModel }).from(restaurants);
+    const r = await db.select({ a: restaurants.stripeAccountId, bps: restaurants.platformFeeBps, model: restaurants.feeModel, plan: restaurants.pricingPlan }).from(restaurants);
     return r[0];
   });
   if (provider.name === "stripe" && !account.a) throw new HttpError(503, "This restaurant cannot take card payments yet");
@@ -111,7 +111,7 @@ export async function createCheckout(store: Store, input: CheckoutInput, idempot
           tipCents: cart.tipCents,
           totalCents: cart.totalCents,
           feeCents: fee.applicationFeeCents,
-          feeSnapshot: fee,
+          feeSnapshot: { ...fee, plan: account.plan },
           idempotencyKey,
           publicTokenHash: sha256(token),
         })

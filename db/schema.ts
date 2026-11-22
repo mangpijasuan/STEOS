@@ -21,6 +21,8 @@ export const restaurants = pgTable("restaurants", {
   nextOrderNumber: integer("next_order_number").notNull().default(1),
   platformFeeBps: integer("platform_fee_bps").notNull().default(600),
   feeModel: text("fee_model").notNull().default("all_in"),
+  pricingPlan: text("pricing_plan").notNull().default("model_b"),
+  pricingPlanChangedAt: timestamp("pricing_plan_changed_at", { withTimezone: true }),
   ...timestamps,
 });
 
