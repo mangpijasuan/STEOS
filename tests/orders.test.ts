@@ -16,6 +16,7 @@ import { POST as complete } from "../app/api/staff/orders/[id]/complete/route";
 import { POST as cancelOrder } from "../app/api/staff/orders/[id]/cancel/route";
 import { PUT as putHours } from "../app/api/staff/hours/route";
 import { POST as cron } from "../app/api/internal/expire-orders/route";
+import { GET as health } from "../app/api/health/route";
 import { asOwner, createFixture, deleteFixture, type Fixture } from "./helpers";
 
 let a: Fixture;
@@ -329,5 +330,23 @@ describe("kitchen workflow", () => {
     const bToken = await signIn(b.ownerEmail);
     expect((await complete(req("POST", { token: bToken }), idCtx(id))).status).toBe(404);
     expect((await cancelOrder(req("POST", { token: bToken }), idCtx(id))).status).toBe(404);
+  });
+});
+
+describe("health check", () => {
+  it("reports the expiry job as failing when an order waits long past its deadline, and recovers after a sweep", async () => {
+    const { body } = await placeOrder();
+    const orderId = await orderIdFor(body.order.number, a.restaurantId);
+    await authorize(orderId, a.restaurantId);
+    await asOwner((c) => c.query("update orders set accept_deadline = now() - interval '20 minutes' where id = $1", [orderId]));
+
+    const stalled = await health();
+    expect(stalled.status).toBe(503);
+    expect(await stalled.json()).toEqual({ status: "degraded", checks: { database: "ok", expiryJob: "failing" } });
+
+    const sweep = await cron(req("POST", { headers: { authorization: "Bearer test-cron-secret" } }), {});
+    expect(sweep.status).toBe(200);
+    const recovered = await health();
+    expect(recovered.status).toBe(200);
   });
 });

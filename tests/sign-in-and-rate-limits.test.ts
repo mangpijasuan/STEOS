@@ -96,7 +96,8 @@ describe("login email failures", () => {
     vi.stubEnv("RESEND_API_KEY", "re_test_key");
     vi.stubEnv("EMAIL_FROM", "login@example.com");
     vi.stubGlobal("fetch", vi.fn(async () => Response.json({ message: "down" }, { status: 500 })));
-    const quiet = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.stubEnv("LOG_LEVEL", "error");
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
     try {
       const res = await loginRequestRoute(
         new Request("http://localhost:3000/api/auth/request", {
@@ -107,10 +108,13 @@ describe("login email failures", () => {
         {},
       );
       expect(res.status).toBe(200);
-      expect(quiet).toHaveBeenCalledOnce();
-      expect(String(quiet.mock.calls[0][1])).not.toContain("token=");
+      const lines = stderr.mock.calls.map((c) => JSON.parse(String(c[0])));
+      expect(lines).toHaveLength(1);
+      expect(lines[0]).toMatchObject({ level: "error", event: "alert.login-email", error: { name: "EmailError" } });
+      expect(JSON.stringify(lines[0])).not.toContain("token=");
+      expect(JSON.stringify(lines[0])).not.toContain(f.ownerEmail);
     } finally {
-      quiet.mockRestore();
+      stderr.mockRestore();
       vi.unstubAllEnvs();
       vi.unstubAllGlobals();
     }

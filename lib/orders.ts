@@ -3,9 +3,11 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { orderItems, orders, payments, restaurants } from "../db/schema";
 import { priceCart, type CartLineInput } from "./cart";
 import { pool, withTenant, type Tx } from "./db";
+import { alert } from "./alerts";
 import { applicationFee, type FeeModel } from "./fees";
 import { HttpError } from "./http";
 import { isOpenNow } from "./hours";
+import { log } from "./log";
 import { getProvider } from "./payments/provider";
 import type { PaymentEvent } from "./payments/provider";
 import { orderingEnabled, pickupSlots, type Store } from "./storefront";
@@ -159,6 +161,7 @@ export async function createCheckout(store: Store, input: CheckoutInput, idempot
         db.update(orders).set({ status: "payment_failed" }).where(and(eq(orders.id, order.id), eq(orders.status, "pending_payment"))),
       );
       if (error instanceof HttpError) throw error;
+      await alert("payment-authorize", "A card hold could not be started at checkout", { restaurantId: restaurant.id, orderId: order.id, error });
       throw new HttpError(502, "We could not start the payment. Please try again.");
     }
     payment = await withTenant(restaurant.id, async (db) => {
@@ -228,7 +231,10 @@ export async function applyPaymentEvent(event: PaymentEvent): Promise<"applied" 
     if (seen.rows.length === 0) return "duplicate";
 
     const [r] = await db.select({ account: restaurants.stripeAccountId }).from(restaurants);
-    if (provider.name === "stripe" && event.account !== r?.account) return "ignored";
+    if (provider.name === "stripe" && event.account !== r?.account) {
+      log.warn("webhook.account_mismatch", { restaurantId: event.restaurantId, eventId: event.eventId });
+      return "ignored";
+    }
 
     const [order] = await db.select().from(orders).where(eq(orders.id, event.orderId!)).for("update");
     const payment = order ? await loadPayment(db, order.id) : null;
@@ -276,18 +282,26 @@ export async function decideOrder(restaurantId: string, orderId: string, decisio
     if (effective === "accept") {
       try {
         await provider.capture(payment.providerPaymentId, r?.account ?? null);
-      } catch {
+      } catch (error) {
+        await alert("payment-capture", "An accepted order's payment could not be captured", { restaurantId, orderId, error });
         throw new HttpError(502, "The payment could not be captured. Try again.");
       }
       await db.update(payments).set({ status: "captured" }).where(eq(payments.id, payment.id));
       await db.update(orders).set({ status: "accepted", decidedAt: now, prepMinutes: prepMinutes ?? null }).where(eq(orders.id, order.id));
+      log.info("order.accepted", { restaurantId, orderId, totalCents: order.totalCents, prepMinutes });
       return { status: "accepted" as const };
     }
 
-    await provider.cancel(payment.providerPaymentId, r?.account ?? null);
+    try {
+      await provider.cancel(payment.providerPaymentId, r?.account ?? null);
+    } catch (error) {
+      await alert("payment-cancel", "A card hold could not be released", { restaurantId, orderId, decision: effective, error });
+      throw new HttpError(502, "The card hold could not be released. Try again.");
+    }
     const status = effective === "decline" ? ("declined" as const) : ("expired" as const);
     await db.update(payments).set({ status: "canceled" }).where(eq(payments.id, payment.id));
     await db.update(orders).set({ status, decidedAt: now }).where(eq(orders.id, order.id));
+    log.info(`order.${status}`, { restaurantId, orderId, totalCents: order.totalCents });
     return { status };
   });
 }
@@ -319,11 +333,13 @@ export async function cancelAcceptedOrder(restaurantId: string, orderId: string,
     const [r] = await db.select({ account: restaurants.stripeAccountId }).from(restaurants);
     try {
       await provider.refund(payment.providerPaymentId, r?.account ?? null);
-    } catch {
+    } catch (error) {
+      await alert("payment-refund", "A refund for a cancelled order failed. The customer has not been refunded", { restaurantId, orderId, error });
       throw new HttpError(502, "The refund could not be made. Try again.");
     }
     await db.update(payments).set({ status: "refunded" }).where(eq(payments.id, payment.id));
     await db.update(orders).set({ status: "cancelled", cancelledAt: now }).where(eq(orders.id, order.id));
+    log.info("order.refunded", { restaurantId, orderId, totalCents: order.totalCents });
     return { status: "cancelled" as const };
   });
 }
@@ -336,8 +352,12 @@ export async function expireStaleOrders(limit = 50): Promise<number> {
     try {
       await decideOrder(row.restaurant_id, row.order_id, "expire");
       expired++;
-    } catch {
-      // Another process got there first, or the provider is down; the next sweep tries again.
+    } catch (error) {
+      // 409: another process got there first. Anything else (a provider failure already alerted on) is
+      // logged; the next sweep tries again.
+      if (!(error instanceof HttpError && error.status === 409)) {
+        log.warn("order.expire_failed", { restaurantId: row.restaurant_id, orderId: row.order_id, error });
+      }
     }
   }
   return expired;

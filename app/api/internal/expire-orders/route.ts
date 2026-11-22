@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { HttpError, handle, json } from "@/lib/http";
+import { log } from "@/lib/log";
 import { expireStaleOrders } from "@/lib/orders";
 import { pruneRateLimits } from "@/lib/ratelimit";
 
@@ -8,8 +9,12 @@ export const POST = handle(async (req) => {
   const expected = process.env.CRON_SECRET;
   const given = req.headers.get("authorization")?.replace(/^Bearer /, "") ?? "";
   const ok = !!expected && given.length === expected.length && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(expected));
-  if (!ok) throw new HttpError(401, "Unauthorized");
+  if (!ok) {
+    log.warn("cron.unauthorized", { route: "expire-orders" });
+    throw new HttpError(401, "Unauthorized");
+  }
   const expired = await expireStaleOrders();
   const rateLimitsPruned = await pruneRateLimits();
+  log.info("cron.expire_orders", { expired, rateLimitsPruned });
   return json({ expired, rateLimitsPruned });
 });

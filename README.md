@@ -65,6 +65,7 @@ In development the sign-in link is printed in the server console instead of bein
 | GET staff/pricing?monthlySalesCents=&avgOrderCents= | owner | Plans, the active one, and each plan's monthly cost estimate |
 | PUT staff/pricing | owner | Choose a plan; applies to new orders only |
 | GET staff/reports/summary?days= | owner | Sales, tax, tips, fees, refunds, top items, by day |
+| GET health | public | For an uptime monitor: 200 when healthy, 503 if the database is down or the expiry job has stopped |
 | POST internal/expire-orders | `CRON_SECRET` | Release orders unanswered after 5 minutes and clear old rate-limit rows. Call every minute |
 
 ## Decisions made in Sprint 1
@@ -132,7 +133,27 @@ Done:
 
 - **Login emails through Resend.** `lib/mailer.ts` calls the Resend API directly (no extra package). If sending fails, the error is logged and the visitor still sees the usual "a link is on its way" answer, so a failure cannot reveal which emails have accounts. The log names the staff id, never the email or the link.
 
-Still to do: logging and error alerts, backups, and the first run against the Stripe sandbox.
+- **Logging and alerts.** See "Logs, alerts and monitoring" below.
+
+Still to do: backups, and the first run against the Stripe sandbox.
+
+### Logs, alerts and monitoring
+
+**Logs.** `lib/log.ts` writes one JSON line per event (`time`, `level`, `event`, then fields): info to stdout, warnings and errors to stderr, so any log host can search them. Fields named like emails, phones, customer names, tokens, keys or cookies are replaced with `[redacted]`, and ids and tokens in paths become `:id`. Set `LOG_LEVEL` to change how much is written; tests default to `silent`. Events worth searching for: `order.accepted`, `order.declined`, `order.expired`, `order.refunded`, `webhook.processed`, `cron.expire_orders`, and anything starting with `alert.`.
+
+**Alerts.** `alert()` in `lib/alerts.ts` logs at error level and, if `ALERT_WEBHOOK_URL` is set, posts a short message there. It works with Slack incoming webhooks, and with Discord if you add `/slack` to the end of the webhook URL. Each kind of alert is sent at most once every 15 minutes; repeats are still logged. Alerts are raised for:
+
+| Alert | Meaning |
+| --- | --- |
+| `payment-refund` | A cancelled order's refund failed. The customer has **not** been refunded; refund them in Stripe. |
+| `payment-capture` | The kitchen accepted but the card could not be charged. |
+| `payment-cancel` | A declined or expired order's card hold could not be released. |
+| `payment-authorize` | A card hold could not be started at checkout. |
+| `stripe-webhook` | Stripe's webhook was rejected. Repeated, it means `STRIPE_WEBHOOK_SECRET` is wrong and orders never reach the kitchen. |
+| `login-email` | A sign-in email failed to send (usually a Resend problem). |
+| `server-error:<route>` | Any unexpected error. The user sees a `requestId`; search the logs for it. |
+
+**Uptime monitor.** Alerts cannot fire if the app itself is down, so point an outside monitor (UptimeRobot, Better Stack and similar, many free) at `GET /api/health` every minute and alert on anything but 200. It returns 503 when the database is unreachable or when an order has waited more than 5 minutes past its deadline, which means the every-minute expiry job is not running.
 
 ### Login emails
 

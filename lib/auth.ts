@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { eq } from "drizzle-orm";
 import { staffUsers } from "../db/schema";
 import { pool, withTenant } from "./db";
+import { alert } from "./alerts";
 import { HttpError } from "./http";
 import { sendLoginEmail } from "./mailer";
 
@@ -30,7 +31,7 @@ export async function requestLogin(email: string): Promise<void> {
     await sendLoginEmail(email, `${appUrl()}/login/confirm?token=${token}`);
   } catch (error) {
     // Log and carry on: an error response here would reveal that the address has an account.
-    console.error(`[auth] Login email to staff ${staff.id} failed:`, (error as Error).message);
+    await alert("login-email", "A sign-in email could not be sent", { staffUserId: staff.id, error });
   }
 }
 

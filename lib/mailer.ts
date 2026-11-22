@@ -7,7 +7,9 @@ export const outbox: { to: string; url: string }[] = [];
 const RESEND_URL = "https://api.resend.com/emails";
 const TIMEOUT_MS = 10_000;
 
-export class EmailError extends Error {}
+export class EmailError extends Error {
+  name = "EmailError";
+}
 
 export async function sendLoginEmail(to: string, url: string): Promise<void> {
   const provider = process.env.EMAIL_PROVIDER ?? "console";
