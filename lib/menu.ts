@@ -1,0 +1,165 @@
+import { and, asc, eq, isNull } from "drizzle-orm";
+import { menuCategories, menuItems, modifierGroups, modifierOptions } from "../db/schema";
+import type { Tx } from "./db";
+import { HttpError } from "./http";
+
+type Patch = Record<string, unknown>;
+
+/** Drops undefined keys so partial updates never overwrite fields with undefined. */
+function clean<T extends Patch>(input: T): Partial<T> {
+  return Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined)) as Partial<T>;
+}
+
+function mustChange(patch: Patch) {
+  if (Object.keys(patch).length === 0) throw new HttpError(400, "Nothing to update");
+}
+
+function found<T>(rows: T[]): T {
+  if (!rows[0]) throw new HttpError(404, "Not found");
+  return rows[0];
+}
+
+/** Maps Postgres foreign-key failures to friendly errors. */
+function friendly(error: unknown, message: string): never {
+  const code = (error as { code?: string; cause?: { code?: string } })?.code ?? (error as { cause?: { code?: string } })?.cause?.code;
+  if (code === "23503") throw new HttpError(409, message);
+  throw error;
+}
+
+// ------------------------------------------------------------------ read
+export async function getMenu(db: Tx) {
+  const categories = await db.select().from(menuCategories).orderBy(asc(menuCategories.sortOrder), asc(menuCategories.name));
+  const items = await db
+    .select()
+    .from(menuItems)
+    .where(isNull(menuItems.deletedAt))
+    .orderBy(asc(menuItems.sortOrder), asc(menuItems.name));
+  const groups = await db.select().from(modifierGroups).orderBy(asc(modifierGroups.sortOrder));
+  const options = await db.select().from(modifierOptions).orderBy(asc(modifierOptions.sortOrder));
+
+  return categories.map((category) => ({
+    ...category,
+    items: items
+      .filter((item) => item.categoryId === category.id)
+      .map((item) => ({
+        ...item,
+        modifierGroups: groups
+          .filter((group) => group.itemId === item.id)
+          .map((group) => ({ ...group, options: options.filter((option) => option.groupId === group.id) })),
+      })),
+  }));
+}
+
+// ------------------------------------------------------------ categories
+export async function createCategory(db: Tx, restaurantId: string, input: { name: string; sortOrder?: number }) {
+  return found(await db.insert(menuCategories).values({ restaurantId, ...clean(input) } as typeof menuCategories.$inferInsert).returning());
+}
+
+export async function updateCategory(db: Tx, id: string, input: Patch) {
+  const patch = clean(input);
+  mustChange(patch);
+  return found(await db.update(menuCategories).set(patch).where(eq(menuCategories.id, id)).returning());
+}
+
+export async function deleteCategory(db: Tx, id: string) {
+  try {
+    found(await db.delete(menuCategories).where(eq(menuCategories.id, id)).returning({ id: menuCategories.id }));
+  } catch (error) {
+    friendly(error, "Remove or move this category's items first");
+  }
+}
+
+// ----------------------------------------------------------------- items
+export async function createItem(db: Tx, restaurantId: string, input: Patch) {
+  try {
+    return found(await db.insert(menuItems).values({ restaurantId, ...clean(input) } as typeof menuItems.$inferInsert).returning());
+  } catch (error) {
+    friendly(error, "Category not found");
+  }
+}
+
+export async function updateItem(db: Tx, id: string, input: Patch) {
+  const patch = clean(input);
+  mustChange(patch);
+  try {
+    return found(
+      await db
+        .update(menuItems)
+        .set(patch)
+        .where(and(eq(menuItems.id, id), isNull(menuItems.deletedAt)))
+        .returning(),
+    );
+  } catch (error) {
+    friendly(error, "Category not found");
+  }
+}
+
+/** Soft delete: past orders keep pointing at the item. */
+export async function deleteItem(db: Tx, id: string) {
+  found(
+    await db
+      .update(menuItems)
+      .set({ deletedAt: new Date(), available: false })
+      .where(and(eq(menuItems.id, id), isNull(menuItems.deletedAt)))
+      .returning({ id: menuItems.id }),
+  );
+}
+
+export async function setItemAvailability(db: Tx, id: string, available: boolean) {
+  return found(
+    await db
+      .update(menuItems)
+      .set({ available })
+      .where(and(eq(menuItems.id, id), isNull(menuItems.deletedAt)))
+      .returning({ id: menuItems.id, available: menuItems.available }),
+  );
+}
+
+// ------------------------------------------------------ modifier groups
+export async function createGroup(db: Tx, restaurantId: string, itemId: string, input: Patch) {
+  try {
+    return found(
+      await db.insert(modifierGroups).values({ restaurantId, itemId, ...clean(input) } as typeof modifierGroups.$inferInsert).returning(),
+    );
+  } catch (error) {
+    friendly(error, "Item not found");
+  }
+}
+
+export async function updateGroup(db: Tx, id: string, input: Patch) {
+  const patch = clean(input);
+  mustChange(patch);
+  try {
+    return found(await db.update(modifierGroups).set(patch).where(eq(modifierGroups.id, id)).returning());
+  } catch (error) {
+    if ((error as { cause?: { code?: string } })?.cause?.code === "23514") {
+      throw new HttpError(400, "maxChoices must be at least minChoices");
+    }
+    throw error;
+  }
+}
+
+export async function deleteGroup(db: Tx, id: string) {
+  found(await db.delete(modifierGroups).where(eq(modifierGroups.id, id)).returning({ id: modifierGroups.id }));
+}
+
+// ------------------------------------------------------ modifier options
+export async function createOption(db: Tx, restaurantId: string, groupId: string, input: Patch) {
+  try {
+    return found(
+      await db.insert(modifierOptions).values({ restaurantId, groupId, ...clean(input) } as typeof modifierOptions.$inferInsert).returning(),
+    );
+  } catch (error) {
+    friendly(error, "Modifier group not found");
+  }
+}
+
+export async function updateOption(db: Tx, id: string, input: Patch) {
+  const patch = clean(input);
+  mustChange(patch);
+  return found(await db.update(modifierOptions).set(patch).where(eq(modifierOptions.id, id)).returning());
+}
+
+export async function deleteOption(db: Tx, id: string) {
+  found(await db.delete(modifierOptions).where(eq(modifierOptions.id, id)).returning({ id: modifierOptions.id }));
+}

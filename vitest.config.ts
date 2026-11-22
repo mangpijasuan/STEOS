@@ -1,0 +1,21 @@
+import { fileURLToPath } from "node:url";
+import { defineConfig } from "vitest/config";
+import { TEST_APP_ROLE, TEST_APP_URL, TEST_OWNER_URL } from "./tests/config";
+
+export default defineConfig({
+  resolve: { alias: { "@": fileURLToPath(new URL(".", import.meta.url)) } },
+  test: {
+    globalSetup: ["./tests/global-setup.ts"],
+    fileParallelism: false,
+    hookTimeout: 30000,
+    env: {
+      DATABASE_URL: TEST_APP_URL,
+      DATABASE_OWNER_URL: TEST_OWNER_URL,
+      APP_DB_ROLE: TEST_APP_ROLE,
+      APP_URL: "http://localhost:3000",
+      PAYMENTS_PROVIDER: "fake",
+      ORDER_TOKEN_SECRET: "test-secret",
+      CRON_SECRET: "test-cron-secret",
+    },
+  },
+});
