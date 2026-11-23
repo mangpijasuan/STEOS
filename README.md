@@ -51,6 +51,14 @@ In development the sign-in link is printed in the server console instead of bein
 | PUT, DELETE staff/menu/modifier-options/id | owner | Edit or remove an option |
 | POST staff/images | owner | Upload a food photo (raw JPEG, PNG or WebP body, up to 1.5 MB). Returns its id and URL |
 | GET images/id | public | A food photo, cached for a year |
+| GET, POST staff/tables | staff, owner | Table board with live status; add tables (owner) |
+| PUT, DELETE staff/tables/id | owner | Edit, deactivate or delete a table |
+| POST staff/tables/id/clear, /qr | staff, owner | Clear a table after payment; replace its QR code (owner) |
+| POST, PUT, DELETE staff/floors[/id] | owner | Floors |
+| POST staff/table-requests/id/resolve | staff | Mark a guest request done |
+| POST staff/orders/id/pay | staff | Record an in-person payment (cash, card machine) on a pay-later order |
+| GET t/token | public | A scanned table's restaurant and options |
+| POST t/token/checkout, /requests | public | Table order (pay now or pay later); call a waiter or ask for the bill |
 | GET r/slug/menu | public | Storefront menu, open/closed state, earliest pickup |
 | GET r/slug/pickup-slots | public | 15-minute pickup times (empty when paused or closed) |
 | POST r/slug/quote | public, rate limited | Price a cart on the server: subtotal, tax, tip, total |
@@ -139,3 +147,14 @@ Owners edit the menu at `/menu`: categories, dishes, add-on groups and options (
 - Photos are shrunk in the browser (max 1200px JPEG), stored in the database (`images` table, migration 0012) and served publicly at `/api/images/<id>` with a one-year cache. Uploads are owner-only, checked by their real file signature (JPEG, PNG or WebP), limited to 1.5 MB and 60 per hour, and capped at 500 per restaurant.
 - A replaced or removed photo is deleted with the change. Photos that were uploaded but never saved are removed after an hour by the order worker. Moving photos to object storage later only changes `lib/images.ts` and the two image routes.
 - The editor uses the design system in `app/ds.css`, which is scoped to elements inside a `.ds` wrapper (`app/menu/layout.tsx`). Screens that have not been moved over keep their current look; to move one, wrap it in `.ds`. `app/legacy.css` keeps the original page frame for the others.
+
+## Tables and dine-in
+
+Owners set up floors and tables at `/tables` (**Set up tables**), print a QR card per table at `/tables/qr`, and turn on **Guests can order by QR code** (also at `/manage`). A guest who scans a code lands on `/t/<code>`: the same menu, without a pickup time, with name and phone optional, and a choice of **pay at the table** or **pay now by card**.
+
+- Pay-later orders go straight to the kitchen. There is no card, no acceptance timer and no refund. Staff record cash or card-machine payment from the table sheet; that payment is stored with a capture time so reports include it. SROS's fee on these orders is **invoiced** rather than taken from a card payment, and the card-fee estimate in reports covers online card payments only.
+- Pay-now orders use the normal card flow: held, then charged when the kitchen accepts, and expired if it does not respond in time.
+- The database refuses a pay-later order with an acceptance deadline, so the expiry sweep and refund reconciliation can never act on one.
+- A table's QR code is private to it. Replace it from the table's settings if it leaks. Guests' requests ("call a waiter", the bill) show on the board and are settled when the bill is paid.
+- The table board needs staff names, but the runtime role cannot read `staff_users`. The board reads them through `tenant_staff_directory()`, which returns only display names for the current restaurant.
+- Like the menu editor, `/tables` uses the scoped design system. The guest page reuses the existing storefront and checkout, so it looks like the pickup page.

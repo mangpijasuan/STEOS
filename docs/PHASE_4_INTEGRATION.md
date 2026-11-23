@@ -18,3 +18,12 @@ The proposed Phase 5 roadmap, release checklist, and engineering handoff are und
 - `/manage` keeps the ordering settings and weekly hours editor unchanged. Its plain menu forms are replaced by a link to `/menu`; per-option availability, which only those forms offered, is now a switch in the new editor.
 - The design system arrives scoped under `.ds` (`app/ds.css`) so other screens do not change. The remaining screens (kitchen, storefront, order page, login, dashboard, reports, pricing) still need to be moved over; that port must keep this branch's behavior (kitchen paging and error handling, derived pickup selection, retry header in checkout, refund and net fields in reports).
 - Tests: image rules, file-type detection, tenant isolation, serving and cleanup (11 tests). Verified in a browser on a fresh database: upload, add-ons, out-of-stock option, reload, customer photos, hours and settings saves.
+
+## Tables and dine-in port (migration 0013)
+
+- Branch `integration/tables-dinein`, stacked on `integration/photos-menu` (it needs the scoped design system). Adds floors, tables, QR codes, guest requests and table orders (0013), the table board at `/tables`, the QR print sheet, and `/t/<code>` for guests.
+- Handoff items handled: a tenant-scoped staff display-name lookup (`tenant_staff_directory()`, names only; `staff_users` stays revoked from the runtime role); cash payments are stored with `captured_at` so reports count them; the retry header and idempotency behavior apply to table orders; the checkout fingerprint gains the table and payment choice only for table orders, so stored pickup fingerprints keep matching.
+- Dine-in pay-later stays out of card paths, with tests: the sweep and refund reconciliation skip pay-later orders while card orders still go through them, and a database constraint forbids a deadline on a pay-later order.
+- Differences from the feature branch: the guest page reuses this branch's audited storefront and checkout (a table mode) instead of the redesigned storefront, which is a later port. Kitchen cards gain the table and payment state; the customer status page and `/manage` settings gain the dine-in toggles.
+- Still to come: till and promotions (0014), dashboard and navigation, and moving the remaining screens to the design system.
+

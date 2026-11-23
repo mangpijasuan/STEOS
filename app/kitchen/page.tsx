@@ -15,6 +15,10 @@ type Order = {
   acceptDeadline: string | null;
   prepMinutes: number | null;
   createdAt: string;
+  orderType: "pickup" | "dine_in" | "counter";
+  tableLabel: string | null;
+  paymentMode: "online" | "pay_later";
+  paidAt: string | null;
   items: Line[];
 };
 type Settings = { acceptingOrders: boolean; timezone?: string };
@@ -131,6 +135,7 @@ export default function Kitchen() {
       });
       const result = await res.json().catch(() => ({}));
       if (!res.ok || result.refundStatus === "failed") setActionError(result.error ?? "The refund failed. Try again.");
+      else if (result.refundInPerson) setActionError("Order cancelled. This guest already paid at the restaurant, so please hand their money back in person.");
       await refresh();
     } catch {
       setActionError("The order action could not be confirmed. Check the order before trying again.");
@@ -210,28 +215,28 @@ export default function Kitchen() {
               <button
                 style={{ ...big, background: "#b91c1c" }}
                 disabled={busy !== null}
-                onClick={() => window.confirm(`Cancel order #${o.number} and refund ${money(o.totalCents)}?`) && act(o, "cancel")}
+                onClick={() => window.confirm(cancelQuestion(o)) && act(o, "cancel")}
               >
-                Cancel and refund
+                {o.paymentMode === "pay_later" ? "Cancel order" : "Cancel and refund"}
               </button>
             )}
           </div>
         </OrderCard>
       ))}
 
-      <h2>Ready for pickup {ready.length > 0 && `(${ready.length})`}</h2>
-      {ready.length === 0 && <p style={{ color: "#666" }}>Nothing waiting for pickup.</p>}
+      <h2>Ready {ready.length > 0 && `(${ready.length})`}</h2>
+      {ready.length === 0 && <p style={{ color: "#666" }}>Nothing waiting to go out.</p>}
       {ready.map((o) => (
         <OrderCard key={o.id} order={o} timezone={timezone} accent="#15803d">
           <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-            <button style={{ ...big, background: "#15803d", flex: 1 }} disabled={busy !== null} onClick={() => act(o, "complete")}>Picked up</button>
+            <button style={{ ...big, background: "#15803d", flex: 1 }} disabled={busy !== null} onClick={() => act(o, "complete")}>{o.orderType === "dine_in" ? "Served" : "Picked up"}</button>
             {role === "owner" && (
               <button
                 style={{ ...big, background: "#b91c1c" }}
                 disabled={busy !== null}
-                onClick={() => window.confirm(`Cancel order #${o.number} and refund ${money(o.totalCents)}?`) && act(o, "cancel")}
+                onClick={() => window.confirm(cancelQuestion(o)) && act(o, "cancel")}
               >
-                Cancel and refund
+                {o.paymentMode === "pay_later" ? "Cancel order" : "Cancel and refund"}
               </button>
             )}
           </div>
@@ -241,15 +246,31 @@ export default function Kitchen() {
   );
 }
 
+function cancelQuestion(o: Order): string {
+  if (o.paymentMode === "online") return `Cancel order #${o.number} and refund ${money(o.totalCents)}?`;
+  return o.paidAt
+    ? `Cancel order #${o.number}? The guest already paid ${money(o.totalCents)} at the restaurant, so you will need to hand it back in person.`
+    : `Cancel order #${o.number}? Nothing has been paid.`;
+}
+
 function OrderCard({ order, timezone, accent, children }: { order: Order; timezone?: string; accent: string; children: React.ReactNode }) {
   return (
     <section style={{ border: `3px solid ${accent}`, borderRadius: 14, padding: 14, marginBottom: 12, background: "#fff" }}>
       <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap" }}>
-        <strong style={{ fontSize: 22 }}>#{order.number} · {order.customerName}</strong>
-        <span>Pickup {time(order.pickupAt, timezone)}{order.prepMinutes ? ` · promised ${order.prepMinutes} min` : ""}</span>
+        <strong style={{ fontSize: 22 }}>
+          #{order.number} · {order.orderType === "dine_in" && order.tableLabel ? `Table ${order.tableLabel}` : order.customerName}
+        </strong>
+        <span>
+          {order.orderType === "dine_in" ? "Out around" : "Pickup"} {time(order.pickupAt, timezone)}{order.prepMinutes ? ` · promised ${order.prepMinutes} min` : ""}
+        </span>
       </div>
       <div style={{ color: "#555", fontSize: 14 }}>
-        <a href={`tel:${order.customerPhone}`}>{order.customerPhone}</a> · {money(order.totalCents)} {order.status === "awaiting_acceptance" ? "on hold" : "paid online"}
+        {order.orderType === "dine_in" && order.customerName && !order.customerName.startsWith("Table ") && <>{order.customerName} · </>}
+        {order.customerPhone && <><a href={`tel:${order.customerPhone}`}>{order.customerPhone}</a> · </>}
+        {money(order.totalCents)}{" "}
+        {order.paymentMode === "pay_later"
+          ? order.paidAt ? "paid at the restaurant" : "to pay at the table"
+          : order.status === "awaiting_acceptance" ? "on hold" : "paid online"}
       </div>
       <ul style={{ listStyle: "none", padding: 0, margin: "10px 0 0", fontSize: 18 }}>
         {order.items.map((l, i) => (
