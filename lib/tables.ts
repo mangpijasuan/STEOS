@@ -252,12 +252,13 @@ export type ManualMethod = "cash" | "card_terminal" | "other";
  * Records that the restaurant collected payment itself (cash, or its own card machine) for a pay-later order.
  * SROS's fee for these orders is invoiced, not taken from a card payment.
  */
-export async function markOrderPaid(db: Tx, restaurantId: string, orderId: string, method: ManualMethod, now = new Date()) {
+export async function markOrderPaid(db: Tx, restaurantId: string, orderId: string, method: ManualMethod, now = new Date(), opts: { allowUnaccepted?: boolean } = {}) {
   const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).for("update");
   if (!order) throw new HttpError(404, "Order not found");
   if (order.paidAt) throw new HttpError(409, "This order is already paid");
   if (order.paymentMode !== "pay_later") throw new HttpError(409, "This order was paid online");
-  if (!["accepted", "ready", "completed"].includes(order.status)) {
+  // An order a staff member just rang up and took cash for is paid before the kitchen has seen it.
+  if (!["accepted", "ready", "completed"].includes(order.status) && !(opts.allowUnaccepted && order.status === "awaiting_acceptance")) {
     throw new HttpError(409, order.status === "awaiting_acceptance" ? "Accept the order in the kitchen first" : `This order is ${order.status.replaceAll("_", " ")}`);
   }
   await db.insert(payments).values({

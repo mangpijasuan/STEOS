@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { diningTables, orderItems, orders, payments, restaurants } from "../db/schema";
 import { priceCart, type CartLineInput } from "./cart";
+import { PromoError, loadPromo, normalizeCode, promoRule, redeemPromo, retakePromoUse, returnPromoUse } from "./promos";
 import { pool, withTenant, type Tx } from "./db";
 import { applicationFee, type FeeModel } from "./fees";
 import { alert } from "./alerts";
@@ -37,6 +38,7 @@ function newOrderToken(restaurantId: string, orderId: string): string {
 export type CheckoutInput = {
   items: CartLineInput[];
   tipCents: number;
+  promoCode?: string;
   pickupTime?: string;
   customer: { name: string; phone: string };
 };
@@ -51,6 +53,11 @@ async function loadPayment(db: Tx, orderId: string) {
   return rows[0] ?? null;
 }
 
+/** A keyed fingerprint of a request, so a reused idempotency key can be told apart from a genuine retry. */
+export function signRequest(...parts: unknown[]): string {
+  return crypto.createHmac("sha256", orderTokenSecret()).update(JSON.stringify(parts)).digest("hex");
+}
+
 function fingerprint(input: CheckoutInput, retryProof?: string, dineIn?: DineInContext): string {
   const lines = input.items.map((line) => JSON.stringify([
     line.itemId, line.quantity, [...line.optionIds].sort(), line.note?.trim() || null,
@@ -61,6 +68,8 @@ function fingerprint(input: CheckoutInput, retryProof?: string, dineIn?: DineInC
     input.customer.name, input.customer.phone,
     // Appended only for table orders, so fingerprints stored for pickup orders keep matching.
     ...(dineIn ? [["dine-in", dineIn.tableId, dineIn.payLater]] : []),
+    // Likewise only when a code is used, so fingerprints stored for orders without one keep matching.
+    ...(input.promoCode?.trim() ? [["promo", normalizeCode(input.promoCode)]] : []),
   ])).digest("hex");
 }
 
@@ -112,7 +121,10 @@ export async function createCheckout(
     if (dineIn && !account.dineInEnabled) throw new HttpError(409, "This restaurant is not taking table orders right now");
     if (payLater && !account.payLaterEnabled) throw new HttpError(409, "Paying at the table is not available. Please pay by card.");
     const currentStore = { ...store, restaurant: { ...restaurant, ...account } };
-    const cart = priceCart(store.menu, input.items, { taxRateBps: account.taxRateBps, tipCents: input.tipCents });
+    // The code is checked again here, under the restaurant lock, whatever the quote said: it may have run out since.
+    const promo = input.promoCode?.trim() ? await loadPromo(db, input.promoCode) : null;
+    if (input.promoCode?.trim() && !promo) throw new PromoError("That promo code isn't valid");
+    const cart = priceCart(store.menu, input.items, { taxRateBps: account.taxRateBps, tipCents: input.tipCents, discount: promo ? promoRule(promo, now) : undefined });
     // The minimum only exists because card processors reject tiny charges; a bill paid at the table has no such limit.
     if (!payLater && cart.totalCents < MIN_CHARGE_CENTS) throw new HttpError(422, "The order total must be at least $0.50");
     if (cart.totalCents > 99_999_999) throw new HttpError(422, "The order total exceeds the supported payment limit");
@@ -134,11 +146,13 @@ export async function createCheckout(
     const provider = await getProvider();
     if (!payLater && provider.name === "stripe" && (!account.stripeAccountId || !process.env.STRIPE_PUBLISHABLE_KEY)) throw new HttpError(503, "This restaurant cannot take card payments yet");
     const fee = applicationFee({
-      subtotalCents: cart.subtotalCents, totalCents: cart.totalCents,
+      // The fee is on what the restaurant actually sells the food for, after any discount.
+      subtotalCents: cart.subtotalCents - cart.discountCents, totalCents: cart.totalCents,
       feeBps: account.platformFeeBps, model: account.feeModel as FeeModel,
     });
     const id = crypto.randomUUID();
     await db.update(restaurants).set({ nextOrderNumber: account.nextOrderNumber + 1 }).where(eq(restaurants.id, restaurant.id));
+    if (promo) await redeemPromo(db, promo.id);
     const [order] = await db.insert(orders).values({
       id,
       restaurantId: restaurant.id,
@@ -156,6 +170,8 @@ export async function createCheckout(
       pickupType: !dineIn && input.pickupTime ? "scheduled" : "asap",
       pickupAt,
       subtotalCents: cart.subtotalCents,
+      discountCents: cart.discountCents,
+      promoCode: promo?.code ?? null,
       taxCents: cart.taxCents,
       tipCents: cart.tipCents,
       totalCents: cart.totalCents,
@@ -290,6 +306,8 @@ export async function applyPaymentEvent(event: PaymentEvent): Promise<"applied" 
       if (!payment.capturedAt && !payment.refundedAt && payment.status !== "refunded") {
         await db.update(payments).set({ status: "captured", capturedAt: at, clientSecret: null }).where(eq(payments.id, payment.id));
         if (["pending_payment", "awaiting_acceptance", "payment_failed"].includes(order.status)) {
+          // A failed payment gave its promo use back; the order is going ahead after all, so take it again.
+          if (order.status === "payment_failed") await retakePromoUse(db, order.promoCode);
           await db.update(orders).set({ status: "accepted", decidedAt: at, paidAt: at }).where(eq(orders.id, order.id));
         }
       }
@@ -303,9 +321,11 @@ export async function applyPaymentEvent(event: PaymentEvent): Promise<"applied" 
     } else if (event.type === "failed" && !event.retryable && order.status === "pending_payment") {
       await db.update(payments).set({ status: "failed", clientSecret: null }).where(eq(payments.id, payment.id));
       await db.update(orders).set({ status: "payment_failed" }).where(eq(orders.id, order.id));
+      await returnPromoUse(db, order.promoCode);
     } else if (event.type === "canceled" && ["pending_payment", "awaiting_acceptance", "payment_failed"].includes(order.status)) {
       await db.update(payments).set({ status: "canceled", clientSecret: null }).where(eq(payments.id, payment.id));
       await db.update(orders).set({ status: "cancelled", decidedAt: at }).where(eq(orders.id, order.id));
+      if (order.status !== "payment_failed") await returnPromoUse(db, order.promoCode);
     }
     return "applied";
   });
@@ -346,7 +366,7 @@ export async function decideOrder(restaurantId: string, orderId: string, decisio
       await db.update(orders)
         .set({ status: "accepted", decidedAt, prepMinutes: prepMinutes ?? null, pickupAt, ...(payment ? { paidAt: decidedAt } : {}) })
         .where(eq(orders.id, order.id));
-      return { status: "accepted" as const };
+      return { status: "accepted" as const, refundInPerson: false };
     }
 
     if (payment) {
@@ -358,8 +378,14 @@ export async function decideOrder(restaurantId: string, orderId: string, decisio
       await db.update(payments).set({ status: "canceled", clientSecret: null }).where(eq(payments.id, payment.id));
     }
     const status = effective === "decline" ? ("declined" as const) : ("expired" as const);
+    // Declining an order the guest already paid for in person means handing the money back.
+    const refundInPerson = !payment && !!order.paidAt;
+    if (refundInPerson) {
+      await db.update(payments).set({ status: "refunded", refundStatus: "succeeded", refundedAt: now }).where(eq(payments.orderId, order.id));
+    }
     await db.update(orders).set({ status, decidedAt: now }).where(eq(orders.id, order.id));
-    return { status };
+    await returnPromoUse(db, order.promoCode);
+    return { status, refundInPerson };
   });
 }
 
