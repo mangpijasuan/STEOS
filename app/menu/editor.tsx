@@ -5,7 +5,7 @@
 
 import { useRef, useState } from "react";
 import { Icon } from "../icons";
-import { Alert, Button, Segmented, Sheet, api } from "../ui";
+import { Alert, Button, Sheet, api } from "../ui";
 
 export type Option = { id: string; name: string; priceDeltaCents: number; available: boolean };
 export type Group = { id: string; name: string; minChoices: number; maxChoices: number; options: Option[] };
@@ -55,17 +55,15 @@ async function shrink(file: File): Promise<Blob> {
 }
 
 // ------------------------------------------------------------- item sheet
-type DraftOption = { key: string; id?: string; name: string; price: string; available: boolean };
-type DraftGroup = { key: string; id?: string; name: string; required: boolean; multiple: boolean; max: string; options: DraftOption[] };
+type DraftOption = { key: string; name: string; price: string; available: boolean };
+type DraftGroup = { key: string; name: string; min: string; max: string; options: DraftOption[] };
 
 const draftFrom = (g: Group): DraftGroup => ({
   key: g.id,
-  id: g.id,
   name: g.name,
-  required: g.minChoices > 0,
-  multiple: g.maxChoices > 1,
-  max: String(Math.max(g.maxChoices, 2)),
-  options: g.options.map((o) => ({ key: o.id, id: o.id, name: o.name, price: o.priceDeltaCents ? toDollars(o.priceDeltaCents) : "", available: o.available })),
+  min: String(g.minChoices),
+  max: String(g.maxChoices),
+  options: g.options.map((o) => ({ key: o.id, name: o.name, price: o.priceDeltaCents ? toDollars(o.priceDeltaCents) : "", available: o.available })),
 });
 const newKey = () => crypto.randomUUID();
 
@@ -96,6 +94,7 @@ export function ItemSheet({
   const [tried, setTried] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const draftItemId = useRef<string | null>(null);
 
   async function pickPhoto(file: File | undefined) {
     if (!file) return;
@@ -116,7 +115,17 @@ export function ItemSheet({
   }
 
   const cents = toCents(price);
-  const groupProblems = groups.map((g) => (!g.name.trim() ? "Name this group (for example, Size)" : g.options.filter((o) => o.name.trim()).length === 0 ? "Add at least one option" : g.options.some((o) => o.price.trim() && toCents(o.price) === null) ? "Check the option prices" : null));
+  const groupProblems = groups.map((g) => {
+    if (!g.name.trim()) return "Name this group (for example, Size)";
+    const min = Number(g.min);
+    const max = Number(g.max);
+    if (!g.min || !g.max || !Number.isInteger(min) || !Number.isInteger(max) || min < 0 || max < 1 || max > 20 || min > max) {
+      return "Enter a minimum and maximum between 0 and 20, with a maximum of at least 1";
+    }
+    if (!g.options.some((o) => o.name.trim())) return "Add at least one option";
+    if (g.options.some((o) => o.price.trim() && (toCents(o.price) ?? Infinity) > 100_000)) return "Check the option prices";
+    return null;
+  });
   const problems = {
     name: !name.trim() ? "Enter a name" : null,
     price: cents === null ? "Enter a price like 12.50" : null,
@@ -128,17 +137,37 @@ export function ItemSheet({
     if (invalid) return;
     setSaving(true);
     setError(null);
-    const body = { name: name.trim(), description: description.trim(), priceCents: cents!, categoryId: category, available, imageId };
-    const saved = item
-      ? await api<Item>(`/api/staff/menu/items/${item.id}`, { method: "PUT", json: body })
-      : await api<Item>("/api/staff/menu/items", { method: "POST", json: { ...body, sortOrder: categories.find((c) => c.id === category)?.items.length ?? 0 } });
-    if (!saved.ok) {
-      setSaving(false);
-      return setError(saved.error);
-    }
-    const failure = await syncGroups(saved.data.id, item?.modifierGroups ?? [], groups);
+    draftItemId.current ??= item?.id ?? newKey();
+    const saved = await api<Item>(`/api/staff/menu/items/${draftItemId.current}/editor`, {
+      method: "PUT",
+      json: {
+        createIfMissing: !item,
+        item: {
+          name: name.trim(),
+          description: description.trim(),
+          priceCents: cents,
+          categoryId: category,
+          available,
+          imageId,
+          imageUrl: imageId ? undefined : preview,
+          sortOrder: item ? undefined : categories.find((c) => c.id === category)?.items.length ?? 0,
+        },
+        groups: groups.map((group) => ({
+          id: group.key,
+          name: group.name.trim(),
+          minChoices: Number(group.min),
+          maxChoices: Number(group.max),
+          options: group.options.filter((option) => option.name.trim()).map((option) => ({
+            id: option.key,
+            name: option.name.trim(),
+            priceDeltaCents: toCents(option.price.trim() || "0"),
+            available: option.available,
+          })),
+        })),
+      },
+    });
     setSaving(false);
-    if (failure) return setError(`The item was saved, but its add-ons were not: ${failure}`);
+    if (!saved.ok) return setError(saved.error);
     onSaved(item ? `Saved ${name.trim()}` : `Added ${name.trim()}`);
   }
 
@@ -230,7 +259,7 @@ export function ItemSheet({
               <h3 id="addons-h">Add-ons and choices</h3>
               <p className="subtle">Sizes, extras, spice level, and so on.</p>
             </div>
-            <Button size="sm" icon="plus" onClick={() => setGroups((g) => [...g, { key: newKey(), name: "", required: false, multiple: false, max: "3", options: [{ key: newKey(), name: "", price: "", available: true }] }])}>Add group</Button>
+            <Button size="sm" icon="plus" onClick={() => setGroups((g) => [...g, { key: newKey(), name: "", min: "0", max: "1", options: [{ key: newKey(), name: "", price: "", available: true }] }])}>Add group</Button>
           </div>
           {groups.map((g, gi) => (
             <div key={g.key} className="addon-card">
@@ -239,20 +268,15 @@ export function ItemSheet({
                 <Button variant="ghost" size="sm" icon="trash" aria-label="Remove group" onClick={() => setGroups((gs) => gs.filter((x) => x.key !== g.key))} />
               </div>
               <div className="row wrap">
-                <div className="grow" style={{ minWidth: 200 }}>
-                  <Segmented label="Required or optional" value={g.required ? "req" : "opt"} onChange={(v) => setGroup(g.key, { required: v === "req" })} options={[{ value: "opt", label: "Optional" }, { value: "req", label: "Required" }]} />
-                </div>
-                <div className="grow" style={{ minWidth: 200 }}>
-                  <Segmented label="How many can be chosen" value={g.multiple ? "many" : "one"} onChange={(v) => setGroup(g.key, { multiple: v === "many" })} options={[{ value: "one", label: "Pick one" }, { value: "many", label: "Pick several" }]} />
-                </div>
-              </div>
-              {g.multiple && (
-                <label className="row small muted">
-                  Up to
-                  <input className="input num" style={{ width: 72, minHeight: 40 }} inputMode="numeric" value={g.max} onChange={(e) => setGroup(g.key, { max: e.target.value.replace(/\D/g, "").slice(0, 2) })} />
-                  choices
+                <label className="field grow">
+                  <span className="label">Minimum choices</span>
+                  <input className="input num" type="number" min={0} max={20} step={1} value={g.min} onChange={(e) => setGroup(g.key, { min: e.target.value })} />
                 </label>
-              )}
+                <label className="field grow">
+                  <span className="label">Maximum choices</span>
+                  <input className="input num" type="number" min={1} max={20} step={1} value={g.max} onChange={(e) => setGroup(g.key, { max: e.target.value })} />
+                </label>
+              </div>
               <div className="stack" style={{ "--gap": "8px" } as React.CSSProperties}>
                 {g.options.map((o) => (
                   <div key={o.key} className="opt-row">
@@ -274,48 +298,6 @@ export function ItemSheet({
       </div>
     </Sheet>
   );
-}
-
-/**
- * Makes the server's add-on groups match the draft: deletes what was removed, updates what changed,
- * creates what is new. Returns an error message, or null when everything worked.
- */
-async function syncGroups(itemId: string, original: Group[], draft: DraftGroup[]): Promise<string | null> {
-  const fail = (r: { ok: boolean; error?: string }) => (r.ok ? null : (r as { error: string }).error);
-
-  for (const g of original.filter((o) => !draft.some((d) => d.id === o.id))) {
-    const e = fail(await api(`/api/staff/menu/modifier-groups/${g.id}`, { method: "DELETE" }));
-    if (e) return e;
-  }
-  for (const [index, g] of draft.entries()) {
-    const options = g.options.filter((o) => o.name.trim());
-    const min = g.required ? 1 : 0;
-    const max = g.multiple ? Math.max(Number(g.max) || 2, min, 2) : 1;
-    const body = { name: g.name.trim(), minChoices: min, maxChoices: Math.max(max, min), sortOrder: index };
-
-    let groupId = g.id;
-    if (groupId) {
-      const e = fail(await api(`/api/staff/menu/modifier-groups/${groupId}`, { method: "PUT", json: body }));
-      if (e) return e;
-    } else {
-      const created = await api<{ id: string }>(`/api/staff/menu/items/${itemId}/modifier-groups`, { method: "POST", json: body });
-      if (!created.ok) return created.error;
-      groupId = created.data.id;
-    }
-    const before = original.find((o) => o.id === g.id)?.options ?? [];
-    for (const o of before.filter((b) => !options.some((o2) => o2.id === b.id))) {
-      const e = fail(await api(`/api/staff/menu/modifier-options/${o.id}`, { method: "DELETE" }));
-      if (e) return e;
-    }
-    for (const [oi, o] of options.entries()) {
-      const optionBody = { name: o.name.trim(), priceDeltaCents: toCents(o.price || "0") ?? 0, available: o.available, sortOrder: oi };
-      const e = o.id
-        ? fail(await api(`/api/staff/menu/modifier-options/${o.id}`, { method: "PUT", json: optionBody }))
-        : fail(await api(`/api/staff/menu/modifier-groups/${groupId}/options`, { method: "POST", json: optionBody }));
-      if (e) return e;
-    }
-  }
-  return null;
 }
 
 // --------------------------------------------------------- category sheet
