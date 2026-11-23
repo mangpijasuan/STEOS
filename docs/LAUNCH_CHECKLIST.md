@@ -102,7 +102,8 @@ These involve no card, so test them on the real deployment with real hardware.
 - [ ] Photos are ready as JPEGs named for the dishes, each under 1.5 MB (optional; they can be added later in `/menu`).
 - [ ] The importer ran once on production: `ZOGAM_OWNER_EMAIL=... npm run db:seed:zogam`. It creates the restaurant with ordering paused. *Claude, founder watching*
 - [ ] The owner signed in and checked every dish, price and choice group in `/menu`.
-- [ ] In `/manage`: the real timezone (it defaults to America/Chicago), tax rate (it starts at 0%), weekly hours and preparation time are set.
+- [ ] In `/manage`: the tax rate (it starts at 0%), weekly hours and preparation time are set.
+- [ ] The timezone is right. New restaurants default to America/Chicago, which is correct for a Central-time restaurant such as one with a 918 area code. The app has no timezone setting yet (found in the browser smoke test), so a restaurant in another zone needs the value changed in the database by whoever holds the owner connection, or a field added to `/manage` first. *Founder to confirm Zogam's timezone*
 - [ ] Stripe is connected for the live restaurant account, and the pricing plan is chosen by the founder.
 - [ ] Ordering is switched on only after a full real test order, placed, accepted, and refunded, with live-mode cards in the founder's hands.
 
