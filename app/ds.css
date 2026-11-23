@@ -638,3 +638,23 @@ body:has(.sidebar) { padding-left: 0 !important; }
 @media (min-width: 960px) {
   .ds .kds-bar { top: 0; }
 }
+
+/* customer screens */
+.ds .store-hero { background: var(--surface); border-bottom: 1px solid var(--border); padding: 28px 0 20px; }
+.ds .store-hero h1 { margin-bottom: 8px; }
+.ds .store-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; color: var(--text-2); font-size: 0.95rem; }
+.ds .store-meta > span { display: inline-flex; align-items: center; gap: 6px; }
+.ds .catnav { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); }
+.ds .add-fab { position: absolute; right: 12px; bottom: 12px; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--surface); border: 1px solid var(--border-strong); color: var(--text); box-shadow: var(--shadow-sm); cursor: pointer; transition: background 0.15s, transform 0.1s; }
+.ds .add-fab:hover { background: var(--brand); color: var(--brand-ink); border-color: transparent; }
+.ds .add-fab:active { transform: scale(0.92); }
+.ds .testpay { border: 1.5px dashed var(--border-strong); border-radius: var(--radius); padding: 14px; background: var(--surface-2); }
+.ds .status-hero { text-align: center; padding: 28px 18px 22px; }
+.ds .progress { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 4px 0 0; padding: 0; list-style: none; }
+.ds .progress li { display: flex; flex-direction: column; gap: 8px; font-size: 0.8rem; font-weight: 600; color: var(--text-3); text-align: center; }
+.ds .progress li::before { content: ""; height: 6px; border-radius: 3px; background: var(--surface-3); }
+.ds .progress li.done { color: var(--text-2); }
+.ds .progress li.done::before { background: var(--success); }
+.ds .progress li.current { color: var(--text); }
+.ds .progress li.current::before { background: linear-gradient(90deg, var(--brand) 0 50%, var(--surface-3) 50%); background-size: 200% 100%; animation: shimmer 1.6s linear infinite; }
+.ds .pickup-box { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px; border-radius: var(--radius); background: var(--surface-2); font-size: 1.05rem; }

@@ -237,14 +237,15 @@ export async function getOrderByToken(token: string) {
     if (!order) throw new HttpError(404, "Order not found");
     const items = await db.select().from(orderItems).where(eq(orderItems.orderId, order.id));
     const payment = await loadPayment(db, order.id);
-    const [r] = await db.select({ name: restaurants.name, timezone: restaurants.timezone }).from(restaurants);
-    const [table] = order.tableId ? await db.select({ label: diningTables.label }).from(diningTables).where(eq(diningTables.id, order.tableId)) : [];
+    const [r] = await db.select({ name: restaurants.name, slug: restaurants.slug, timezone: restaurants.timezone }).from(restaurants);
+    // The holder of this private link already scanned this table's code, so it is what lets them order more or call a waiter.
+    const [table] = order.tableId ? await db.select({ label: diningTables.label, qrToken: diningTables.qrToken }).from(diningTables).where(eq(diningTables.id, order.tableId)) : [];
     return {
       restaurant: r,
       orderType: order.orderType,
       paymentMode: order.paymentMode,
       paid: !!order.paidAt,
-      tableLabel: table?.label ?? null,
+      table: table ?? null,
       number: order.number,
       status: order.status,
       // In-person refunds on pay-later orders are the restaurant's to hand back, so no card-refund message.
@@ -254,6 +255,8 @@ export async function getOrderByToken(token: string) {
       pickupType: order.pickupType,
       prepMinutes: order.prepMinutes,
       subtotalCents: order.subtotalCents,
+      discountCents: order.discountCents,
+      discountLabel: order.discountCents > 0 ? (order.promoCode ? `Promo ${order.promoCode}` : "Discount") : null,
       taxCents: order.taxCents,
       tipCents: order.tipCents,
       totalCents: order.totalCents,

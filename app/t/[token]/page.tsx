@@ -2,6 +2,8 @@
 
 import { use, useEffect, useState } from "react";
 import Storefront, { type TableContext } from "../../r/[slug]/Storefront";
+import { Icon } from "../../icons";
+import { Button, Skeleton } from "../../ui";
 
 type Resolved = {
   table: { label: string; floorName: string | null };
@@ -34,19 +36,32 @@ export default function TablePage({ params }: { params: Promise<{ token: string 
 
   if (problem) {
     return (
-      <main>
-        <h1>{problem === "network" ? "No connection" : "This table code isn't valid"}</h1>
-        <p role="alert">{problem === "network" ? "Check your internet and try again." : "Please ask a member of staff to help you order."}</p>
-        {problem === "network" && <button onClick={() => setAttempt((a) => a + 1)} style={{ padding: "10px 14px", fontSize: 16 }}>Try again</button>}
+      <main className="container container-sm page">
+        <div className="empty">
+          <Icon name={problem === "network" ? "wifiOff" : "table"} size={36} />
+          <p className="strong" style={{ color: "var(--text)" }}>{problem === "network" ? "No connection" : "This table code isn't valid"}</p>
+          <p className="small">{problem === "network" ? "Check your internet and try again." : "Please ask a member of staff to help you order."}</p>
+          {problem === "network" && <Button variant="primary" style={{ marginTop: 14 }} onClick={() => setAttempt((a) => a + 1)}>Try again</Button>}
+        </div>
       </main>
     );
   }
-  if (!info) return <main><p>Loading menu…</p></main>;
+  if (!info) {
+    return (
+      <main className="container container-sm page stack" aria-busy="true">
+        <Skeleton height={34} width="55%" />
+        <Skeleton height={18} width="35%" />
+      </main>
+    );
+  }
   if (!info.dineInEnabled) {
     return (
-      <main>
-        <h1>{info.restaurant.name}</h1>
-        <p>Ordering from the table isn't available right now. Please ask a member of staff.</p>
+      <main className="container container-sm page">
+        <div className="empty">
+          <Icon name="store" size={36} />
+          <p className="strong" style={{ color: "var(--text)" }}>{info.restaurant.name}</p>
+          <p className="small">Ordering from the table isn't available right now. Please ask a member of staff.</p>
+        </div>
       </main>
     );
   }

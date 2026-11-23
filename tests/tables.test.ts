@@ -273,7 +273,7 @@ describe("a dine-in order paid later", () => {
 
   it("shows the guest a status page with their table, and no payment is expected online", async () => {
     const res = await orderStatus(new Request("http://localhost/x", { headers: { "x-forwarded-for": ip() } }), tokenCtx(statusToken));
-    expect(await res.json()).toMatchObject({ orderType: "dine_in", paymentMode: "pay_later", paid: true, tableLabel: "05", refundStatus: null });
+    expect(await res.json()).toMatchObject({ orderType: "dine_in", paymentMode: "pay_later", paid: true, table: { label: "05" }, refundStatus: null });
   });
 });
 
