@@ -1,4 +1,5 @@
 import { after } from "next/server";
+import { alert } from "@/lib/alerts";
 import { requestLogin } from "@/lib/auth";
 import { handle, json } from "@/lib/http";
 import { allow, clientIdentity } from "@/lib/ratelimit";
@@ -16,7 +17,7 @@ export const POST = handle(async (req) => {
     try {
       await requestLogin(email);
     } catch (error) {
-      console.error("Staff sign-in delivery failed", error instanceof Error ? error.message : "Unknown error");
+      await alert("sign-in-delivery", "Staff sign-in delivery failed", { error });
     }
   });
   // Same answer whether or not the address exists.

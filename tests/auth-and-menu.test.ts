@@ -105,12 +105,15 @@ describe("login", () => {
     expect(await consumeLoginToken(token)).toBeNull();
   });
 
-  it("sends production sign-in mail via the configured sender", async () => {
+  it.each(["LOGIN_FROM_EMAIL", "EMAIL_FROM"])("sends production sign-in mail using %s", async (senderSetting) => {
     const fetch = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
     vi.stubGlobal("fetch", fetch);
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("RESEND_API_KEY", "resend-test-placeholder");
-    vi.stubEnv("LOGIN_FROM_EMAIL", "login@example.com");
+    vi.stubEnv("EMAIL_PROVIDER", senderSetting === "EMAIL_FROM" ? "resend" : undefined);
+    vi.stubEnv("LOGIN_FROM_EMAIL", undefined);
+    vi.stubEnv("EMAIL_FROM", undefined);
+    vi.stubEnv(senderSetting, "login@example.com");
     try {
       await sendLoginEmail(f.ownerEmail, "https://example.com/confirm");
       const [url, request] = fetch.mock.calls[0];

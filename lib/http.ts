@@ -1,4 +1,7 @@
+import { randomUUID } from "node:crypto";
 import { ZodError } from "zod";
+import { alert } from "./alerts";
+import { safePath } from "./log";
 
 export class HttpError extends Error {
   constructor(
@@ -7,6 +10,13 @@ export class HttpError extends Error {
     public details?: unknown,
   ) {
     super(message);
+  }
+}
+
+/** An operational failure whose public message can be shared with staff. */
+export class OperationalError extends HttpError {
+  constructor(public key: string, message: string) {
+    super(502, message);
   }
 }
 
@@ -23,13 +33,19 @@ export function handle(fn: Handler): Handler {
     try {
       return await fn(req, ctx);
     } catch (error) {
+      if (error instanceof OperationalError) {
+        await alert(error.key, error.message, { path: safePath(new URL(req.url).pathname) });
+      }
       if (error instanceof HttpError) {
         return json(error.details === undefined ? { error: error.message } : { error: error.message, issues: error.details }, error.status);
       }
       if (error instanceof ZodError) return json({ error: "Invalid input", issues: error.issues }, 400);
       if (error instanceof SyntaxError) return json({ error: "Request body must be valid JSON" }, 400);
-      console.error(error);
-      return json({ error: "Server error" }, 500);
+      const requestId = randomUUID();
+      await alert("unexpected-route-error", "An unexpected server error occurred", {
+        requestId, method: req.method, path: safePath(new URL(req.url).pathname), error,
+      });
+      return json({ error: "Server error", requestId }, 500);
     }
   };
 }

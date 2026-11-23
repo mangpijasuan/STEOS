@@ -14,5 +14,6 @@ export const POST = handle(async (req) => {
   await pool.query("select purge_expired_runtime_data()");
   const expired = await expireStaleOrders();
   const refundsReconciled = await reconcilePendingRefunds();
+  await pool.query("select record_order_worker_run()");
   return json({ expired, refundsReconciled });
 });

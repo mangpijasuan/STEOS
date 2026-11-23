@@ -4,7 +4,9 @@ import { orderItems, orders, payments, restaurants } from "../db/schema";
 import { priceCart, type CartLineInput } from "./cart";
 import { pool, withTenant, type Tx } from "./db";
 import { applicationFee, type FeeModel } from "./fees";
-import { HttpError } from "./http";
+import { alert } from "./alerts";
+import { HttpError, OperationalError } from "./http";
+import { log } from "./log";
 import { getProvider } from "./payments/provider";
 import type { PaymentEvent, Refund } from "./payments/provider";
 import { asapPickup, orderingEnabled, pickupSlots, type Store } from "./storefront";
@@ -172,7 +174,7 @@ export async function createCheckout(store: Store, input: CheckoutInput, idempot
         connectedAccountId: account, description: `${restaurant.name} order #${order.number}`,
       }).catch((error: unknown) => {
         if (error instanceof HttpError) throw error;
-        throw new HttpError(502, "We could not start the payment. Please try again.");
+        throw new OperationalError("payment-authorization", "We could not start the payment. Please try again.");
       });
       [payment] = await db.insert(payments).values({
         restaurantId: restaurant.id, orderId: order.id, provider: provider.name, providerPaymentId: auth.providerPaymentId,
@@ -304,7 +306,7 @@ export async function decideOrder(restaurantId: string, orderId: string, decisio
       try {
         await provider.capture(payment.providerPaymentId, account);
       } catch {
-        throw new HttpError(502, "The payment could not be captured. Try again.");
+        throw new OperationalError("payment-capture", "The payment could not be captured. Try again.");
       }
       const capturedAt = new Date();
       const readyAt = prepMinutes === undefined ? order.pickupAt : new Date(capturedAt.getTime() + prepMinutes * 60_000);
@@ -314,7 +316,11 @@ export async function decideOrder(restaurantId: string, orderId: string, decisio
       return { status: "accepted" as const };
     }
 
-    await provider.cancel(payment.providerPaymentId, account);
+    try {
+      await provider.cancel(payment.providerPaymentId, account);
+    } catch {
+      throw new OperationalError("payment-hold-release", "The card hold could not be released. Try again.");
+    }
     const status = effective === "decline" ? ("declined" as const) : ("expired" as const);
     await db.update(payments).set({ status: "canceled", clientSecret: null }).where(eq(payments.id, payment.id));
     await db.update(orders).set({ status, decidedAt: now }).where(eq(orders.id, order.id));
@@ -351,7 +357,7 @@ export async function cancelAcceptedOrder(restaurantId: string, orderId: string,
       orderId: order.id, restaurantId,
       providerPaymentId: payment.providerPaymentId, connectedAccountId: await paymentAccount(db, order),
       feeCents: payment.feeCents, attempt,
-    }).catch(() => { throw new HttpError(502, "The refund could not be started. Try again."); });
+    }).catch(() => { throw new OperationalError("payment-refund", "The refund could not be started. Try again."); });
     await recordRefund(db, order, payment, refund, attempt, now);
     return { status: refund.status === "failed" ? order.status : "cancelled", refundStatus: refund.status };
   });
@@ -368,13 +374,13 @@ export async function expireStaleOrders(limit = 50): Promise<number> {
         expired++;
       } catch (error) {
         if (error instanceof HttpError && [404, 409].includes(error.status)) return;
-        console.error("Order expiry failed", { orderId: row.order_id, restaurantId: row.restaurant_id });
+        await alert("order-expiry", "Unable to expire an order and release its hold", { orderId: row.order_id, restaurantId: row.restaurant_id });
         try {
           await withTenant(row.restaurant_id, (db) => db.update(orders)
             .set({ expiryRetryAt: new Date(Date.now() + 2 * 60_000) })
             .where(and(eq(orders.id, row.order_id), eq(orders.status, "awaiting_acceptance"))));
         } catch {
-          console.error("Could not schedule expiry retry", { orderId: row.order_id });
+          log.error("order.expiry_retry_failed", { orderId: row.order_id });
         }
       }
     }));
@@ -393,7 +399,7 @@ export async function reconcilePendingRefunds(limit = 12): Promise<number> {
   let reconciled = 0;
   for (let index = 0; index < due.rows.length; index += 4) {
     await Promise.all(due.rows.slice(index, index + 4).map(async (row) => {
-      await withTenant(row.restaurant_id, async (db) => {
+      const failed = await withTenant(row.restaurant_id, async (db) => {
         const [order] = await db.select().from(orders).where(eq(orders.id, row.order_id)).for("update");
         if (!order) return;
         const payment = await loadPayment(db, order.id);
@@ -404,10 +410,11 @@ export async function reconcilePendingRefunds(limit = 12): Promise<number> {
           await recordRefund(db, order, payment, refund, payment.refundAttempt, new Date());
           if (refund.status !== "pending") reconciled++;
         } catch {
-          console.error("Could not reconcile pending refund", { orderId: order.id });
           await db.update(payments).set({ refundCheckedAt: new Date() }).where(eq(payments.id, payment.id));
+          return true;
         }
       });
+      if (failed) await alert("refund-reconciliation", "Could not reconcile a pending refund", { orderId: row.order_id });
     }));
   }
 
