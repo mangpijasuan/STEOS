@@ -78,6 +78,7 @@ In development the sign-in link is printed in the server console instead of bein
 | POST staff/pos/quote, staff/pos/orders | staff | Price and place an order at the till (custom discounts: owner only) |
 | GET staff/orders/id | staff | An order's receipt |
 | GET, POST staff/promos; PUT, DELETE staff/promos/id | owner | Promo codes |
+| GET staff/orders/history | staff | Recent orders, filtered by status and type, searched by number or name, paged |
 | GET, POST staff/tables | staff, owner | Table board with live status; add tables (owner) |
 | PUT, DELETE staff/tables/id | owner | Edit, deactivate or delete a table |
 | POST staff/tables/id/clear, /qr | staff, owner | Clear a table after payment; replace its QR code (owner) |
@@ -169,7 +170,7 @@ See the [Phase 4 integration handoff](docs/PHASE_4_INTEGRATION.md) for the migra
 
 ## Menu editor and photos
 
-Owners edit the menu at `/menu`: categories, dishes, add-on groups and options (each option can be marked out of stock), ordering, and food photos. Staff can still mark dishes sold out from the dashboard. Weekly opening hours and ordering settings stay at `/manage`.
+Owners edit the menu at `/menu`: categories, dishes, add-on groups and options (each option can be marked out of stock), ordering, and food photos. Staff can mark dishes sold out and back in stock at `/menu`; only owners edit the menu itself. Weekly opening hours and ordering settings stay at `/manage`.
 
 - Photos are shrunk in the browser (max 1200px JPEG), stored in the database (`images` table, migration 0012) and served publicly at `/api/images/<id>` with a one-year cache. Uploads are owner-only, checked by their real file signature (JPEG, PNG or WebP), limited to 1.5 MB and 60 per hour, and capped at 500 per restaurant.
 - Replacing or removing a photo deletes it once no dish references it. Photos that were uploaded but never saved are removed after an hour by the order worker. Moving photos to object storage later only changes `lib/images.ts` and the two image routes.
@@ -194,3 +195,11 @@ Owners set up floors and tables at `/tables` (**Set up tables**), print a QR car
 - **How a discount prices:** it comes off the food first, tax is charged on what is left, tips are never taxed, and a total cannot go negative. The SROS fee is computed on the food at its full price, so a discount is the restaurant's cost and does not reduce SROS's fee (the fee is still capped at the amount charged). Reports show discounts and net sales after them.
 - **Limited codes:** the last use cannot be taken twice. A use is given back when an order never completes (declined, expired, payment failed or cancelled), and taken again if a failed payment is later captured. Wrong guesses are rate limited per person.
 - **Till requests are idempotent:** reusing a request key with a different order is refused. Each till order records the staff member who entered it, and the database only allows staff of the same restaurant.
+
+## Dashboard and navigation
+
+- **Navigation:** staff screens on the design system share a side menu: full width on large screens, a slim icon rail on tablets (collapsible, remembered per device), and a compact top bar on phones. Owners also see Hours & settings, Promos, Reports and Plan. Kitchen, Hours & settings, Reports and Plan are still the original screens and open without the side menu.
+- **Dashboard** (`/dashboard`): live counts (waiting for the kitchen, cooking, ready, tables needing attention), recent orders, and, for owners, performance over 7, 30 or 90 days: sales, orders, average order and what the restaurant keeps, each compared with the period just before, plus sales by day, by menu category and by order type.
+- **Sales are after refunds.** The headline and the chart use the money charged less refunds confirmed in the period, the same "net charged" figure as the sales report, and the comparison uses the same figure for the earlier period. A day with more refunded than sold shows as zero on the chart.
+- **Orders** (`/orders`): all recent orders with filters, search by order number or name, and receipts.
+

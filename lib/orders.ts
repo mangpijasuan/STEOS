@@ -542,8 +542,12 @@ export async function listActiveOrders(db: Tx, offset = 0, limit = 100) {
   const rows = joined.map((j) => j.o);
   const labels = new Map(joined.map((j) => [j.o.id, j.tableLabel]));
   const page = rows.slice(0, limit);
+  // Whole-restaurant totals, so a busy night's tiles are right even when the list below is paged.
+  const tally = await db.select({ status: orders.status, n: sql<number>`count(*)::int` }).from(orders).where(inArray(orders.status, ["awaiting_acceptance", "accepted", "ready"])).groupBy(orders.status);
+  const counts = { awaiting_acceptance: 0, accepted: 0, ready: 0 };
+  for (const t of tally) counts[t.status as keyof typeof counts] = t.n;
   const items = page.length ? await db.select().from(orderItems).where(inArray(orderItems.orderId, page.map((o) => o.id))) : [];
-  return { hasMore: rows.length > limit, orders: page.map((o) => ({
+  return { hasMore: rows.length > limit, counts, orders: page.map((o) => ({
     id: o.id,
     number: o.number,
     status: o.status,
@@ -561,4 +565,51 @@ export async function listActiveOrders(db: Tx, offset = 0, limit = 100) {
     paidAt: o.paidAt?.toISOString() ?? null,
     items: items.filter((i) => i.orderId === o.id).map((i) => ({ name: i.name, quantity: i.quantity, options: i.options, note: i.note })),
   })) };
+}
+
+// ------------------------------------------------------------ order history
+export type HistoryFilter = { status?: "active" | "completed" | "closed"; type?: "pickup" | "dine_in" | "counter"; q?: string; limit?: number; offset?: number };
+
+const ACTIVE = ["awaiting_acceptance", "accepted", "ready"];
+const CLOSED = ["declined", "cancelled", "expired", "payment_failed"];
+
+/** Recent orders, newest first, for the orders page and the dashboard. Excludes cards still being entered online. */
+export async function listOrderHistory(db: Tx, filter: HistoryFilter = {}) {
+  const limit = Math.min(Math.max(filter.limit ?? 25, 1), 100);
+  const conditions = [sql`${orders.status} <> 'pending_payment'`];
+  if (filter.status === "active") conditions.push(inArray(orders.status, ACTIVE));
+  if (filter.status === "completed") conditions.push(eq(orders.status, "completed"));
+  if (filter.status === "closed") conditions.push(inArray(orders.status, CLOSED));
+  if (filter.type) conditions.push(eq(orders.orderType, filter.type));
+  const q = filter.q?.trim();
+  if (q) {
+    // "#21" or "21" finds an order number; anything else searches the name.
+    const digits = q.replace(/^#/, "");
+    conditions.push(/^\d{1,9}$/.test(digits) ? eq(orders.number, Number(digits)) : sql`${orders.customerName} ilike ${"%" + q.replace(/[%_\\]/g, "\\$&") + "%"}`);
+  }
+  const rows = await db
+    .select({ o: orders, tableLabel: diningTables.label })
+    .from(orders)
+    .leftJoin(diningTables, eq(orders.tableId, diningTables.id))
+    .where(and(...conditions))
+    // Number breaks ties, so paging never skips or repeats an order that shares a timestamp.
+    .orderBy(desc(orders.createdAt), desc(orders.number))
+    .limit(limit + 1)
+    .offset(filter.offset ?? 0);
+  return {
+    orders: rows.slice(0, limit).map(({ o, tableLabel }) => ({
+      id: o.id,
+      number: o.number,
+      status: o.status,
+      orderType: o.orderType,
+      tableLabel,
+      customerName: o.customerName,
+      paymentMode: o.paymentMode,
+      paid: !!o.paidAt,
+      totalCents: o.totalCents,
+      discountCents: o.discountCents,
+      createdAt: o.createdAt.toISOString(),
+    })),
+    hasMore: rows.length > limit,
+  };
 }
