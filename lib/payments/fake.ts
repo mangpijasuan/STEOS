@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import type { Authorization, AuthorizationInput, PaymentEvent, PaymentProvider } from "./provider";
+import type { Authorization, AuthorizationInput, PaymentEvent, PaymentProvider, Refund, RefundInput } from "./provider";
 
 /** Development and test stand-in. It records calls and never talks to the network. */
 export class FakeProvider implements PaymentProvider {
@@ -21,9 +21,10 @@ export class FakeProvider implements PaymentProvider {
   async cancel(id: string) {
     this.calls.push({ action: "cancel", id });
   }
-  async refund(id: string) {
+  async refund(input: RefundInput): Promise<Refund> {
     if (this.failRefund) throw new Error("refund failed");
-    this.calls.push({ action: "refund", id });
+    this.calls.push({ action: "refund", id: input.providerPaymentId });
+    return { id: `fake_refund_${input.orderId}_${input.attempt}`, status: "succeeded" };
   }
   parseWebhook(rawBody: string): PaymentEvent | null {
     return JSON.parse(rawBody) as PaymentEvent;

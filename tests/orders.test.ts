@@ -1,10 +1,11 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { SESSION_COOKIE, consumeLoginToken, requestLogin } from "../lib/auth";
 import { pool } from "../lib/db";
 import { outbox } from "../lib/mailer";
-import { getProvider } from "../lib/payments/provider";
+import { getProvider, resetProviderForTests } from "../lib/payments/provider";
 import type { FakeProvider } from "../lib/payments/fake";
-import { expireStaleOrders } from "../lib/orders";
+import { StripeProvider } from "../lib/payments/stripe";
+import { applyPaymentEvent, expireStaleOrders, reconcilePendingRefunds } from "../lib/orders";
 import { POST as checkout } from "../app/api/r/[slug]/checkout/route";
 import { GET as orderStatus } from "../app/api/orders/[token]/route";
 import { POST as webhook } from "../app/api/webhooks/stripe/route";
@@ -50,7 +51,7 @@ const newKey = () => `test-key-${Date.now()}-${keyCounter++}`;
 
 async function placeOrder(f: Fixture = a, slug = slugA, quantity = 2, key = newKey()) {
   const res = await checkout(
-    req("POST", { body: { items: [{ itemId: f.itemId, quantity }], customer, pickupTime: undefined }, headers: { "idempotency-key": key, "x-forwarded-for": `10.0.0.${keyCounter++ % 250}.${Math.floor(Math.random() * 1e6)}` } }),
+    req("POST", { body: { items: [{ itemId: f.itemId, quantity }], customer, pickupTime: undefined }, headers: { "idempotency-key": key, "x-forwarded-for": `10.${keyCounter++ % 250}.0.1` } }),
     slugCtx(slug),
   );
   return { res, key, body: await res.json() };
@@ -129,6 +130,42 @@ describe("checkout", () => {
     expect(count.rows[0].n).toBe(1);
   });
 
+  it("allows identical concurrent retries to recover payment after ordering pauses", async () => {
+    const key = newKey();
+    const [first, second] = await Promise.all([placeOrder(a, slugA, 1, key), placeOrder(a, slugA, 1, key)]);
+    expect(first.res.status).toBe(201);
+    expect(second.body).toEqual(first.body);
+    expect(provider.calls.filter((call) => call.action === "authorize")).toHaveLength(1);
+    await asOwner((c) => c.query("update restaurants set accepting_orders = false where id = $1", [a.restaurantId]));
+    try {
+      expect((await placeOrder(a, slugA, 1, key)).body).toEqual(first.body);
+    } finally {
+      await asOwner((c) => c.query("update restaurants set accepting_orders = true where id = $1", [a.restaurantId]));
+    }
+  });
+
+  it("rejects a same-price replay with changed customer details", async () => {
+    const { key } = await placeOrder(a, slugA, 1);
+    const changed = await checkout(req("POST", {
+      body: { items: [{ itemId: a.itemId, quantity: 1 }], customer: { ...customer, name: "Other Name" } },
+      headers: { "idempotency-key": key },
+    }), slugCtx(slugA));
+    expect(changed.status).toBe(409);
+  });
+
+  it("binds a browser checkout to its independent retry session", async () => {
+    const key = newKey();
+    const proof = crypto.randomUUID();
+    const submit = (session?: string) => checkout(req("POST", {
+      body: { items: [{ itemId: a.itemId, quantity: 1 }], customer },
+      headers: { "idempotency-key": key, ...(session ? { "checkout-session": session } : {}) },
+    }), slugCtx(slugA));
+    const started = await submit(proof);
+    expect(started.status).toBe(201);
+    expect((await submit()).status).toBe(409);
+    expect(await (await submit(proof)).json()).toEqual(await started.json());
+  });
+
   it("refuses to reuse a key for a different order", async () => {
     const key = newKey();
     await placeOrder(a, slugA, 1, key);
@@ -186,6 +223,36 @@ describe("payment events and the kitchen", () => {
     const event = { eventId: `dup-${crypto.randomUUID()}`, type: "authorized", providerPaymentId: pay.rows[0].provider_payment_id, restaurantId: a.restaurantId, orderId: id, account: null };
     expect(await (await webhook(req("POST", { body: event }), slugCtx(""))).json()).toMatchObject({ result: "applied" });
     expect(await (await webhook(req("POST", { body: event }), slugCtx(""))).json()).toMatchObject({ result: "duplicate" });
+  });
+
+  it("retries a webhook delivered before the payment row exists", async () => {
+    const { body } = await placeOrder();
+    const orderId = await orderIdFor(body.order.number, a.restaurantId);
+    const payment = await asOwner((c) => c.query("delete from payments where order_id = $1 returning *", [orderId]));
+    const event = {
+      eventId: crypto.randomUUID(), type: "authorized" as const, orderId, restaurantId: a.restaurantId,
+      providerPaymentId: payment.rows[0].provider_payment_id, account: null,
+    };
+    await expect(applyPaymentEvent(event)).rejects.toMatchObject({ status: 503 });
+    await asOwner((c) => c.query(
+      "insert into payments (restaurant_id, order_id, provider, provider_payment_id, amount_cents, fee_cents) values ($1, $2, 'fake', $3, $4, $5)",
+      [a.restaurantId, orderId, event.providerPaymentId, payment.rows[0].amount_cents, payment.rows[0].fee_cents],
+    ));
+    await expect(applyPaymentEvent(event)).resolves.toBe("applied");
+    await expect(applyPaymentEvent(event)).resolves.toBe("duplicate");
+  });
+
+  it("advances a retryable card failure after the next authorization", async () => {
+    const { body } = await placeOrder();
+    const orderId = await orderIdFor(body.order.number, a.restaurantId);
+    const payment = await asOwner((c) => c.query("select provider_payment_id from payments where order_id = $1", [orderId]));
+    await applyPaymentEvent({
+      eventId: crypto.randomUUID(), type: "failed", retryable: true, orderId, restaurantId: a.restaurantId,
+      providerPaymentId: payment.rows[0].provider_payment_id, account: null,
+    });
+    expect((await asOwner((c) => c.query("select status from orders where id = $1", [orderId]))).rows[0].status).toBe("pending_payment");
+    await authorize(orderId, a.restaurantId);
+    expect((await asOwner((c) => c.query("select status from orders where id = $1", [orderId]))).rows[0].status).toBe("awaiting_acceptance");
   });
 
   it("declining releases the hold and never captures", async () => {
@@ -313,6 +380,25 @@ describe("kitchen workflow", () => {
     expect((await cancelOrder(req("POST", { token: ownerToken }), idCtx(id))).status).toBe(409);
   });
 
+  it("reconciles a pending refund and ignores stale capture after confirmation", async () => {
+    const { body } = await placeOrder();
+    const orderId = await orderIdFor(body.order.number, a.restaurantId);
+    await authorize(orderId, a.restaurantId);
+    await accept(req("POST", { token: ownerToken }), idCtx(orderId));
+    const { rows: [payment] } = await asOwner((c) => c.query("select provider_payment_id from payments where order_id = $1", [orderId]));
+    const refundEvent = {
+      type: "refund" as const, orderId, restaurantId: a.restaurantId, providerPaymentId: payment.provider_payment_id, account: null,
+    };
+    await applyPaymentEvent({ ...refundEvent, eventId: crypto.randomUUID(), refund: { id: "pending", attempt: 1, status: "pending" } });
+    let result = await (await orderStatus(req("GET"), { params: Promise.resolve({ token: body.orderToken }) })).json();
+    expect(result).toMatchObject({ status: "cancelled", refundStatus: "pending" });
+    await applyPaymentEvent({ ...refundEvent, eventId: crypto.randomUUID(), refund: { id: "pending", attempt: 1, status: "succeeded" } });
+    await authorize(orderId, a.restaurantId, "captured");
+    result = await (await orderStatus(req("GET"), { params: Promise.resolve({ token: body.orderToken }) })).json();
+    expect(result).toMatchObject({ status: "cancelled", refundStatus: "succeeded" });
+    expect((await asOwner((c) => c.query("select status from payments where order_id = $1", [orderId]))).rows[0].status).toBe("refunded");
+  });
+
   it("keeps the order if the refund fails", async () => {
     const { id } = await acceptedOrder();
     provider.failRefund = true;
@@ -330,4 +416,32 @@ describe("kitchen workflow", () => {
     expect((await complete(req("POST", { token: bToken }), idCtx(id))).status).toBe(404);
     expect((await cancelOrder(req("POST", { token: bToken }), idCtx(id))).status).toBe(404);
   });
+
+  it("reconciles pending refunds through the worker if no webhook arrives", async () => {
+    const { body } = await placeOrder();
+    const id = await orderIdFor(body.order.number, a.restaurantId);
+    await authorize(id, a.restaurantId);
+    await accept(req("POST", { token: ownerToken }), idCtx(id));
+    await asOwner((c) => c.query(
+      "update payments set provider = 'stripe', refund_id = 'refund-fixture', refund_status = 'pending', refund_attempt = 1 where order_id = $1",
+      [id],
+    ));
+    const retrieve = vi.spyOn(StripeProvider.prototype, "retrieveRefund")
+      .mockResolvedValue({ id: "refund-fixture", status: "succeeded" });
+    vi.stubEnv("PAYMENTS_PROVIDER", "stripe");
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_fixture");
+    resetProviderForTests();
+    try {
+      expect(await reconcilePendingRefunds()).toBe(1);
+      expect(retrieve).toHaveBeenCalledWith("refund-fixture", null);
+      expect((await asOwner((c) => c.query("select status, refund_status from payments where order_id = $1", [id]))).rows[0])
+        .toEqual({ status: "refunded", refund_status: "succeeded" });
+    } finally {
+      retrieve.mockRestore();
+      vi.unstubAllEnvs();
+      resetProviderForTests();
+      provider = await getProvider() as FakeProvider;
+    }
+  });
+
 });

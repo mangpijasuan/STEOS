@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { asapPickup, type Store } from "../lib/storefront";
 import { computeSlots, isOpenNow, zonedTimeToUtc } from "../lib/hours";
 
 const TZ = "America/Chicago";
@@ -13,6 +14,32 @@ describe("hours", () => {
   it("handles the daylight saving change day", () => {
     // US clocks spring forward on 2026-03-08: 11:00 local is CDT (UTC-5)
     expect(zonedTimeToUtc(2026, 3, 8, 11, 0, TZ).toISOString()).toBe("2026-03-08T16:00:00.000Z");
+  });
+
+  it("skips nonexistent spring times and offers both real fall times in chronological order", () => {
+    const periods = [{ weekday: 0, opens: "01:00", closes: "04:00" }];
+    const options = { timeZone: "America/New_York", periods, minPrepMinutes: 5, maxAdvanceDays: 0 };
+    const spring = computeSlots({ ...options, now: new Date("2026-03-08T05:00:00Z") });
+    expect(spring).toHaveLength(8);
+    expect(new Set(spring.map(Number)).size).toBe(8);
+    const fall = computeSlots({ ...options, now: new Date("2026-11-01T04:00:00Z") });
+    expect(fall).toHaveLength(16);
+    expect(fall.map(Number)).toEqual(fall.map(Number).sort((a, b) => a - b));
+    expect(fall).toContainEqual(new Date("2026-11-01T05:30:00Z"));
+    expect(fall).toContainEqual(new Date("2026-11-01T06:30:00Z"));
+  });
+
+  it("offers ASAP pickup only within the current opening period", () => {
+    const store: Store = {
+      restaurant: {
+        id: "test", name: "Test", slug: "test", timezone: TZ, taxRateBps: 0, status: "active",
+        minPrepMinutes: 20, maxAdvanceDays: 2, acceptingOrders: true, defaultLocationId: null,
+      },
+      periods: daily("11:00", "21:00"),
+      menu: [],
+    };
+    expect(asapPickup(store, new Date("2026-11-21T02:48:00Z"))).toBeNull();
+    expect(asapPickup(store, new Date("2026-11-20T18:00:00Z"))).toEqual(new Date("2026-11-20T18:30:00Z"));
   });
 
   it("knows when the restaurant is open", () => {

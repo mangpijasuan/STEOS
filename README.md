@@ -1,6 +1,6 @@
-# Siamsil Restaurant: Sprint 1 foundation
+# Siamsil Restaurant
 
-Multi-tenant ordering platform. This sprint covers the database, row-level security, staff login and menu management. Orders, payments and the storefront come in later sprints (see the technical specification).
+Multi-tenant restaurant ordering platform with a storefront, staff kitchen queue, Stripe Connect payments, and owner controls for menus, hours, pricing, and reports.
 
 ## Run it
 
@@ -26,7 +26,7 @@ In development the sign-in link is printed in the server console instead of bein
 ## How tenant isolation works
 
 - The running app connects as `siamsil_app`, which does not own the tables, so row-level security applies to it.
-- Every query runs inside `withTenant(restaurantId, ...)` in `lib/db.ts`, which sets `app.restaurant_id` for that transaction only. No tenant set means no rows.
+- Restaurant queries run inside `withTenant(restaurantId, ...)` in `lib/db.ts`, which sets `app.restaurant_id` for that transaction only. No tenant set means no rows.
 - Composite foreign keys `(id, restaurant_id)` stop a row from pointing at another restaurant's row.
 - Every restaurant has one default location (migration 0002, created automatically); later tables such as orders will carry `location_id`.
 - The app role cannot create or delete restaurants. Use the owner connection or admin tooling.
@@ -37,7 +37,8 @@ In development the sign-in link is printed in the server console instead of bein
 | Route | Who | Purpose |
 | --- | --- | --- |
 | POST auth/request | public, rate limited | Email a one-time sign-in link |
-| GET auth/verify?token= | public | Spend the link, set the session cookie |
+| GET auth/verify?token= | public | Show sign-in confirmation |
+| POST auth/verify | public | Spend the link and set the session cookie |
 | POST auth/logout | signed in | End the session |
 | GET staff/me | staff | Who am I |
 | GET staff/menu | staff | Full menu with items and modifiers |
@@ -54,10 +55,10 @@ In development the sign-in link is printed in the server console instead of bein
 | GET staff/settings | staff | Ordering settings |
 | PATCH staff/settings | staff (pause) / owner (rest) | Pause ordering, prep time, advance days, tax rate |
 | GET, PUT staff/hours | staff / owner | Weekly opening periods |
-| POST r/slug/checkout | public, rate limited | Save the order and hold the card. Requires an `Idempotency-Key` header |
+| POST r/slug/checkout | public, rate limited | Start checkout. Reuse `Idempotency-Key` and any `Checkout-Session` header for an identical retry |
 | GET orders/token | private link | Customer's order status (polled every 5 seconds) |
 | POST webhooks/stripe | Stripe signature | Payment events, de-duplicated |
-| GET staff/orders | staff | Orders waiting, accepted or ready |
+| GET staff/orders?offset= | staff | Paginated waiting, accepted and ready orders |
 | POST staff/orders/id/accept, decline | staff | Accept (with optional `prepMinutes`) captures the money; decline releases the hold |
 | POST staff/orders/id/ready, complete | staff | Kitchen line: accepted, ready, picked up |
 | POST staff/orders/id/cancel | owner | Cancel an accepted order and refund in full, including the SROS fee |
@@ -74,10 +75,12 @@ In development the sign-in link is printed in the server console instead of bein
 
 ## Before any live use
 
-- Wire a real email provider into `lib/mailer.ts` (production mode refuses to run without one).
-- Email scanners can pre-open the sign-in link and spend it. If that happens, make `auth/verify` a confirmation page with a button.
-- The login rate limiter is in memory, which is fine for one server process.
-- There is no menu editing screen yet. The dashboard lists the menu and toggles sold-out. The editing API is complete and tested.
+- Set an HTTPS `APP_URL`, a `RESEND_API_KEY`, and a verified Resend sender in `LOGIN_FROM_EMAIL`. A mail link opens a confirmation page and is spent only after submitting it.
+- Run migrations during the deployment window before replacing the old app. The auth migration revokes the old runtime role's direct table access.
+- Generate independent random values of at least 32 characters for `ORDER_TOKEN_SECRET` and `CRON_SECRET`. Keep the order secret stable for retries.
+- Set `TRUSTED_CLIENT_IP_HEADER` to a single-IP header owned and overwritten by your ingress. When no trusted IP is available, public rate limits share an anonymous bucket. Redact bearer tokens in sign-in and order paths from production access logs.
+- Run `npm run worker:orders` under a process supervisor, or use a managed scheduler to call the expiry endpoint every minute. The worker also reconciles pending Stripe refunds and purges expired sessions, login links and rate-limit records. Monitor worker logs and failed webhook deliveries.
+- Owners can edit menus, modifier options, weekly hours, and ordering settings at `/manage`.
 
 ## Decisions made in Sprint 2
 
@@ -85,7 +88,7 @@ In development the sign-in link is printed in the server console instead of bein
 - Tax is rounded half up on the food subtotal. Tips are not taxed.
 - Pickup slots are every 15 minutes, from now plus prep time, inside opening hours, in the restaurant's time zone (daylight saving tested).
 - Any staff member can pause online ordering; only owners change hours, prep time and tax rate.
-- The cart is kept in the browser's local storage. The checkout button is disabled until Sprint 3.
+- The cart is kept in the browser's local storage.
 
 ## Decisions made in Sprint 3
 
@@ -93,7 +96,7 @@ In development the sign-in link is printed in the server console instead of bein
 - Fee base is the food subtotal. With direct charges the restaurant's own account pays Stripe, so the "all-in" model takes the target percentage minus estimated processing (never below zero). The exact calculation is saved on every order.
 - The kitchen has 5 minutes to accept. After that the hold is released automatically.
 - Tips are optional, untaxed, and not part of the fee base.
-- Guest checkout needs only a name and phone. The customer's order link is derived from the idempotency key, so a retry returns the same link, and only its hash is stored.
+- Guest checkout needs only a name and phone. The customer's order link is derived from the saved order's server-generated ID. Only its hash is stored. An identical checkout retry returns the same link.
 - Webhook events are recorded in the same transaction that applies them, so repeats are ignored and failures can be retried.
 - `PAYMENTS_PROVIDER=fake` runs everything locally with a test panel instead of a card form. It refuses to start in production.
 
@@ -101,10 +104,10 @@ In development the sign-in link is printed in the server console instead of bein
 
 1. Create a Stripe test account and enable Connect. Create a test connected account for the demo restaurant and save its id in `restaurants.stripe_account_id`.
 2. Put the test secret and publishable keys in `.env`, and set `PAYMENTS_PROVIDER=stripe`.
-3. Add a Connect webhook endpoint for `/api/webhooks/stripe` listening to `payment_intent.amount_capturable_updated`, `payment_intent.succeeded`, `payment_intent.canceled` and `payment_intent.payment_failed`. Put its signing secret in `STRIPE_WEBHOOK_SECRET`. For local testing use `stripe listen --forward-connect-to`.
-4. Schedule `POST /api/internal/expire-orders` every minute with `Authorization: Bearer $CRON_SECRET`.
+3. Add a Connect webhook endpoint for `/api/webhooks/stripe` listening to `payment_intent.amount_capturable_updated`, `payment_intent.succeeded`, `payment_intent.canceled` `payment_intent.payment_failed`, `refund.created`, `refund.updated`, and `refund.failed`. Put its signing secret in `STRIPE_WEBHOOK_SECRET`. For local testing use `stripe listen --forward-connect-to`.
+4. Run the order worker, or schedule `POST /api/internal/expire-orders` every minute with `Authorization: Bearer $CRON_SECRET`.
 
-The Stripe code path has not been run against Stripe yet, only the fake provider. Treat the first sandbox run as part of Sprint 3 acceptance.
+Before taking live payments, verify card decline and retry, delayed webhook delivery, manual capture, order expiry, and app-initiated full refunds in the Stripe sandbox. Operational reports record captures and confirmed in-app refunds when they occur. Partial refunds and refunds issued outside the app require reconciliation against Stripe.
 
 ## Sprint 4: kitchen screen
 
@@ -122,7 +125,3 @@ The Stripe code path has not been run against Stripe yet, only the fake provider
 - `npm run report:platform -- 30` prints what SROS earned across all restaurants in the last 30 days. It uses the owner database connection, so run it only on your own machine or server.
 
 **Worth knowing about the all-in plans.** With Stripe direct charges the restaurant's own account pays the card fees, so on an all-in plan SROS keeps only the target percentage minus those fees, and nothing on very small orders. On a $20 order at 6% that is about $0.32. Plans with "+ card fees" earn more per order but cost the restaurant more. Compare them in the pilot before settling on a price.
-
-## Next (Sprint 6)
-
-Hardening: confirmation page for the email sign-in link, a real email provider, rate limits in the database instead of memory, logging and error alerts, backups, and the first run against the Stripe sandbox.

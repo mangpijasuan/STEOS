@@ -1,23 +1,34 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("error") === "expired") {
+      setMessage("This sign-in link has expired or already been used. Request a new one below.");
+    }
+  }, []);
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
-    const res = await fetch("/api/auth/request", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email }),
-    });
-    const data = await res.json().catch(() => ({}));
-    setMessage(data.message ?? data.error ?? "Something went wrong");
-    setBusy(false);
+    try {
+      const res = await fetch("/api/auth/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json().catch(() => ({}));
+      setMessage(data.message ?? data.error ?? "Something went wrong");
+    } catch {
+      setMessage("Could not send the request. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -35,7 +46,7 @@ export default function Login() {
           </button>
         </p>
       </form>
-      {message && <p>{message}</p>}
+      {message && <p role="status">{message}</p>}
     </main>
   );
 }

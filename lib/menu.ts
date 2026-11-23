@@ -28,7 +28,7 @@ function friendly(error: unknown, message: string): never {
 
 // ------------------------------------------------------------------ read
 export async function getMenu(db: Tx) {
-  const categories = await db.select().from(menuCategories).orderBy(asc(menuCategories.sortOrder), asc(menuCategories.name));
+  const categories = await db.select().from(menuCategories).where(isNull(menuCategories.deletedAt)).orderBy(asc(menuCategories.sortOrder), asc(menuCategories.name));
   const items = await db
     .select()
     .from(menuItems)
@@ -58,19 +58,26 @@ export async function createCategory(db: Tx, restaurantId: string, input: { name
 export async function updateCategory(db: Tx, id: string, input: Patch) {
   const patch = clean(input);
   mustChange(patch);
-  return found(await db.update(menuCategories).set(patch).where(eq(menuCategories.id, id)).returning());
+  return found(await db.update(menuCategories).set(patch).where(and(eq(menuCategories.id, id), isNull(menuCategories.deletedAt))).returning());
 }
 
 export async function deleteCategory(db: Tx, id: string) {
-  try {
-    found(await db.delete(menuCategories).where(eq(menuCategories.id, id)).returning({ id: menuCategories.id }));
-  } catch (error) {
-    friendly(error, "Remove or move this category's items first");
-  }
+  await requireActiveCategory(db, id);
+  const [item] = await db.select({ id: menuItems.id }).from(menuItems)
+    .where(and(eq(menuItems.categoryId, id), isNull(menuItems.deletedAt))).limit(1);
+  if (item) throw new HttpError(409, "Remove or move this category's items first");
+  await db.update(menuCategories).set({ deletedAt: new Date() }).where(eq(menuCategories.id, id));
+}
+
+async function requireActiveCategory(db: Tx, id: string, missingStatus = 404) {
+  const [category] = await db.select({ id: menuCategories.id }).from(menuCategories)
+    .where(and(eq(menuCategories.id, id), isNull(menuCategories.deletedAt))).for("update");
+  if (!category) throw new HttpError(missingStatus, "Category not found");
 }
 
 // ----------------------------------------------------------------- items
 export async function createItem(db: Tx, restaurantId: string, input: Patch) {
+  await requireActiveCategory(db, String(input.categoryId), 409);
   try {
     return found(await db.insert(menuItems).values({ restaurantId, ...clean(input) } as typeof menuItems.$inferInsert).returning());
   } catch (error) {
@@ -81,6 +88,7 @@ export async function createItem(db: Tx, restaurantId: string, input: Patch) {
 export async function updateItem(db: Tx, id: string, input: Patch) {
   const patch = clean(input);
   mustChange(patch);
+  if (typeof patch.categoryId === "string") await requireActiveCategory(db, patch.categoryId, 409);
   try {
     return found(
       await db

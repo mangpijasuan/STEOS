@@ -9,6 +9,7 @@ export default defineConfig({
     fileParallelism: false,
     hookTimeout: 30000,
     env: {
+      TRUSTED_CLIENT_IP_HEADER: "x-forwarded-for",
       DATABASE_URL: TEST_APP_URL,
       DATABASE_OWNER_URL: TEST_OWNER_URL,
       APP_DB_ROLE: TEST_APP_ROLE,

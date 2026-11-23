@@ -12,9 +12,22 @@ export type AuthorizationInput = {
 export type Authorization = { providerPaymentId: string; clientSecret: string };
 
 /** What a provider tells us happened, in our own words. */
+export type Refund = { id: string; status: "pending" | "failed" | "succeeded" };
+export type RefundInput = {
+  orderId: string;
+  restaurantId: string;
+  providerPaymentId: string;
+  connectedAccountId: string | null;
+  feeCents: number;
+  attempt: number;
+};
+
 export type PaymentEvent = {
   eventId: string;
-  type: "authorized" | "captured" | "canceled" | "failed";
+  type: "authorized" | "captured" | "canceled" | "failed" | "refund";
+  occurredAt?: Date;
+  retryable?: boolean;
+  refund?: Refund & { attempt: number };
   providerPaymentId: string;
   restaurantId: string | null;
   orderId: string | null;
@@ -28,7 +41,8 @@ export interface PaymentProvider {
   capture(providerPaymentId: string, connectedAccountId: string | null): Promise<void>;
   cancel(providerPaymentId: string, connectedAccountId: string | null): Promise<void>;
   /** Returns the whole payment to the customer, including SROS's application fee. */
-  refund(providerPaymentId: string, connectedAccountId: string | null): Promise<void>;
+  refund(input: RefundInput): Promise<Refund>;
+  retrieveRefund?(id: string, connectedAccountId: string | null): Promise<Refund>;
   /** Checks the signature and translates the event. Returns null for events we do not use. */
   parseWebhook(rawBody: string, signature: string | null): PaymentEvent | null;
   publicConfig(connectedAccountId: string | null): { publishableKey: string | null; connectedAccountId: string | null };
@@ -43,7 +57,9 @@ export async function getProvider(): Promise<PaymentProvider> {
     const { FakeProvider } = await import("./fake");
     return (cached = new FakeProvider());
   }
-  if (!process.env.STRIPE_SECRET_KEY) throw new HttpError(503, "Payments are not set up yet");
+  if (!process.env.STRIPE_SECRET_KEY || (process.env.NODE_ENV === "production" && !process.env.STRIPE_WEBHOOK_SECRET)) {
+    throw new HttpError(503, "Payments are not set up yet");
+  }
   const { StripeProvider } = await import("./stripe");
   return (cached = new StripeProvider(process.env.STRIPE_SECRET_KEY));
 }

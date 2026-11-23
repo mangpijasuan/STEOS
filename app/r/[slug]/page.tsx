@@ -31,8 +31,8 @@ export default function Storefront({ params }: { params: Promise<{ slug: string 
   const [slots, setSlots] = useState<string[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [cart, setCart] = useState<CartLine[]>([]);
-  const [pickup, setPickup] = useState<string>("asap");
-  const [quote, setQuote] = useState<Quote | null>(null);
+  const [chosenPickup, setPickup] = useState<string | null>(null);
+  const [quoted, setQuoted] = useState<{ key: string; quote: Quote } | null>(null);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [picking, setPicking] = useState<Item | null>(null);
   const [tipPct, setTipPct] = useState(0);
@@ -64,34 +64,54 @@ export default function Storefront({ params }: { params: Promise<{ slug: string 
     } catch {}
   }, [cart, slug]);
 
+  const pickup = chosenPickup && slots.includes(chosenPickup)
+    ? chosenPickup
+    : store?.restaurant.asap ? "asap" : slots[0] ?? "";
+
+  const quoteKey = JSON.stringify([slug, cart, pickup]);
+  const quote = quoted?.key === quoteKey ? quoted.quote : null;
+
   // Ask the server to price the cart whenever it changes.
   useEffect(() => {
     if (cart.length === 0) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setQuote(null);
+      setQuoted(null);
       setIssues([]);
       return;
     }
+    const controller = new AbortController();
     const timer = setTimeout(async () => {
-      const res = await fetch(`/api/r/${slug}/quote`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          items: cart.map((l) => ({ itemId: l.itemId, quantity: l.quantity, optionIds: l.optionIds, note: l.note || undefined })),
-          pickupTime: pickup === "asap" ? undefined : pickup,
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
-        setQuote(data);
-        setIssues([]);
-      } else {
-        setQuote(null);
-        setIssues(data.issues ?? [{ line: null, message: data.error ?? "Could not price your cart" }]);
+      try {
+        const res = await fetch(`/api/r/${slug}/quote`, {
+          signal: controller.signal,
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            items: cart.map((l) => ({ itemId: l.itemId, quantity: l.quantity, optionIds: l.optionIds, note: l.note || undefined })),
+            pickupTime: pickup === "asap" || !pickup ? undefined : pickup,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (controller.signal.aborted) return;
+        if (res.ok) {
+          setQuoted({ key: quoteKey, quote: data });
+          setIssues([]);
+        } else {
+          setQuoted(null);
+          setIssues(data.issues ?? [{ line: null, message: data.error ?? "Could not price your cart" }]);
+        }
+      } catch {
+        if (!controller.signal.aborted) {
+          setQuoted(null);
+          setIssues([{ line: null, message: "Could not price your cart. Check your connection and try again." }]);
+        }
       }
     }, 250);
-    return () => clearTimeout(timer);
-  }, [cart, pickup, slug]);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [cart, pickup, quoteKey, slug]);
 
   const itemName = useMemo(() => new Map((store?.categories ?? []).flatMap((c) => c.items).map((i) => [i.id, i.name])), [store]);
   const formatSlot = useCallback(
@@ -99,6 +119,7 @@ export default function Storefront({ params }: { params: Promise<{ slug: string 
       new Intl.DateTimeFormat(undefined, {
         timeZone: store?.restaurant.timezone,
         weekday: "short",
+        timeZoneName: "short",
         hour: "numeric",
         minute: "2-digit",
       }).format(new Date(iso)),
@@ -109,7 +130,7 @@ export default function Storefront({ params }: { params: Promise<{ slug: string 
   if (!store) return <main><p>Loading menu…</p></main>;
 
   const { restaurant } = store;
-  const canOrder = restaurant.orderingOpen && slots.length > 0;
+  const canOrder = restaurant.orderingOpen && !!pickup;
   const tipCents = quote ? Math.round((quote.subtotalCents * tipPct) / 100) : 0;
 
   return (
