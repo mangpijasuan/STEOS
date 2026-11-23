@@ -59,6 +59,7 @@ export function TableSheet({ table, board, isOwner, onClose, onChanged, toast }:
           >
             Clear table
           </Button>
+          <a className="btn btn-lg" href={`/pos?table=${table.id}`}><Icon name="plus" size={18} /> Add order</a>
         </div>
       }
     >
@@ -159,8 +160,8 @@ function OrderBlock({
         ))}
       </ul>
       {o.tipCents > 0 && <div className="subtle">Includes {money(o.tipCents)} tip</div>}
-      {(canServe || needsPayment || canCancel) && (
-        <div className="row wrap" style={{ "--gap": "8px" } as React.CSSProperties}>
+      <div className="row wrap" style={{ "--gap": "8px" } as React.CSSProperties}>
+          <a className="btn btn-sm" href={`/orders/${o.id}/receipt`} target="_blank" rel="noreferrer"><Icon name="printer" size={16} /> Receipt</a>
           {canServe && (
             <Button variant={o.status === "ready" ? "primary" : "secondary"} icon="check" loading={busy === `serve-${o.id}`} disabled={!!busy} onClick={() => run(`serve-${o.id}`, () => api(`/api/staff/orders/${o.id}/complete`, { method: "POST" }), `Order #${o.number} served`)}>
               Mark served
@@ -180,8 +181,7 @@ function OrderBlock({
             ) : (
               <Button variant="soft-danger" disabled={!!busy} onClick={() => setConfirm(`cancel-${o.id}`)}>Cancel</Button>
             ))}
-        </div>
-      )}
+      </div>
     </div>
   );
 }

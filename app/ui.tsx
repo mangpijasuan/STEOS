@@ -220,8 +220,10 @@ const LINKS = [
   { href: "/dashboard", label: "Dashboard", ownerOnly: false },
   { href: "/menu", label: "Menu", ownerOnly: false },
   { href: "/tables", label: "Tables", ownerOnly: false },
+  { href: "/pos", label: "New order", ownerOnly: false },
   { href: "/manage", label: "Hours & settings", ownerOnly: true },
   { href: "/kitchen", label: "Kitchen", ownerOnly: false },
+  { href: "/promos", label: "Promos", ownerOnly: true },
   { href: "/reports", label: "Reports", ownerOnly: true },
   { href: "/pricing", label: "Plan", ownerOnly: true },
 ];

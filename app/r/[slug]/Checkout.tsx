@@ -21,6 +21,8 @@ export default function Checkout(props: {
   slug: string;
   /** Set for a seated guest: name and phone are optional, and they may pay at the table. */
   table?: TableMode;
+  /** A code the quote accepted. It is checked again on the server, which is what decides the price. */
+  promoCode?: string;
   lines: CheckoutLine[];
   pickup: string;
   tipCents: number;
@@ -28,7 +30,7 @@ export default function Checkout(props: {
   canOrder: boolean;
   onClearCart: () => void;
 }) {
-  const { slug, table, lines, pickup, tipCents, totalCents, canOrder, onClearCart } = props;
+  const { slug, table, promoCode, lines, pickup, tipCents, totalCents, canOrder, onClearCart } = props;
   const [payLater, setPayLater] = useState(!!table?.payLaterEnabled);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -38,7 +40,7 @@ export default function Checkout(props: {
 
   // One key per attempt. Any change to the order starts a new attempt, so a changed cart is never mistaken for a retry.
   const attempt = useRef<{ signature: string; key: string; proof: string } | null>(null);
-  const signature = JSON.stringify([slug, table?.token ?? null, table ? payLater : null, lines, pickup, tipCents, name.trim(), phone.trim()]);
+  const signature = JSON.stringify([slug, table?.token ?? null, table ? payLater : null, promoCode ?? null, lines, pickup, tipCents, name.trim(), phone.trim()]);
   useEffect(() => {
     attempt.current = null;
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -63,6 +65,7 @@ export default function Checkout(props: {
         body: JSON.stringify({
           items: lines.map((l) => ({ itemId: l.itemId, quantity: l.quantity, optionIds: l.optionIds, note: l.note || undefined })),
           tipCents,
+          promoCode,
           ...(table ? { payLater } : { pickupTime: pickup === "asap" ? undefined : pickup }),
           customer: { name, phone },
         }),

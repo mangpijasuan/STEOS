@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 type Report = {
   paidOrders: number;
   subtotalCents: number;
+  discountCents: number;
   taxCents: number;
   tipCents: number;
   grossCents: number;
@@ -66,6 +67,7 @@ export default function Reports() {
           <section style={{ border: "1px solid #ddd", borderRadius: 12, padding: 14, margin: "12px 0", background: "#fff" }}>
             {row("Paid orders", String(report.paidOrders))}
             {row("Food and drink sales", money(report.subtotalCents))}
+            {report.discountCents > 0 && row("Discounts and promo codes", `− ${money(report.discountCents)}`)}
             {row("Sales tax collected", money(report.taxCents))}
             {row("Tips", money(report.tipCents))}
             {row("Total charged to customers", money(report.grossCents), true)}
@@ -81,9 +83,9 @@ export default function Reports() {
           <p>Average order {money(report.averageOrderCents)} · Refunded {report.refunds.count} ({money(report.refunds.totalCents)}) · Declined {report.notCompleted.declined} · Timed out {report.notCompleted.expired} · Card failed {report.notCompleted.paymentFailed}</p>
           <h2>Top items</h2>
           {report.topItems.length === 0 && <p style={{ color: "#666" }}>No sales yet.</p>}
-          {report.topItems.map((i) => row(`${i.quantity} × ${i.name}`, money(i.salesCents)))}
+          {report.topItems.map((i) => <div key={i.name}>{row(`${i.quantity} × ${i.name}`, money(i.salesCents))}</div>)}
           <h2>By day</h2>
-          {report.days.map((d) => row(`${d.date} · ${d.orders} orders`, `${money(d.grossCents)} charged · ${money(d.refundCents)} refunded`))}
+          {report.days.map((d) => <div key={d.date}>{row(`${d.date} · ${d.orders} orders`, `${money(d.grossCents)} charged · ${money(d.refundCents)} refunded`)}</div>)}
           <p style={{ color: "#666", fontSize: 14 }}>Card fees are estimated at 2.9% + 30¢. Your Stripe dashboard has the exact amounts. This report is not tax advice.</p>
         </>
       )}

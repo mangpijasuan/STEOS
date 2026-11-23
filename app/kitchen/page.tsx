@@ -135,7 +135,7 @@ export default function Kitchen() {
       });
       const result = await res.json().catch(() => ({}));
       if (!res.ok || result.refundStatus === "failed") setActionError(result.error ?? "The refund failed. Try again.");
-      else if (result.refundInPerson) setActionError("Order cancelled. This guest already paid at the restaurant, so please hand their money back in person.");
+      else if (result.refundInPerson) setActionError("This guest already paid at the restaurant, so please hand their money back in person.");
       await refresh();
     } catch {
       setActionError("The order action could not be confirmed. Check the order before trying again.");
@@ -261,7 +261,7 @@ function OrderCard({ order, timezone, accent, children }: { order: Order; timezo
           #{order.number} · {order.orderType === "dine_in" && order.tableLabel ? `Table ${order.tableLabel}` : order.customerName}
         </strong>
         <span>
-          {order.orderType === "dine_in" ? "Out around" : "Pickup"} {time(order.pickupAt, timezone)}{order.prepMinutes ? ` · promised ${order.prepMinutes} min` : ""}
+          {order.orderType === "dine_in" ? "Out around" : order.orderType === "counter" ? "Takeaway · out around" : "Pickup"} {time(order.pickupAt, timezone)}{order.prepMinutes ? ` · promised ${order.prepMinutes} min` : ""}
         </span>
       </div>
       <div style={{ color: "#555", fontSize: 14 }}>
