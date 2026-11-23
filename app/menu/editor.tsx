@@ -160,7 +160,7 @@ export function ItemSheet({
           options: group.options.filter((option) => option.name.trim()).map((option) => ({
             id: option.key,
             name: option.name.trim(),
-            priceDeltaCents: toCents(option.price || "0"),
+            priceDeltaCents: toCents(option.price.trim() || "0"),
             available: option.available,
           })),
         })),
