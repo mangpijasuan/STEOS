@@ -648,6 +648,52 @@ body:has(.sidebar) { padding-left: 0 !important; }
 .ds .add-fab { position: absolute; right: 12px; bottom: 12px; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--surface); border: 1px solid var(--border-strong); color: var(--text); box-shadow: var(--shadow-sm); cursor: pointer; transition: background 0.15s, transform 0.1s; }
 .ds .add-fab:hover { background: var(--brand); color: var(--brand-ink); border-color: transparent; }
 .ds .add-fab:active { transform: scale(0.92); }
+
+/* Zogam Cafe storefront: tenant-scoped branding, not the staff design system. */
+.ds .zogam-store {
+  --brand: #17623b;
+  --brand-hover: #10492c;
+  --brand-ink: #fff;
+  --brand-soft: #e7f1e9;
+  --brand-soft-ink: #14532d;
+  --bg: #faf8f5;
+  background: var(--bg); color: var(--text); min-height: 100dvh;
+}
+@media (prefers-color-scheme: dark) {
+  .ds .zogam-store { --brand: #8ed6a2; --brand-hover: #a5e7b6; --brand-ink: #102a1b; --brand-soft: #193a29; --brand-soft-ink: #b8e8c6; --bg: #121a15; }
+}
+.ds .zogam-top { background: var(--surface); border-bottom: 1px solid var(--border); }
+.ds .zogam-top-inner { display: flex; align-items: center; gap: 22px; min-height: 88px; }
+.ds .zogam-brand { display: block; width: 104px; flex: none; background: #fff; border-radius: 8px; }
+.ds .zogam-brand img { width: 100%; height: auto; display: block; }
+.ds .zogam-menu-link { font-size: 1.05rem; font-weight: 800; text-transform: uppercase; color: var(--text); border-bottom: 3px solid var(--brand); padding-block: 10px; }
+.ds .zogam-top-inner > .btn { margin-left: auto; }
+.ds .zogam-store .store-hero { padding-block: 28px; background: var(--brand-soft); }
+.ds .zogam-store .store-hero h1 { font-size: clamp(2rem, 4vw, 3.25rem); color: var(--brand-soft-ink); font-weight: 850; }
+.ds .zogam-tagline { margin-bottom: 14px; color: var(--text-2); }
+.ds .zogam-store .catnav { background: var(--surface); }
+.ds .zogam-store .chip[aria-current="true"] { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); }
+.ds .zogam-store .store-layout { max-width: 1320px; }
+.ds .zogam-store #zogam-menu { min-width: 0; scroll-margin-top: 72px; }
+.ds .zogam-search { display: grid; gap: 8px; margin-bottom: 24px; }
+.ds .zogam-search > label { font-weight: 800; font-size: 1.2rem; }
+.ds .zogam-search-field { display: flex; align-items: center; gap: 10px; padding: 4px 12px; border: 1px solid var(--border); background: var(--surface); border-radius: 12px; }
+.ds .zogam-search-field .input { border: 0; box-shadow: none; min-width: 0; flex: 1; background: transparent; }
+.ds .zogam-featured { margin-bottom: 32px; }
+.ds .zogam-featured h2, .ds .zogam-store .menu-section h2 { font-weight: 850; letter-spacing: -.025em; }
+.ds .zogam-featured-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+.ds .zogam-feature-card { display: flex; flex-direction: column; gap: 8px; text-align: left; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); padding: 14px; color: var(--text); overflow: hidden; cursor: pointer; }
+.ds .zogam-feature-card > img { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 8px; }
+.ds .zogam-feature-card > span:first-of-type { font-weight: 750; }
+.ds .zogam-feature-card:disabled { cursor: default; }
+.ds .zogam-feature-action { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 4px; color: var(--brand); font-size: .85rem; font-weight: 700; }
+.ds .zogam-store .add-fab { background: var(--brand); color: var(--brand-ink); border-color: transparent; }
+.ds .zogam-store .add-fab:hover { background: var(--brand-hover); }
+.ds .zogam-store .item-card { border-radius: 14px; }
+.ds .zogam-store .item-card:not(.has-photo) .item-body { padding-right: 38px; }
+.ds .zogam-store .item-card:disabled { opacity: 1; }
+@media (min-width: 1100px) { .ds .zogam-featured-grid { grid-template-columns: repeat(4, minmax(0,1fr)); } }
+@media (max-width: 520px) { .ds .zogam-top-inner { gap: 12px; min-height: 72px; } .ds .zogam-brand { width: 76px; } .ds .zogam-menu-link { font-size: .875rem; } .ds .zogam-top-inner > .btn { padding-inline: 10px; font-size: .85rem; } .ds .zogam-store .menu-grid.photos { grid-template-columns: repeat(2,minmax(0,1fr)); } .ds .zogam-store .item-card.has-photo .item-body { padding-right: 14px; padding-bottom: 50px; } }
 .ds .testpay { border: 1.5px dashed var(--border-strong); border-radius: var(--radius); padding: 14px; background: var(--surface-2); }
 .ds .status-hero { text-align: center; padding: 28px 18px 22px; }
 .ds .progress { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 4px 0 0; padding: 0; list-style: none; }
