@@ -148,13 +148,13 @@ describe("using a code at the storefront", () => {
     return { res, body: await res.json() };
   }
 
-  it("saves the discount on the order, counts the use, and bases the fee on the discounted food", async () => {
+  it("saves the discount on the order, counts the use, and keeps the fee on the full price of the food", async () => {
     await asOwner((c) => c.query("update restaurants set fee_model = 'platform_plus_processing', platform_fee_bps = 300 where id = $1", [a.restaurantId]));
     const { res, body } = await order(code);
     expect(res.status).toBe(201);
     expect(body.order.totalCents).toBe(1980);
     const row = (await asOwner((c) => c.query("select subtotal_cents, discount_cents, promo_code, tax_cents, fee_cents from orders where restaurant_id = $1 and number = $2", [a.restaurantId, body.order.number]))).rows[0];
-    expect(row).toMatchObject({ subtotal_cents: 2000, discount_cents: 200, promo_code: "TENOFF", tax_cents: 180, fee_cents: 54 }); // 3% of 1800
+    expect(row).toMatchObject({ subtotal_cents: 2000, discount_cents: 200, promo_code: "TENOFF", tax_cents: 180, fee_cents: 60 }); // 3% of the full 2000, not of the 1800 after the code
     expect((await asOwner((c) => c.query("select uses from promo_codes where code = 'TENOFF'"))).rows[0].uses).toBe(1);
   });
 

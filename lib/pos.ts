@@ -89,7 +89,8 @@ export async function createPosOrder(store: Store, input: PosInput, actor: Actor
       const [r] = await db
         .select({ bps: restaurants.platformFeeBps, model: restaurants.feeModel, plan: restaurants.pricingPlan })
         .from(restaurants);
-      const fee = applicationFee({ subtotalCents: cart.subtotalCents - cart.discountCents, totalCents: cart.totalCents, feeBps: r.bps, model: r.model as FeeModel });
+      // The fee base is the food at its full price; discounts are the restaurant's cost. The fee is capped at the total.
+      const fee = applicationFee({ subtotalCents: cart.subtotalCents, totalCents: cart.totalCents, feeBps: r.bps, model: r.model as FeeModel });
 
       const bumped = await db
         .update(restaurants)

@@ -170,6 +170,20 @@ describe("orders entered at the till", () => {
     expect(await status(made.body.id)).toBe("awaiting_acceptance");
   });
 
+  it("keeps the fee on the full price, and never above what is charged, even with a code that takes everything", async () => {
+    await asOwner((c) => c.query("update restaurants set fee_model = 'platform_plus_processing', platform_fee_bps = 300 where id = $1", [a.restaurantId]));
+    const res = await createPromo(staffReq("POST", ownerToken, { code: "FULL100", kind: "percent", value: 100 }), {});
+    expect(res.status).toBe(201);
+    const free = await pos({ items: items(2), orderType: "counter", promoCode: "FULL100", payment: { mode: "later" } });
+    const row = (await asOwner((c) => c.query("select subtotal_cents, discount_cents, total_cents, fee_cents from orders where id = $1", [free.body.id]))).rows[0];
+    expect(row).toMatchObject({ subtotal_cents: 2000, discount_cents: 2000, total_cents: 0 });
+    expect(row.fee_cents).toBeLessThanOrEqual(row.total_cents);
+    // A partial discount leaves the fee where it would be without it: 3% of 2000.
+    await newCode("PART10", null);
+    const half = await pos({ items: items(2), orderType: "counter", promoCode: "PART10", payment: { mode: "later" } });
+    expect((await asOwner((c) => c.query("select fee_cents from orders where id = $1", [half.body.id]))).rows[0].fee_cents).toBe(60);
+  });
+
   it("reports discounts, and net sales are after them", async () => {
     await newCode("REPORT1", null);
     const made = await pos({ items: items(2), orderType: "counter", promoCode: "REPORT1", payment: { mode: "now", method: "cash" } });

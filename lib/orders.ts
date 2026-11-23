@@ -146,8 +146,9 @@ export async function createCheckout(
     const provider = await getProvider();
     if (!payLater && provider.name === "stripe" && (!account.stripeAccountId || !process.env.STRIPE_PUBLISHABLE_KEY)) throw new HttpError(503, "This restaurant cannot take card payments yet");
     const fee = applicationFee({
-      // The fee is on what the restaurant actually sells the food for, after any discount.
-      subtotalCents: cart.subtotalCents - cart.discountCents, totalCents: cart.totalCents,
+      // The fee base is the food at its full price. A discount is the restaurant's cost, not a reduction in SROS's fee.
+      // (The fee is capped at the amount charged, so a deep discount can never make it exceed the total.)
+      subtotalCents: cart.subtotalCents, totalCents: cart.totalCents,
       feeBps: account.platformFeeBps, model: account.feeModel as FeeModel,
     });
     const id = crypto.randomUUID();
