@@ -226,11 +226,15 @@ export async function getOrderByToken(token: string) {
     const payment = await loadPayment(db, order.id);
     const [r] = await db.select({ name: restaurants.name, timezone: restaurants.timezone }).from(restaurants);
     const [table] = order.tableId ? await db.select({ label: diningTables.label }).from(diningTables).where(eq(diningTables.id, order.tableId)) : [];
+    const inPersonRefunded = order.paymentMode === "pay_later" && (payment?.status === "refunded" || !!payment?.refundedAt);
     return {
       restaurant: r,
       orderType: order.orderType,
       paymentMode: order.paymentMode,
-      paid: !!order.paidAt,
+      // Money taken in person and later handed back is "refunded", not "paid": paidAt keeps the historical capture time
+      // for reports, but the guest must never be told a cancelled order was paid.
+      paid: !!order.paidAt && !inPersonRefunded,
+      paymentState: (inPersonRefunded ? "refunded" : order.paidAt ? "paid" : "unpaid") as "paid" | "refunded" | "unpaid",
       tableLabel: table?.label ?? null,
       number: order.number,
       status: order.status,

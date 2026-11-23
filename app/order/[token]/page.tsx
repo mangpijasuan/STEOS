@@ -11,6 +11,7 @@ type Order = {
   orderType: "pickup" | "dine_in" | "counter";
   paymentMode: "online" | "pay_later";
   paid: boolean;
+  paymentState: "paid" | "refunded" | "unpaid";
   tableLabel: string | null;
   pickupAt: string;
   subtotalCents: number;
@@ -44,6 +45,16 @@ const DINE_IN_MESSAGES: Record<string, { title: string; body: string }> = {
   expired: { title: "The restaurant did not respond in time", body: "Nothing has been charged. Please ask a member of staff." },
   cancelled: { title: "Order cancelled", body: "Please ask a member of staff if you have questions." },
 };
+
+const ENDED = ["declined", "expired", "cancelled", "payment_failed"];
+
+// What a seated guest is told about paying. Cancelled, declined and refunded orders are never shown as paid, and a
+// guest whose order ended is never asked to pay for it.
+function payLaterNote(order: Order): string | null {
+  if (order.paymentState === "refunded") return "Your payment was handed back to you in person.";
+  if (ENDED.includes(order.status)) return null;
+  return order.paymentState === "paid" ? "Paid. Thank you." : "You will pay at the table.";
+}
 
 export default function OrderPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params);
@@ -85,7 +96,7 @@ export default function OrderPage({ params }: { params: Promise<{ token: string 
         <h2 style={{ marginTop: 0 }}>{msg.title}</h2>
         <p>{refundMessage ?? msg.body}</p>
         {dineIn
-          ? <p>{order.paymentMode === "pay_later" ? (order.paid ? "Paid. Thank you." : "You will pay at the table.") : null}</p>
+          ? <p>{order.paymentMode === "pay_later" ? payLaterNote(order) : null}</p>
           : <p>Pickup: <strong>{pickup}</strong></p>}
       </section>
       <section style={{ marginTop: 16 }}>
