@@ -172,6 +172,8 @@ export default function Storefront({ params }: { params: Promise<{ slug: string 
 
   const { restaurant } = store;
   const canOrder = restaurant.orderingOpen && slots.length > 0;
+  // When any dish has a photo the menu switches to photo cards; dishes without one get a neutral tile.
+  const hasPhotos = store.categories.some((c) => c.items.some((i) => i.imageUrl));
   const tipCents = quote ? Math.round((quote.subtotalCents * tipPct) / 100) : 0;
   const itemCount = cart.reduce((n, l) => n + l.quantity, 0);
   const totalCents = quote ? quote.totalCents + tipCents : null;
@@ -234,14 +236,21 @@ export default function Storefront({ params }: { params: Promise<{ slug: string 
           {store.categories.map((category) => (
             <section key={category.id} id={`cat-${category.id}`} data-category={category.id} className="menu-section" aria-labelledby={`h-${category.id}`}>
               <h2 id={`h-${category.id}`} style={{ marginBottom: 12 }}>{category.name}</h2>
-              <div className="menu-grid">
+              <div className={`menu-grid ${hasPhotos ? "photos" : ""}`}>
                 {category.items.map((item) => {
                   const inCart = countByItem.get(item.id) ?? 0;
                   const orderable = item.available && restaurant.orderingOpen;
                   const quickAdd = item.modifierGroups.every((g) => g.minChoices === 0);
                   return (
                     <div key={item.id} style={{ position: "relative" }}>
-                      <button className="item-card" disabled={!orderable} onClick={() => setPicking(item)} aria-label={`${item.name}, ${money(item.priceCents)}${item.available ? "" : ", sold out"}`}>
+                      <button className={`item-card ${hasPhotos ? "has-photo" : ""}`} disabled={!orderable} onClick={() => setPicking(item)} aria-label={`${item.name}, ${money(item.priceCents)}${item.available ? "" : ", sold out"}`}>
+                        {hasPhotos &&
+                          (item.imageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img className="item-photo" src={item.imageUrl} alt="" loading="lazy" />
+                          ) : (
+                            <span className="item-photo item-photo-empty" aria-hidden="true"><Icon name="image" size={28} /></span>
+                          ))}
                         <div className="item-body">
                           <span className="item-name">{item.name}</span>
                           {item.description && <span className="item-desc clamp-2">{item.description}</span>}
@@ -250,7 +259,10 @@ export default function Storefront({ params }: { params: Promise<{ slug: string 
                             {!item.available && <span className="badge badge-danger" style={{ marginLeft: 8 }}>Sold out</span>}
                           </span>
                         </div>
-                        {item.imageUrl && <img className="item-thumb" src={item.imageUrl} alt="" loading="lazy" />}
+                        {!hasPhotos && item.imageUrl && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img className="item-thumb" src={item.imageUrl} alt="" loading="lazy" />
+                        )}
                       </button>
                       {inCart > 0 && <span className="in-cart" aria-label={`${inCart} in your order`}>{inCart}</span>}
                       {orderable && (
@@ -460,6 +472,12 @@ function ItemSheet({ item, onAdd, onClose }: { item: Item; onAdd: (line: Omit<Ca
       title={item.name}
       subtitle={item.description || undefined}
       onClose={onClose}
+      hero={
+        item.imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={item.imageUrl} alt="" />
+        ) : undefined
+      }
       footer={
         <div className="row">
           <Stepper value={quantity} onChange={setQuantity} label="Quantity" />
@@ -470,7 +488,6 @@ function ItemSheet({ item, onAdd, onClose }: { item: Item; onAdd: (line: Omit<Ca
       }
     >
       <div className="stack" style={{ "--gap": "20px" } as React.CSSProperties}>
-        {item.imageUrl && <img src={item.imageUrl} alt="" style={{ borderRadius: "var(--radius)", maxHeight: 220, width: "100%", objectFit: "cover" }} />}
         {item.modifierGroups.map((group) => {
           const problem = problems.get(group.id);
           return (

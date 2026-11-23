@@ -4,6 +4,7 @@ import type { MenuTree } from "./cart";
 import { pool, withTenant } from "./db";
 import { HttpError } from "./http";
 import { computeSlots, isOpenNow, type HoursPeriod } from "./hours";
+import { imageUrl } from "./images";
 import { getMenu } from "./menu";
 
 export type PublicRestaurant = {
@@ -102,7 +103,7 @@ export function toPublicStore(store: Store, now = new Date()) {
           description: i.description,
           priceCents: i.priceCents,
           available: i.available,
-          imageUrl: i.imageUrl,
+          imageUrl: i.imageId ? imageUrl(i.imageId) : i.imageUrl,
           modifierGroups: i.modifierGroups.map((g) => ({
             id: g.id,
             name: g.name,

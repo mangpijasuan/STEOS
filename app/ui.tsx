@@ -95,7 +95,7 @@ export function Stepper({ value, min = 1, max = 50, onChange, size, label }: { v
  * Modal sheet: slides up from the bottom on phones, centered dialog on larger screens.
  * Escape and the backdrop close it, page scroll is locked, focus moves in and returns on close.
  */
-export function Sheet({ title, subtitle, onClose, children, footer }: { title: ReactNode; subtitle?: ReactNode; onClose: () => void; children: ReactNode; footer?: ReactNode }) {
+export function Sheet({ title, subtitle, onClose, children, footer, hero }: { title: ReactNode; subtitle?: ReactNode; onClose: () => void; children: ReactNode; footer?: ReactNode; hero?: ReactNode }) {
   const panel = useRef<HTMLDivElement>(null);
   const titleId = useId();
   useEffect(() => {
@@ -130,14 +130,20 @@ export function Sheet({ title, subtitle, onClose, children, footer }: { title: R
 
   return (
     <div className="backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="sheet" role="dialog" aria-modal="true" aria-labelledby={titleId} ref={panel} tabIndex={-1}>
+      <div className={`sheet ${hero ? "has-hero" : ""}`} role="dialog" aria-modal="true" aria-labelledby={titleId} ref={panel} tabIndex={-1}>
         <div className="sheet-grip" aria-hidden="true" />
+        {hero && (
+          <div className="sheet-hero">
+            {hero}
+            <Button className="sheet-close" icon="x" aria-label="Close" onClick={onClose} />
+          </div>
+        )}
         <div className="sheet-header">
           <div className="stack" style={{ "--gap": "4px" } as React.CSSProperties}>
             <h2 id={titleId}>{title}</h2>
             {subtitle && <div className="muted small">{subtitle}</div>}
           </div>
-          <Button variant="ghost" icon="x" aria-label="Close" onClick={onClose} />
+          {!hero && <Button variant="ghost" icon="x" aria-label="Close" onClick={onClose} />}
         </div>
         <div className="sheet-body">{children}</div>
         {footer && <div className="sheet-footer">{footer}</div>}

@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { HttpError, handle, json } from "@/lib/http";
 import { log } from "@/lib/log";
 import { expireStaleOrders } from "@/lib/orders";
+import { pruneOrphanImages } from "@/lib/images";
 import { pruneRateLimits } from "@/lib/ratelimit";
 
 // Called every minute by a scheduler. Protected by a shared secret. Also clears finished rate-limit windows.
@@ -15,6 +16,7 @@ export const POST = handle(async (req) => {
   }
   const expired = await expireStaleOrders();
   const rateLimitsPruned = await pruneRateLimits();
-  log.info("cron.expire_orders", { expired, rateLimitsPruned });
-  return json({ expired, rateLimitsPruned });
+  const imagesPruned = await pruneOrphanImages();
+  log.info("cron.expire_orders", { expired, rateLimitsPruned, imagesPruned });
+  return json({ expired, rateLimitsPruned, imagesPruned });
 });

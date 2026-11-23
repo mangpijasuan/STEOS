@@ -1,4 +1,5 @@
 import { and, asc, eq, isNull } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { menuCategories, menuItems, modifierGroups, modifierOptions } from "../db/schema";
 import type { Tx } from "./db";
 import { HttpError } from "./http";
@@ -82,15 +83,19 @@ export async function updateItem(db: Tx, id: string, input: Patch) {
   const patch = clean(input);
   mustChange(patch);
   try {
-    return found(
+    const [before] = "imageId" in patch ? await db.select({ imageId: menuItems.imageId }).from(menuItems).where(eq(menuItems.id, id)) : [];
+    const updated = found(
       await db
         .update(menuItems)
         .set(patch)
         .where(and(eq(menuItems.id, id), isNull(menuItems.deletedAt)))
         .returning(),
     );
+    // A replaced or removed photo is deleted with the change, so old photos do not pile up.
+    if (before?.imageId && before.imageId !== updated.imageId) await db.execute(sql`delete from images where id = ${before.imageId}`);
+    return updated;
   } catch (error) {
-    friendly(error, "Category not found");
+    friendly(error, "Category or photo not found");
   }
 }
 

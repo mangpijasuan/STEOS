@@ -13,6 +13,7 @@ export const itemInput = z.object({
   priceCents: z.number().int().min(0).max(1_000_000),
   available: z.boolean().optional(),
   imageUrl: z.url().max(500).nullable().optional(),
+  imageId: z.uuid().nullable().optional(),
   sortOrder: sortOrder.optional(),
 });
 export const itemUpdate = itemInput.partial();

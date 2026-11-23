@@ -159,6 +159,10 @@ Still to do: backups, and the first run against the Stripe sandbox.
 
 All screens share one design system: `app/globals.css` (colors, spacing, components, light and dark themes), `app/ui.tsx` (buttons, sheets, toasts, staff top bar) and `app/icons.tsx`. Change the brand color in the `--brand*` variables at the top of `globals.css`. The kitchen screen always uses the dark theme. Customer screens follow the device's light or dark setting. Prices are always calculated on the server, never in the browser.
 
+### Menu editor and photos
+
+Owners edit the menu at `/dashboard` (Menu): categories, items, add-on groups, ordering, and food photos. Staff can still mark items sold out. Photos are shrunk in the browser (max 1200px JPEG), stored in the database (`images` table, migration 0009) and served publicly at `/api/images/<id>` with a one-year cache. Uploads are owner-only, checked by their real file signature (JPEG, PNG or WebP), limited to 1.5 MB and 60 per hour, and capped at 500 per restaurant. A replaced photo is deleted with the change, and photos that were uploaded but never saved are removed after an hour by the every-minute job. If you later move photos to object storage (S3 and similar), only `lib/images.ts` and the two image routes change.
+
 ### Login emails
 
 1. Create a Resend account, add your sending domain and add the DNS records it shows (SPF and DKIM) until Resend marks the domain verified.

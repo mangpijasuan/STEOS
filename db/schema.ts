@@ -78,6 +78,7 @@ export const menuItems = pgTable("menu_items", {
   priceCents: integer("price_cents").notNull(),
   available: boolean("available").notNull().default(true),
   imageUrl: text("image_url"),
+  imageId: uuid("image_id"),
   sortOrder: integer("sort_order").notNull().default(0),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
   ...timestamps,
