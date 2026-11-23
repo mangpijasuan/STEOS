@@ -20,6 +20,16 @@ export class OperationalError extends HttpError {
   }
 }
 
+/**
+ * The JSON body of a request, or `{}` when nothing was sent. A browser's POST with no body still carries an empty
+ * stream, so checking `req.body` is not enough: reading it as JSON fails. A body that is present but not valid JSON is
+ * still refused (as a 400, by `handle`).
+ */
+export async function optionalJson(req: Request): Promise<unknown> {
+  const text = await req.text();
+  return text.trim() === "" ? {} : JSON.parse(text);
+}
+
 export function json(data: unknown, status = 200, headers?: HeadersInit): Response {
   return Response.json(data, { status, headers });
 }
