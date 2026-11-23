@@ -159,6 +159,16 @@ Still to do: backups, and the first run against the Stripe sandbox.
 
 All screens share one design system: `app/globals.css` (colors, spacing, components, light and dark themes), `app/ui.tsx` (buttons, sheets, toasts, staff top bar) and `app/icons.tsx`. Change the brand color in the `--brand*` variables at the top of `globals.css`. The kitchen screen always uses the dark theme. Customer screens follow the device's light or dark setting. Prices are always calculated on the server, never in the browser.
 
+### Dine-in: tables, QR codes and the table board
+
+Owners set up floors and tables at `/tables` (Set up tables): add tables in bulk (`1-12`, `01-12`, `A1, A2`), assign a waiter to each, and print one QR card per table at `/tables/qr`. Each QR code holds a private secret for its table (`/t/<secret>`); if a code is photographed or leaked, "Replace QR code" in the table's settings makes the old one stop working. Table ordering stays off until the owner turns it on in Set up tables.
+
+- **Guests** scan, see the menu, and choose **Order & pay now** (card, same flow as pickup) or **Order now, pay later at the table**. They can call a waiter, ask for water, or ask for the bill (cash or card) from their phone.
+- **Pay-later orders** go straight to the kitchen with no card hold and never time out. A waiter marks them paid (cash or the restaurant's own card machine) from the table sheet; paying also settles a bill request.
+- **The table board** (`/tables`, every staff member) shows each table as a coloured tile: Available, Browsing, Pending, Preparing, Ready, Served, Bill, Service Request, Paid. Tabs: Assigned, Priority, All, plus floor filters. A table cannot be cleared while orders are in progress or unpaid.
+- **Fees.** On pay-later orders no card is charged through SROS, so the fee is invoiced (`orders.fee_collection = 'invoice'`) rather than taken from a payment. It is calculated the same way as for a card order, so SROS earns the same either way. Reports show those fees separately and never estimate card fees on cash.
+- **Limits.** Each table can place 8 orders per 10 minutes, and 8 service requests per 5 minutes, so a photographed QR code cannot flood the kitchen.
+
 ### Menu editor and photos
 
 Owners edit the menu at `/dashboard` (Menu): categories, items, add-on groups, ordering, and food photos. Staff can still mark items sold out. Photos are shrunk in the browser (max 1200px JPEG), stored in the database (`images` table, migration 0009) and served publicly at `/api/images/<id>` with a one-year cache. Uploads are owner-only, checked by their real file signature (JPEG, PNG or WebP), limited to 1.5 MB and 60 per hour, and capped at 500 per restaurant. A replaced photo is deleted with the change, and photos that were uploaded but never saved are removed after an hour by the every-minute job. If you later move photos to object storage (S3 and similar), only `lib/images.ts` and the two image routes change.

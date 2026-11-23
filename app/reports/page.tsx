@@ -12,9 +12,12 @@ type Report = {
   tipCents: number;
   grossCents: number;
   platformFeeCents: number;
+  platformFeeInvoicedCents: number;
   processingEstimateCents: number;
   netEstimateCents: number;
   averageOrderCents: number;
+  byMethod: Record<"card_online" | "cash" | "card_terminal" | "other", { orders: number; grossCents: number }>;
+  byType: Record<"pickup" | "dine_in" | "counter", { orders: number; grossCents: number }>;
   refunds: { count: number; totalCents: number };
   notCompleted: { declined: number; expired: number; paymentFailed: number };
   days: { date: string; orders: number; grossCents: number }[];
@@ -126,7 +129,10 @@ export default function Reports() {
                     <div className="kv"><span>Sales tax collected</span><span>{money(report.taxCents)}</span></div>
                     <div className="kv"><span>Tips</span><span>{money(report.tipCents)}</span></div>
                     <div className="kv total"><span>Charged to customers</span><span>{money(report.grossCents)}</span></div>
-                    <div className="kv muted"><span>SROS fee</span><span>− {money(report.platformFeeCents)}</span></div>
+                    <div className="kv muted"><span>SROS fee (from card payments)</span><span>− {money(report.platformFeeCents - report.platformFeeInvoicedCents)}</span></div>
+                    {report.platformFeeInvoicedCents > 0 && (
+                      <div className="kv muted"><span>SROS fee (invoiced, pay-at-table)</span><span>− {money(report.platformFeeInvoicedCents)}</span></div>
+                    )}
                     <div className="kv muted"><span>Card fees (estimated)</span><span>− {money(report.processingEstimateCents)}</span></div>
                     <div className="kv muted"><span>Sales tax owed to the state</span><span>− {money(report.taxCents)}</span></div>
                     <div className="kv total"><span>What you keep</span><span>{money(report.netEstimateCents)}</span></div>
@@ -144,6 +150,17 @@ export default function Reports() {
                         </div>
                       ))}
                     </section>
+                    {(report.byMethod.cash.orders + report.byMethod.card_terminal.orders + report.byMethod.other.orders > 0 || report.byType.dine_in.orders > 0) && (
+                      <section className="card" aria-labelledby="how">
+                        <h2 id="how" style={{ marginBottom: 6 }}>How and where</h2>
+                        <div className="kv"><span>Paid online by card</span><span>{plural(report.byMethod.card_online.orders, "order")} · {money(report.byMethod.card_online.grossCents)}</span></div>
+                        {report.byMethod.cash.orders > 0 && <div className="kv"><span>Cash at the table</span><span>{plural(report.byMethod.cash.orders, "order")} · {money(report.byMethod.cash.grossCents)}</span></div>}
+                        {report.byMethod.card_terminal.orders > 0 && <div className="kv"><span>Your card machine</span><span>{plural(report.byMethod.card_terminal.orders, "order")} · {money(report.byMethod.card_terminal.grossCents)}</span></div>}
+                        <hr className="divider" />
+                        <div className="kv"><span>Pickup</span><span>{plural(report.byType.pickup.orders, "order")} · {money(report.byType.pickup.grossCents)}</span></div>
+                        <div className="kv"><span>Dine-in</span><span>{plural(report.byType.dine_in.orders, "order")} · {money(report.byType.dine_in.grossCents)}</span></div>
+                      </section>
+                    )}
                     {(report.refunds.count > 0 || stopped > 0) && (
                       <section className="card" aria-labelledby="problems">
                         <h2 id="problems" style={{ marginBottom: 6 }}>Orders that didn't complete</h2>

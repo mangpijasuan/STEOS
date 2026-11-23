@@ -2,11 +2,16 @@
 
 import { use, useEffect, useState } from "react";
 import { Icon, type IconName } from "../../icons";
-import { Skeleton } from "../../ui";
+import { Alert, Button, Skeleton } from "../../ui";
+import { HelpSheet } from "../../t/help";
 import { clockTime, money } from "@/lib/format";
 
 type Order = {
   restaurant: { name: string; slug: string; timezone: string };
+  orderType: string;
+  paymentMode: string;
+  paid: boolean;
+  table: { label: string; qrToken: string } | null;
   number: number;
   status: string;
   customerName: string;
@@ -34,6 +39,24 @@ const STATES: Record<string, Look> = {
   payment_failed: { title: "Payment didn't go through", body: "You weren't charged. Go back to the menu to try again.", icon: "card", tone: "danger", step: -1 },
 };
 const STEPS = ["Placed", "Preparing", "Ready", "Picked up"];
+const DINE_IN_STEPS = ["Placed", "Preparing", "Ready", "Served"];
+
+/** Wording for a seated guest: no pickup, and a server brings the food. */
+function dineInLook(order: Order, base: Look): Look {
+  const later = order.paymentMode === "pay_later";
+  switch (order.status) {
+    case "awaiting_acceptance":
+      return { ...base, title: "Sent to the kitchen", body: later ? "The kitchen will confirm your order in a moment. You'll pay when you're done." : "The kitchen will confirm in a moment. Your card is on hold, not charged yet." };
+    case "accepted":
+      return { ...base, title: "Being prepared", body: later ? "The kitchen is preparing your order." : "The kitchen accepted your order and your card has been charged." };
+    case "ready":
+      return { ...base, title: "On its way to your table", body: `A server will bring your order to table ${order.table?.label ?? ""}.`.replace(" .", ".") };
+    case "completed":
+      return { ...base, title: "Enjoy your meal", body: order.paid ? "Thanks for dining with us." : "Ask for the bill whenever you're ready." };
+    default:
+      return base;
+  }
+}
 const FINAL = new Set(["completed", "declined", "expired", "cancelled", "payment_failed"]);
 
 export default function OrderPage({ params }: { params: Promise<{ token: string }> }) {
@@ -41,6 +64,7 @@ export default function OrderPage({ params }: { params: Promise<{ token: string 
   const [order, setOrder] = useState<Order | null>(null);
   const [missing, setMissing] = useState(false);
   const [offline, setOffline] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   useEffect(() => {
     let stop = false;
@@ -92,9 +116,13 @@ export default function OrderPage({ params }: { params: Promise<{ token: string 
     );
   }
 
-  const look = STATES[order.status] ?? { title: "Order update", body: "", icon: "info", tone: "neutral", step: -1 };
+  const dineIn = order.orderType === "dine_in" && !!order.table;
+  const baseLook = STATES[order.status] ?? { title: "Order update", body: "", icon: "info" as IconName, tone: "neutral" as const, step: -1 };
+  const look = dineIn ? dineInLook(order, baseLook) : baseLook;
+  const steps = dineIn ? DINE_IN_STEPS : STEPS;
   const pickup = clockTime(order.pickupAt, order.restaurant.timezone, true);
   const live = !FINAL.has(order.status);
+  const unpaidAtTable = dineIn && order.paymentMode === "pay_later" && !order.paid && !["declined", "cancelled", "expired", "payment_failed"].includes(order.status);
 
   return (
     <main className="container container-sm page stack" style={{ "--gap": "16px" } as React.CSSProperties}>
@@ -120,29 +148,57 @@ export default function OrderPage({ params }: { params: Promise<{ token: string 
         {look.step >= 0 && (
           <>
             <ol className="progress" style={{ marginTop: 22 }} aria-label="Order progress">
-              {STEPS.map((s, i) => (
+              {steps.map((s, i) => (
                 <li key={s} className={i < look.step || order.status === "completed" ? "done" : i === look.step ? "current" : ""} aria-current={i === look.step ? "step" : undefined}>
                   {s}
                 </li>
               ))}
             </ol>
-            {order.status !== "completed" && (
+            {dineIn ? (
               <div className="pickup-box" style={{ marginTop: 18 }}>
-                <Icon name="clock" size={20} />
+                <Icon name="table" size={20} />
                 <span>
-                  Pickup <strong>{pickup}</strong>
+                  Table <strong>{order.table!.label}</strong>
                   {order.prepMinutes && order.status === "accepted" ? <span className="muted"> · about {order.prepMinutes} min</span> : null}
                 </span>
               </div>
+            ) : (
+              order.status !== "completed" && (
+                <div className="pickup-box" style={{ marginTop: 18 }}>
+                  <Icon name="clock" size={20} />
+                  <span>
+                    Pickup <strong>{pickup}</strong>
+                    {order.prepMinutes && order.status === "accepted" ? <span className="muted"> · about {order.prepMinutes} min</span> : null}
+                  </span>
+                </div>
+              )
             )}
           </>
         )}
         {look.step < 0 && (
-          <a className="btn btn-primary" style={{ marginTop: 18 }} href={`/r/${order.restaurant.slug}`}>
+          <a className="btn btn-primary" style={{ marginTop: 18 }} href={dineIn ? `/t/${order.table!.qrToken}` : `/r/${order.restaurant.slug}`}>
             <Icon name="arrowLeft" size={18} /> Back to the menu
           </a>
         )}
       </section>
+
+      {dineIn && (
+        <section className="card stack" aria-label="At your table" style={{ "--gap": "12px" } as React.CSSProperties}>
+          {unpaidAtTable && (
+            <Alert tone="info">Pay at the table when you're done. Ask for the bill below, or flag down a server.</Alert>
+          )}
+          {dineIn && order.paid && <Alert tone="success">Paid. Thank you!</Alert>}
+          <div className="row wrap">
+            <a className="btn grow" href={`/t/${order.table!.qrToken}`}>
+              <Icon name="plus" size={18} /> Order more
+            </a>
+            <Button className="grow" icon="bell" onClick={() => setHelpOpen(true)}>
+              {unpaidAtTable ? "Ask for the bill" : "Call a waiter"}
+            </Button>
+          </div>
+        </section>
+      )}
+      {helpOpen && dineIn && <HelpSheet token={order.table!.qrToken} label={order.table!.label} onClose={() => setHelpOpen(false)} />}
 
       <section className="card" aria-labelledby="receipt">
         <h2 id="receipt" style={{ marginBottom: 6 }}>Receipt</h2>

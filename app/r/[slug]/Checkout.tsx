@@ -17,6 +17,8 @@ type Started = {
 // The customer's details are remembered on this device to make the next order faster.
 const DETAILS_KEY = "sros:customer";
 
+export type CheckoutTable = { token: string; label: string; payLaterEnabled: boolean };
+
 export default function Checkout(props: {
   slug: string;
   lines: CheckoutLine[];
@@ -25,12 +27,14 @@ export default function Checkout(props: {
   totalCents: number;
   canOrder: boolean;
   onClearCart: () => void;
+  /** Set for guests at a table: name and phone are optional, and they can pay now or later. */
+  table?: CheckoutTable;
 }) {
-  const { slug, lines, pickup, tipCents, totalCents, canOrder, onClearCart } = props;
+  const { slug, lines, pickup, tipCents, totalCents, canOrder, onClearCart, table } = props;
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [touched, setTouched] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<null | "now" | "later">(null);
   const [error, setError] = useState<string | null>(null);
   const [started, setStarted] = useState<Started | null>(null);
 
@@ -52,29 +56,30 @@ export default function Checkout(props: {
     setStarted(null);
   }, [signature]);
 
-  const nameOk = name.trim().length > 0;
-  const phoneOk = phone.replace(/\D/g, "").length >= 7;
+  // Guests at a table can leave both blank; if they type a phone number it must still be a real one.
+  const nameOk = table ? true : name.trim().length > 0;
+  const phoneOk = table ? phone.trim() === "" || phone.replace(/\D/g, "").length >= 7 : phone.replace(/\D/g, "").length >= 7;
 
-  async function begin(e?: React.FormEvent) {
+  async function begin(e?: React.FormEvent, payLater = false) {
     e?.preventDefault();
     setTouched(true);
     if (!nameOk || !phoneOk || !canOrder || busy) return;
     setError(null);
-    setBusy(true);
+    setBusy(payLater ? "later" : "now");
     try {
       key.current ??= crypto.randomUUID();
       try {
         localStorage.setItem(DETAILS_KEY, JSON.stringify({ name: name.trim(), phone: phone.trim() }));
       } catch {}
-      const res = await fetch(`/api/r/${slug}/checkout`, {
+      const items = lines.map((l) => ({ itemId: l.itemId, quantity: l.quantity, optionIds: l.optionIds, note: l.note || undefined }));
+      const res = await fetch(table ? `/api/t/${table.token}/checkout` : `/api/r/${slug}/checkout`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Idempotency-Key": key.current },
-        body: JSON.stringify({
-          items: lines.map((l) => ({ itemId: l.itemId, quantity: l.quantity, optionIds: l.optionIds, note: l.note || undefined })),
-          tipCents,
-          pickupTime: pickup === "asap" ? undefined : pickup,
-          customer: { name, phone },
-        }),
+        body: JSON.stringify(
+          table
+            ? { items, tipCents, payLater, customer: { name: name.trim(), phone: phone.trim() } }
+            : { items, tipCents, pickupTime: pickup === "asap" ? undefined : pickup, customer: { name, phone } },
+        ),
       }).catch(() => null);
       if (!res) {
         // The same key is kept, so trying again cannot create a second order.
@@ -88,13 +93,22 @@ export default function Checkout(props: {
       }
       setStarted(data);
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
-  if (started && !started.payment) {
-    window.location.href = `/order/${started.orderToken}`;
-    return null;
+  // An order with nothing to pay online (pay later) goes straight to its status page. Done in an effect, not
+  // while rendering, so the page change happens exactly once.
+  const goTo = started && !started.payment ? `/order/${started.orderToken}` : null;
+  useEffect(() => {
+    if (goTo) window.location.href = goTo;
+  }, [goTo]);
+  if (goTo) {
+    return (
+      <div className="row" style={{ justifyContent: "center", padding: 16 }} role="status">
+        <span className="spinner" aria-hidden="true" /> Sending your order…
+      </div>
+    );
   }
 
   if (started?.payment) {
@@ -120,22 +134,38 @@ export default function Checkout(props: {
   }
 
   return (
-    <form className="stack" style={{ marginTop: 6 }} onSubmit={begin} noValidate>
-      <h3>Your details</h3>
+    <form className="stack" style={{ marginTop: 6 }} onSubmit={(e) => begin(e, false)} noValidate>
+      <h3>{table ? `Order for table ${table.label}` : "Your details"}</h3>
       <label className="field">
-        <span className="label">Name</span>
-        <input className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoComplete="name" aria-invalid={touched && !nameOk} placeholder="Who's picking up?" />
+        <span className="label">{table ? "Name (optional)" : "Name"}</span>
+        <input className="input" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoComplete="name" aria-invalid={touched && !nameOk} placeholder={table ? "So the waiter knows who ordered" : "Who's picking up?"} />
         {touched && !nameOk && <span className="error-text">Enter a name for the order.</span>}
       </label>
       <label className="field">
-        <span className="label">Phone</span>
-        <input className="input" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" autoComplete="tel" maxLength={25} aria-invalid={touched && !phoneOk} placeholder="For pickup updates" />
+        <span className="label">{table ? "Phone (optional)" : "Phone"}</span>
+        <input className="input" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" autoComplete="tel" maxLength={25} aria-invalid={touched && !phoneOk} placeholder={table ? "Only if you'd like updates" : "For pickup updates"} />
         {touched && !phoneOk && <span className="error-text">Enter a phone number we can reach you on.</span>}
       </label>
       {error && <Alert tone="danger">{error}</Alert>}
-      <Button type="submit" variant="primary" size="lg" block loading={busy} disabled={!canOrder}>
-        {busy ? "Placing order…" : canOrder ? `Continue to payment · ${money(totalCents)}` : "Ordering unavailable"}
-      </Button>
+      {table ? (
+        <div className="stack" style={{ "--gap": "10px" } as React.CSSProperties}>
+          <Button type="submit" variant="primary" size="lg" block loading={busy === "now"} disabled={!canOrder || busy === "later"}>
+            {busy === "now" ? "Placing order…" : canOrder ? `Order & pay now · ${money(totalCents)}` : "Ordering unavailable"}
+          </Button>
+          {table.payLaterEnabled && (
+            <Button size="lg" block loading={busy === "later"} disabled={!canOrder || busy === "now"} onClick={() => begin(undefined, true)}>
+              {busy === "later" ? "Sending to the kitchen…" : "Order now, pay later at the table"}
+            </Button>
+          )}
+          <p className="hint" style={{ textAlign: "center" }}>
+            {table.payLaterEnabled ? "Pay now by card, or order first and pay the waiter when you're done." : "Pay by card. Your card is only charged when the kitchen accepts."}
+          </p>
+        </div>
+      ) : (
+        <Button type="submit" variant="primary" size="lg" block loading={busy !== null} disabled={!canOrder}>
+          {busy ? "Placing order…" : canOrder ? `Continue to payment · ${money(totalCents)}` : "Ordering unavailable"}
+        </Button>
+      )}
     </form>
   );
 }

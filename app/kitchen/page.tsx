@@ -18,6 +18,10 @@ type Order = {
   acceptDeadline: string | null;
   prepMinutes: number | null;
   createdAt: string;
+  orderType: "pickup" | "dine_in" | "counter";
+  tableLabel: string | null;
+  paymentMode: "online" | "pay_later";
+  paidAt: string | null;
   items: Line[];
 };
 type Settings = { acceptingOrders: boolean; timezone: string };
@@ -153,6 +157,8 @@ export default function Kitchen() {
   }
 
   const secondsLeft = (o: Order) => (o.acceptDeadline ? Math.max(0, Math.round((new Date(o.acceptDeadline).getTime() - now) / 1000)) : null);
+  // Orders with no deadline (pay-later, from a table) count up instead of down: how long the guest has waited.
+  const secondsWaiting = (o: Order) => Math.max(0, Math.round((now - new Date(o.createdAt).getTime()) / 1000));
   const isOwner = me?.role === "owner";
 
   // Refunds are two taps: the first arms the button and shows the amount, the second confirms.
@@ -160,10 +166,10 @@ export default function Kitchen() {
     isOwner &&
     (confirmRefund === o.id ? (
       <Button variant="danger" size="lg" loading={busy[o.id] === "cancel"} onClick={() => act(o, "cancel")}>
-        Refund {money(o.totalCents)}?
+        {o.paymentMode === "online" || o.paidAt ? `Refund ${money(o.totalCents)}?` : "Cancel order?"}
       </Button>
     ) : (
-      <Button variant="soft-danger" size="lg" aria-label={`Cancel order ${o.number} and refund`} icon="refund" disabled={!!busy[o.id]} onClick={() => setConfirmRefund(o.id)} />
+      <Button variant="soft-danger" size="lg" aria-label={`Cancel order ${o.number}${o.paymentMode === "online" ? " and refund" : ""}`} icon="refund" disabled={!!busy[o.id]} onClick={() => setConfirmRefund(o.id)} />
     ));
 
   return (
@@ -206,17 +212,19 @@ export default function Kitchen() {
           {loaded && waiting.length === 0 && <div className="kds-empty">No new orders</div>}
           {waiting.map((o) => {
             const left = secondsLeft(o);
-            const urgent = left !== null && left < 60;
-            const pct = left === null ? 100 : Math.min(100, Math.max(0, (left / ACCEPT_WINDOW_S) * 100));
+            const waited = secondsWaiting(o);
+            const urgent = left !== null ? left < 60 : waited > 120;
+            const pct = left === null ? Math.max(0, 100 - (waited / 300) * 100) : Math.min(100, Math.max(0, (left / ACCEPT_WINDOW_S) * 100));
+            const clock = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
             const choice = prep[o.id] ?? 15;
             return (
               <Ticket key={o.id} order={o} variant="new" timezone={timezone}>
                 <div className={`timer ${urgent ? "urgent" : ""}`}>
                   <div className="timer-label">
-                    <span>{urgent ? "Respond now" : "Respond within"}</span>
-                    <span>{left !== null ? `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}` : "—"}</span>
+                    <span>{left === null ? (urgent ? "Guest is waiting" : "Waiting") : urgent ? "Respond now" : "Respond within"}</span>
+                    <span>{clock(left ?? waited)}</span>
                   </div>
-                  <div className="timer-track" role="progressbar" aria-label="Time left to respond" aria-valuemin={0} aria-valuemax={ACCEPT_WINDOW_S} aria-valuenow={left ?? 0}>
+                  <div className="timer-track" role="progressbar" aria-label={left === null ? "Time the guest has waited" : "Time left to respond"} aria-valuemin={0} aria-valuemax={ACCEPT_WINDOW_S} aria-valuenow={left ?? waited}>
                     <div className="timer-fill" style={{ width: `${pct}%` }} />
                   </div>
                 </div>
@@ -271,7 +279,7 @@ export default function Kitchen() {
 
         <section aria-labelledby="col-ready">
           <div className="kds-col-head">
-            <h2 id="col-ready">Ready for pickup</h2>
+            <h2 id="col-ready">Ready</h2>
             <span className="count-pill">{ready.length}</span>
           </div>
           {loaded && ready.length === 0 && <div className="kds-empty">Nothing waiting</div>}
@@ -279,7 +287,7 @@ export default function Kitchen() {
             <Ticket key={o.id} order={o} variant="ready" timezone={timezone}>
               <div className="ticket-actions">
                 <Button variant="success" size="lg" className="grow" loading={busy[o.id] === "complete"} disabled={!!busy[o.id]} onClick={() => act(o, "complete")}>
-                  Picked up
+                  {o.orderType === "dine_in" ? "Served" : "Picked up"}
                 </Button>
                 {refundButton(o)}
               </div>
@@ -297,12 +305,22 @@ function Ticket({ order, variant, timezone, children }: { order: Order; variant:
       <div className="ticket-head">
         <div>
           <div className="ticket-num">#{order.number}</div>
-          <div className="ticket-name">{order.customerName}</div>
+          {/* A table order with no name just says "Table 06", which the badge already shows. */}
+          {!(order.orderType === "dine_in" && order.customerName === `Table ${order.tableLabel}`) && <div className="ticket-name">{order.customerName}</div>}
         </div>
-        <div style={{ textAlign: "right" }}>
-          <div className="strong num">{clockTime(order.pickupAt, timezone)}</div>
-          <div className="subtle">{order.prepMinutes ? `promised ${order.prepMinutes} min` : "pickup"}</div>
-        </div>
+        {order.orderType === "dine_in" ? (
+          <div style={{ textAlign: "right" }}>
+            <span className="badge badge-brand" style={{ fontSize: "1rem", height: 32 }}>
+              <Icon name="table" size={16} /> Table {order.tableLabel}
+            </span>
+            <div className="subtle" style={{ marginTop: 4 }}>{order.prepMinutes ? `promised ${order.prepMinutes} min` : "dine-in"}</div>
+          </div>
+        ) : (
+          <div style={{ textAlign: "right" }}>
+            <div className="strong num">{clockTime(order.pickupAt, timezone)}</div>
+            <div className="subtle">{order.prepMinutes ? `promised ${order.prepMinutes} min` : "pickup"}</div>
+          </div>
+        )}
       </div>
       <ul className="ticket-items">
         {order.items.map((l, i) => (
@@ -317,11 +335,18 @@ function Ticket({ order, variant, timezone, children }: { order: Order; variant:
         ))}
       </ul>
       <div className="subtle row" style={{ marginTop: 12, "--gap": "10px" } as React.CSSProperties}>
-        <a href={`tel:${order.customerPhone}`} className="row" style={{ "--gap": "6px" } as React.CSSProperties}>
-          <Icon name="phone" size={14} /> {order.customerPhone}
-        </a>
-        <span>·</span>
-        <span className="num">{money(order.totalCents)} paid online</span>
+        {order.customerPhone && (
+          <>
+            <a href={`tel:${order.customerPhone}`} className="row" style={{ "--gap": "6px" } as React.CSSProperties}>
+              <Icon name="phone" size={14} /> {order.customerPhone}
+            </a>
+            <span>·</span>
+          </>
+        )}
+        <span className="num">
+          {money(order.totalCents)}{" "}
+          {order.paidAt ? (order.paymentMode === "online" ? "paid online" : "paid") : order.paymentMode === "pay_later" ? "· pays at the table" : "paid online"}
+        </span>
       </div>
       {children}
     </article>

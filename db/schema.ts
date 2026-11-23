@@ -18,6 +18,8 @@ export const restaurants = pgTable("restaurants", {
   minPrepMinutes: integer("min_prep_minutes").notNull().default(20),
   maxAdvanceDays: integer("max_advance_days").notNull().default(2),
   acceptingOrders: boolean("accepting_orders").notNull().default(true),
+  dineInEnabled: boolean("dine_in_enabled").notNull().default(false),
+  payLaterEnabled: boolean("pay_later_enabled").notNull().default(true),
   nextOrderNumber: integer("next_order_number").notNull().default(1),
   platformFeeBps: integer("platform_fee_bps").notNull().default(600),
   feeModel: text("fee_model").notNull().default("all_in"),
@@ -130,6 +132,12 @@ export const orders = pgTable("orders", {
   readyAt: timestamp("ready_at", { withTimezone: true }),
   completedAt: timestamp("completed_at", { withTimezone: true }),
   cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+  orderType: text("order_type").notNull().default("pickup"),
+  tableId: uuid("table_id"),
+  paymentMode: text("payment_mode").notNull().default("online"),
+  feeCollection: text("fee_collection").notNull().default("platform"),
+  paidAt: timestamp("paid_at", { withTimezone: true }),
+  servedAt: timestamp("served_at", { withTimezone: true }),
   ...timestamps,
 });
 
@@ -157,6 +165,7 @@ export const payments = pgTable("payments", {
   amountCents: integer("amount_cents").notNull(),
   feeCents: integer("fee_cents").notNull(),
   currency: text("currency").notNull().default("usd"),
+  method: text("method").notNull().default("card_online"),
   ...timestamps,
 });
 
@@ -167,4 +176,37 @@ export const providerIntegrations = pgTable("provider_integrations", {
   externalAccountId: text("external_account_id").notNull(),
   status: text("status").notNull().default("pending"),
   ...timestamps,
+});
+
+export const floors = pgTable("floors", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  restaurantId: uuid("restaurant_id").notNull(),
+  name: text("name").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  ...timestamps,
+});
+
+export const diningTables = pgTable("dining_tables", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  restaurantId: uuid("restaurant_id").notNull(),
+  floorId: uuid("floor_id"),
+  label: text("label").notNull(),
+  seats: integer("seats").notNull().default(4),
+  sortOrder: integer("sort_order").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+  qrToken: text("qr_token").notNull(),
+  assignedTo: uuid("assigned_to"),
+  lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+  clearedAt: timestamp("cleared_at", { withTimezone: true }).notNull().defaultNow(),
+  ...timestamps,
+});
+
+export const tableRequests = pgTable("table_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  restaurantId: uuid("restaurant_id").notNull(),
+  tableId: uuid("table_id").notNull(),
+  kind: text("kind").notNull(),
+  status: text("status").notNull().default("open"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  resolvedAt: timestamp("resolved_at", { withTimezone: true }),
 });
