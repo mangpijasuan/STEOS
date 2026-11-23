@@ -658,3 +658,50 @@ body:has(.sidebar) { padding-left: 0 !important; }
 .ds .progress li.current { color: var(--text); }
 .ds .progress li.current::before { background: linear-gradient(90deg, var(--brand) 0 50%, var(--surface-3) 50%); background-size: 200% 100%; animation: shimmer 1.6s linear infinite; }
 .ds .pickup-box { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px; border-radius: var(--radius); background: var(--surface-2); font-size: 1.05rem; }
+
+/* hours and settings */
+.ds .grid-2 { display: grid; gap: 16px; }
+@media (min-width: 820px) {
+  .ds .grid-2 { grid-template-columns: 1fr 1fr; align-items: start; }
+}
+
+/* ============================================================ weekly hours editor */
+.ds .hours { display: grid; gap: 10px; }
+.ds .hours-day { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; margin: 0; min-width: 0; }
+.ds .hours-day legend { float: left; width: 116px; padding: 0; margin: 0 8px 0 0; line-height: 44px; }
+.ds .hours-day > div { overflow: hidden; }
+.ds .hours-period { flex-wrap: wrap; align-items: center; }
+.ds .hours-period .field { width: 160px; }
+@media (max-width: 520px) { .ds .hours-day legend { float: none; width: auto; line-height: 1.3; margin-bottom: 8px; } }
+
+/* reports and pricing */
+.ds .stat-note { font-size: 0.8125rem; color: var(--text-3); margin-top: 2px; }
+.ds .bars { display: flex; align-items: flex-end; gap: 4px; height: 160px; padding-top: 8px; }
+.ds .bar-col { position: relative; flex: 1 1 0; min-width: 3px; max-width: 56px; height: 100%; display: flex; align-items: flex-end; outline-offset: 1px; }
+.ds .bar { width: 100%; min-height: 2px; background: var(--series); border-radius: 4px 4px 0 0; transition: opacity 0.15s; }
+.ds .bars:hover .bar { opacity: 0.45; }
+.ds .bars .bar-col:hover .bar, .ds .bars .bar-col:focus-visible .bar { opacity: 1; }
+.ds .bar-tip { position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); z-index: 5; pointer-events: none; white-space: nowrap; padding: 6px 10px; border-radius: 8px; background: var(--text); color: var(--bg); font-size: 0.8125rem; font-weight: 600; box-shadow: var(--shadow-lg); opacity: 0; transition: opacity 0.12s; }
+.ds .bar-col:hover .bar-tip, .ds .bar-col:focus-visible .bar-tip { opacity: 1; }
+.ds .bar-col:first-child .bar-tip { left: 0; transform: none; }
+.ds .bar-col:last-child .bar-tip { left: auto; right: 0; transform: none; }
+.ds .axis { display: flex; justify-content: space-between; margin-top: 8px; color: var(--text-3); font-size: 0.8125rem; border-top: 1px solid var(--border); padding-top: 6px; }
+.ds .plans { display: grid; gap: 14px; }
+@media (min-width: 820px) {
+  .ds .plans { grid-template-columns: repeat(2, 1fr); }
+}
+.ds .plan { position: relative; display: flex; flex-direction: column; gap: 10px; padding: 20px; border: 1.5px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); }
+.ds .plan.current { border-color: var(--success); box-shadow: 0 0 0 3px var(--success-soft); }
+.ds .plan.unavailable { opacity: 0.65; }
+.ds .plan-price { font-size: 1.9rem; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.ds .plan-price small { font-size: 0.9rem; font-weight: 600; color: var(--text-2); letter-spacing: 0; }
+.ds .plan-best { position: absolute; top: -11px; right: 16px; }
+
+/* sign-in and home */
+.ds .auth-wrap { min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px; background: radial-gradient(1200px 500px at 50% -10%, var(--brand-soft), transparent 70%), var(--bg); }
+.ds .auth-card { width: 100%; max-width: 420px; }
+.ds .auth-card .logo { width: 44px; height: 44px; border-radius: 12px; font-size: 1.2rem; }
+.ds .hero { padding: 72px 0 56px; text-align: center; }
+.ds .hero h1 { font-size: clamp(2.1rem, 1.4rem + 3vw, 3.4rem); font-weight: 800; letter-spacing: -0.03em; max-width: 16ch; margin: 0 auto 14px; }
+.ds .hero p { color: var(--text-2); font-size: 1.15rem; max-width: 48ch; margin: 0 auto 26px; }
+.ds .features { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); padding-bottom: 64px; }
