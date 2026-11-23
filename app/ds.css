@@ -1,0 +1,336 @@
+/* SROS design system, scoped.
+   Everything here applies only inside an element with class "ds" (see app/menu/layout.tsx), so screens that have
+   not been moved to the design system keep their current look. To move a screen over, wrap it in .ds.
+   Brand: change the --brand* variables in the first block. */
+/* SROS design system. Every screen uses these tokens and classes; no page carries its own colors.
+   Change the brand by editing --brand* below. Light and dark themes are both defined; the kitchen
+   screen always uses dark (data-theme="dark") because it runs all day on a tablet near the line. */
+.ds {
+  color-scheme: light;
+  --font: ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  --bg: #f7f5f2;
+  --surface: #ffffff;
+  --surface-2: #f2efea;
+  --surface-3: #e9e5df;
+  --border: #e4dfd8;
+  --border-strong: #cfc8be;
+  --text: #1c1917;
+  --text-2: #57534e;
+  --text-3: #78716c;
+
+  --brand: #c2410c;
+  --brand-hover: #a8380a;
+  --brand-ink: #ffffff;
+  --brand-soft: #fff1e8;
+  --brand-soft-ink: #9a3412;
+
+  --success: #15803d;
+  --success-hover: #116632;
+  --success-soft: #e8f7ee;
+  --success-ink: #14532d;
+  --warning-soft: #fff6db;
+  --warning-ink: #854d0e;
+  --danger: #b91c1c;
+  --danger-hover: #991b1b;
+  --danger-soft: #fdecec;
+  --danger-ink: #7f1d1d;
+  --info: #1d4ed8;
+  --info-soft: #e9efff;
+  --info-ink: #1e3a8a;
+
+  --series: #eb6834;
+  --focus: #2563eb;
+
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 18px;
+  --radius-pill: 999px;
+  --shadow-sm: 0 1px 2px rgb(28 25 23 / 0.06);
+  --shadow: 0 1px 2px rgb(28 25 23 / 0.05), 0 4px 16px rgb(28 25 23 / 0.06);
+  --shadow-lg: 0 10px 40px rgb(28 25 23 / 0.18);
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@media (prefers-color-scheme: dark) {
+  .ds:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --bg: #121110;
+    --surface: #1c1b19;
+    --surface-2: #252321;
+    --surface-3: #2f2d2a;
+    --border: #34312d;
+    --border-strong: #4a4641;
+    --text: #f5f3f0;
+    --text-2: #c9c4bd;
+    --text-3: #a29c94;
+    --brand: #f07a45;
+    --brand-hover: #f48d5e;
+    --brand-ink: #1f0d04;
+    --brand-soft: #3a1f12;
+    --brand-soft-ink: #ffb48f;
+    --success: #34c46c;
+    --success-hover: #4fd283;
+    --success-soft: #12301e;
+    --success-ink: #8de3ad;
+    --warning-soft: #3a2e0c;
+    --warning-ink: #f6d37a;
+    --danger: #f05a5a;
+    --danger-hover: #f47474;
+    --danger-soft: #3a1515;
+    --danger-ink: #ffb1b1;
+    --info: #6e9bff;
+    --info-soft: #172446;
+    --info-ink: #b6caff;
+    --series: #d95926;
+    --focus: #7aa7ff;
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.35), 0 4px 16px rgb(0 0 0 / 0.3);
+    --shadow-lg: 0 10px 40px rgb(0 0 0 / 0.6);
+  }
+}
+.ds[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121110;
+  --surface: #1c1b19;
+  --surface-2: #252321;
+  --surface-3: #2f2d2a;
+  --border: #34312d;
+  --border-strong: #4a4641;
+  --text: #f5f3f0;
+  --text-2: #c9c4bd;
+  --text-3: #a29c94;
+  --brand: #f07a45;
+  --brand-hover: #f48d5e;
+  --brand-ink: #1f0d04;
+  --brand-soft: #3a1f12;
+  --brand-soft-ink: #ffb48f;
+  --success: #34c46c;
+  --success-hover: #4fd283;
+  --success-soft: #12301e;
+  --success-ink: #8de3ad;
+  --warning-soft: #3a2e0c;
+  --warning-ink: #f6d37a;
+  --danger: #f05a5a;
+  --danger-hover: #f47474;
+  --danger-soft: #3a1515;
+  --danger-ink: #ffb1b1;
+  --info: #6e9bff;
+  --info-soft: #172446;
+  --info-ink: #b6caff;
+  --series: #d95926;
+  --focus: #7aa7ff;
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.35), 0 4px 16px rgb(0 0 0 / 0.3);
+  --shadow-lg: 0 10px 40px rgb(0 0 0 / 0.6);
+}
+/* ------------------------------------------------------------------ base */
+.ds *, .ds *::before, .ds *::after { box-sizing: border-box; }
+.ds {
+  margin: 0;
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100dvh;
+}
+.ds h1, .ds h2, .ds h3, .ds h4 { margin: 0; line-height: 1.2; letter-spacing: -0.015em; }
+.ds h1 { font-size: clamp(1.6rem, 1.2rem + 1.6vw, 2.25rem); font-weight: 750; }
+.ds h2 { font-size: 1.25rem; font-weight: 700; }
+.ds h3 { font-size: 1.05rem; font-weight: 650; }
+.ds p { margin: 0; }
+.ds a { color: var(--brand); text-decoration: none; font-weight: 550; }
+.ds a:hover { text-decoration: underline; }
+.ds img { max-width: 100%; display: block; }
+.ds button, .ds input, .ds select, .ds textarea { font: inherit; color: inherit; }
+.ds :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 6px; }
+.ds ::selection { background: var(--brand-soft); }
+.ds .num { font-variant-numeric: tabular-nums; }
+.ds .muted { color: var(--text-2); }
+.ds .subtle { color: var(--text-3); font-size: 0.875rem; }
+.ds .small { font-size: 0.875rem; }
+.ds .strong { font-weight: 650; }
+.ds .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.ds .clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* ---------------------------------------------------------------- layout */
+.ds .container { width: 100%; max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+.ds .container-sm { max-width: 640px; }
+.ds .container-md { max-width: 880px; }
+.ds .stack { display: flex; flex-direction: column; gap: var(--gap, 12px); }
+.ds .row { display: flex; align-items: center; gap: var(--gap, 12px); }
+.ds .row-between { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ds .wrap { flex-wrap: wrap; }
+.ds .grow { flex: 1 1 auto; min-width: 0; }
+.ds .page { padding-block: 24px 64px; }
+.ds .section-title { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.ds .divider { height: 1px; background: var(--border); border: 0; margin: 12px 0; }
+/* ----------------------------------------------------------------- cards */
+.ds .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 18px; box-shadow: var(--shadow-sm); }
+.ds .card-tight { padding: 14px; }
+.ds .card-flush { padding: 0; overflow: hidden; }
+.ds .card-header { padding: 16px 18px; border-bottom: 1px solid var(--border); }
+.ds .list > * + * { border-top: 1px solid var(--border); }
+/* --------------------------------------------------------------- buttons */
+.ds .btn {
+  --btn-bg: var(--surface);
+  --btn-fg: var(--text);
+  --btn-border: var(--border-strong);
+  --btn-hover: var(--surface-2);
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 44px; padding: 0 18px;
+  border-radius: var(--radius); border: 1px solid var(--btn-border);
+  background: var(--btn-bg); color: var(--btn-fg);
+  font-weight: 650; font-size: 1rem; line-height: 1; white-space: nowrap;
+  cursor: pointer; user-select: none; text-decoration: none;
+  transition: background 0.15s var(--ease), transform 0.08s var(--ease), box-shadow 0.15s var(--ease), opacity 0.15s;
+}
+.ds .btn:hover:not(:disabled) { background: var(--btn-hover); text-decoration: none; }
+.ds .btn:active:not(:disabled) { transform: scale(0.98); }
+.ds .btn:disabled, .ds .btn[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
+.ds .btn-primary { --btn-bg: var(--brand); --btn-fg: var(--brand-ink); --btn-border: transparent; --btn-hover: var(--brand-hover); box-shadow: var(--shadow-sm); }
+.ds .btn-success { --btn-bg: var(--success); --btn-fg: #fff; --btn-border: transparent; --btn-hover: var(--success-hover); }
+.ds [data-theme="dark"] .btn-success { --btn-fg: #06200f; }
+.ds .btn-danger { --btn-bg: var(--danger); --btn-fg: #fff; --btn-border: transparent; --btn-hover: var(--danger-hover); }
+.ds [data-theme="dark"] .btn-danger { --btn-fg: #2a0707; }
+.ds .btn-soft-danger { --btn-bg: var(--danger-soft); --btn-fg: var(--danger-ink); --btn-border: transparent; --btn-hover: var(--danger-soft); }
+.ds .btn-ghost { --btn-bg: transparent; --btn-border: transparent; --btn-hover: var(--surface-2); }
+.ds .btn-sm { min-height: 36px; padding: 0 12px; font-size: 0.9rem; border-radius: var(--radius-sm); }
+.ds .btn-lg { min-height: 56px; padding: 0 22px; font-size: 1.1rem; border-radius: 14px; }
+.ds .btn-xl { min-height: 64px; padding: 0 24px; font-size: 1.2rem; border-radius: 16px; }
+.ds .btn-block { width: 100%; }
+.ds .btn-icon { width: 44px; padding: 0; }
+.ds .btn-icon.btn-sm { width: 36px; }
+/* ----------------------------------------------------------------- forms */
+.ds .field { display: flex; flex-direction: column; gap: 6px; }
+.ds .label { font-size: 0.875rem; font-weight: 600; color: var(--text-2); }
+.ds .input, .ds .select, .ds .textarea {
+  width: 100%; min-height: 48px; padding: 0 14px;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--border-strong); border-radius: var(--radius);
+  font-size: 1rem; transition: border-color 0.15s, box-shadow 0.15s;
+}
+.ds .textarea { padding: 12px 14px; min-height: 80px; resize: vertical; }
+.ds .select { appearance: none; padding-right: 40px; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' stroke='%2378716c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m5 8 5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 12px center; }
+.ds .input:focus, .ds .select:focus, .ds .textarea:focus { outline: none; border-color: var(--focus); box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 25%, transparent); }
+.ds .input[aria-invalid="true"] { border-color: var(--danger); }
+.ds .hint { font-size: 0.8125rem; color: var(--text-3); }
+.ds .error-text { font-size: 0.875rem; color: var(--danger); font-weight: 550; }
+/* Segmented control: tip choice, report period, prep time */
+.ds .segmented { display: grid; grid-auto-columns: 1fr; grid-auto-flow: column; gap: 4px; padding: 4px; background: var(--surface-2); border-radius: var(--radius); }
+.ds .segmented button { min-height: 40px; border: 0; border-radius: 9px; background: transparent; color: var(--text-2); font-weight: 600; cursor: pointer; padding: 0 10px; transition: background 0.15s, color 0.15s; }
+.ds .segmented button:hover { color: var(--text); }
+.ds .segmented button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
+.ds .segmented-lg button { min-height: 52px; font-size: 1.05rem; }
+/* Quantity stepper */
+.ds .stepper { display: inline-flex; align-items: center; border: 1px solid var(--border-strong); border-radius: var(--radius-pill); background: var(--surface); }
+.ds .stepper button { width: 40px; height: 40px; border: 0; background: transparent; border-radius: 50%; font-size: 1.25rem; cursor: pointer; display: grid; place-items: center; color: var(--text); }
+.ds .stepper button:hover:not(:disabled) { background: var(--surface-2); }
+.ds .stepper button:disabled { opacity: 0.35; cursor: not-allowed; }
+.ds .stepper output { min-width: 28px; text-align: center; font-weight: 650; font-variant-numeric: tabular-nums; }
+.ds .stepper-sm button { width: 32px; height: 32px; font-size: 1.05rem; }
+/* Switch */
+.ds .switch { position: relative; display: inline-flex; width: 48px; height: 28px; flex: none; }
+.ds .switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; z-index: 1; }
+.ds .switch span { position: absolute; inset: 0; border-radius: 999px; background: var(--border-strong); transition: background 0.2s var(--ease); }
+.ds .switch span::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: var(--shadow-sm); transition: transform 0.2s var(--ease); }
+.ds .switch input:checked + span { background: var(--success); }
+.ds .switch input:checked + span::after { transform: translateX(20px); }
+.ds .switch input:focus-visible + span { outline: 3px solid var(--focus); outline-offset: 2px; }
+.ds .switch input:disabled + span { opacity: 0.5; }
+/* Option rows (radio / checkbox) */
+.ds .option { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 0 14px; border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; transition: border-color 0.15s, background 0.15s; }
+.ds .option:hover { border-color: var(--border-strong); }
+.ds .option:has(input:checked) { border-color: var(--brand); background: var(--brand-soft); }
+.ds .option:has(input:disabled) { opacity: 0.5; cursor: not-allowed; }
+.ds .option input { width: 20px; height: 20px; accent-color: var(--brand); margin: 0; }
+/* ---------------------------------------------------------- badges, alerts */
+.ds .badge { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: var(--radius-pill); font-size: 0.8125rem; font-weight: 650; background: var(--surface-2); color: var(--text-2); white-space: nowrap; }
+.ds .badge-success { background: var(--success-soft); color: var(--success-ink); }
+.ds .badge-warning { background: var(--warning-soft); color: var(--warning-ink); }
+.ds .badge-danger { background: var(--danger-soft); color: var(--danger-ink); }
+.ds .badge-brand { background: var(--brand-soft); color: var(--brand-soft-ink); }
+.ds .badge-info { background: var(--info-soft); color: var(--info-ink); }
+.ds .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
+.ds .dot-live { animation: pulse 1.8s infinite; }
+.ds .alert { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: var(--radius); font-size: 0.95rem; background: var(--info-soft); color: var(--info-ink); }
+.ds .alert svg { flex: none; margin-top: 2px; }
+.ds .alert-success { background: var(--success-soft); color: var(--success-ink); }
+.ds .alert-warning { background: var(--warning-soft); color: var(--warning-ink); }
+.ds .alert-danger { background: var(--danger-soft); color: var(--danger-ink); }
+/* ------------------------------------------------------ loading and empty */
+.ds .spinner { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid currentColor; border-right-color: transparent; animation: spin 0.7s linear infinite; flex: none; }
+.ds .skeleton { background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 37%, var(--surface-2) 63%); background-size: 400% 100%; animation: shimmer 1.4s ease infinite; border-radius: var(--radius-sm); }
+.ds .empty { text-align: center; padding: 28px 16px; color: var(--text-3); border: 1.5px dashed var(--border); border-radius: var(--radius-lg); }
+.ds .empty svg { margin: 0 auto 8px; opacity: 0.7; }
+/* ------------------------------------------------------- top bar (staff) */
+.ds .topbar { position: sticky; top: 0; z-index: 30; background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: saturate(1.4) blur(12px); border-bottom: 1px solid var(--border); }
+.ds .topbar-inner { display: flex; align-items: center; gap: 16px; height: 60px; }
+.ds .brandmark { display: inline-flex; align-items: center; gap: 10px; font-weight: 750; color: var(--text); letter-spacing: -0.01em; }
+.ds .brandmark:hover { text-decoration: none; }
+.ds .logo { width: 32px; height: 32px; border-radius: 9px; background: var(--brand); color: var(--brand-ink); display: grid; place-items: center; font-weight: 800; font-size: 0.95rem; flex: none; }
+.ds .nav { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+.ds .nav::-webkit-scrollbar { display: none; }
+.ds .nav a { display: inline-flex; align-items: center; height: 36px; padding: 0 12px; border-radius: var(--radius-sm); color: var(--text-2); font-weight: 600; white-space: nowrap; }
+.ds .nav a:hover { background: var(--surface-2); color: var(--text); text-decoration: none; }
+.ds .nav a[aria-current="page"] { background: var(--surface-2); color: var(--text); }
+/* ----------------------------------------------------------- sheet/modal */
+.ds .backdrop { position: fixed; inset: 0; z-index: 60; background: rgb(12 10 9 / 0.5); display: flex; align-items: flex-end; justify-content: center; animation: fade-in 0.2s var(--ease); }
+.ds .sheet { width: 100%; max-width: 560px; max-height: 92dvh; display: flex; flex-direction: column; background: var(--surface); border-radius: 22px 22px 0 0; box-shadow: var(--shadow-lg); animation: slide-up 0.28s var(--ease); }
+.ds .sheet-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 20px 20px 12px; }
+.ds .sheet-body { padding: 0 20px 16px; overflow-y: auto; overscroll-behavior: contain; }
+.ds .sheet-footer { padding: 14px 20px calc(14px + env(safe-area-inset-bottom)); border-top: 1px solid var(--border); background: var(--surface); border-radius: 0 0 22px 22px; }
+.ds .sheet-grip { width: 40px; height: 5px; border-radius: 3px; background: var(--border-strong); margin: 10px auto 0; }
+.ds .sheet-hero { position: relative; flex: none; background: var(--surface-2); }
+.ds .sheet-hero img { display: block; width: 100%; aspect-ratio: 16 / 10; max-height: 38dvh; object-fit: cover; }
+.ds .sheet-hero .sheet-close { position: absolute; top: 12px; right: 12px; width: 40px; min-height: 40px; border-radius: 50%; background: rgb(255 255 255 / 0.92); color: #1c1917; border-color: transparent; box-shadow: var(--shadow); }
+.ds .sheet.has-hero { overflow: hidden; }
+.ds .sheet.has-hero .sheet-grip { display: none; }
+@media (min-width: 640px) {
+  .ds .backdrop { align-items: center; padding: 24px; }
+  .ds .sheet { border-radius: 22px; max-height: 86dvh; animation: pop-in 0.22s var(--ease); }
+  .ds .sheet-grip { display: none; }
+}
+/* ----------------------------------------------------------------- toast */
+.ds .toast-region { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); z-index: 80; display: flex; flex-direction: column; gap: 8px; width: min(92vw, 420px); pointer-events: none; }
+.ds .toast { pointer-events: auto; display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: var(--radius); background: var(--text); color: var(--bg); box-shadow: var(--shadow-lg); font-weight: 550; animation: slide-up 0.25s var(--ease); }
+.ds .toast-danger { background: var(--danger); color: #fff; }
+/* ------------------------------------------------------------ animations */
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes slide-up { from { transform: translateY(24px); opacity: 0; } }
+@keyframes pop-in { from { transform: scale(0.96); opacity: 0; } }
+@keyframes ring { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 55%, transparent); } 50% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--brand) 0%, transparent); } }
+@media (prefers-reduced-motion: reduce) {
+  .ds *, .ds *::before, .ds *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+}
+@media (forced-colors: active) {
+  .ds .btn, .ds .card, .ds .option, .ds .segmented button[aria-pressed="true"] { border: 1px solid CanvasText; }
+}
+/* ================================================================ menu */
+.ds .menu-row { display: flex; align-items: center; gap: 14px; padding: 14px 18px; }
+.ds .menu-row.off .menu-row-name { color: var(--text-3); text-decoration: line-through; text-decoration-color: var(--border-strong); }
+.ds .menu-row-name { font-weight: 600; }
+.ds .sticky-search { position: sticky; top: 60px; z-index: 10; padding: 10px 0; background: var(--bg); }
+.ds .input-icon { position: relative; }
+.ds .input-icon svg { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-3); pointer-events: none; }
+.ds .input-icon .input { padding-left: 42px; }
+/* ============================================================ menu editor */
+.ds .thumb { width: 48px; height: 48px; border-radius: 10px; object-fit: cover; background: var(--surface-2); flex: none; display: grid; place-items: center; color: var(--text-3); }
+.ds .photo-field { position: relative; border-radius: var(--radius); overflow: hidden; background: var(--surface-2); aspect-ratio: 16 / 9; display: grid; place-items: center; border: 1.5px dashed var(--border-strong); }
+.ds .photo-field.has { border-style: solid; border-color: var(--border); }
+.ds .photo-field img { width: 100%; height: 100%; object-fit: cover; }
+.ds .photo-field .photo-actions { position: absolute; right: 8px; bottom: 8px; display: flex; gap: 6px; }
+.ds .photo-empty { display: grid; gap: 6px; justify-items: center; color: var(--text-2); font-weight: 600; text-align: center; padding: 12px; }
+.ds .addon-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; display: grid; gap: 12px; background: var(--surface-2); }
+.ds .opt-row { display: grid; grid-template-columns: 1fr 96px 48px 36px; gap: 8px; align-items: center; }
+.ds .opt-row .input { min-height: 42px; }
+.ds .price-input { position: relative; }
+.ds .price-input::before { content: "$"; position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-3); pointer-events: none; }
+.ds .price-input .input { padding-left: 24px; }
+.ds .row-actions { display: flex; align-items: center; gap: 2px; }
+.ds .cat-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 18px 2px 10px; }

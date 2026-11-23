@@ -49,6 +49,8 @@ In development the sign-in link is printed in the server console instead of bein
 | PUT, DELETE staff/menu/modifier-groups/id | owner | Edit or remove a group |
 | POST staff/menu/modifier-groups/id/options | owner | Add an option |
 | PUT, DELETE staff/menu/modifier-options/id | owner | Edit or remove an option |
+| POST staff/images | owner | Upload a food photo (raw JPEG, PNG or WebP body, up to 1.5 MB). Returns its id and URL |
+| GET images/id | public | A food photo, cached for a year |
 | GET r/slug/menu | public | Storefront menu, open/closed state, earliest pickup |
 | GET r/slug/pickup-slots | public | 15-minute pickup times (empty when paused or closed) |
 | POST r/slug/quote | public, rate limited | Price a cart on the server: subtotal, tax, tip, total |
@@ -80,7 +82,7 @@ In development the sign-in link is printed in the server console instead of bein
 - Generate independent random values of at least 32 characters for `ORDER_TOKEN_SECRET` and `CRON_SECRET`. Keep the order secret stable for retries.
 - Set `TRUSTED_CLIENT_IP_HEADER` to a single-IP header owned and overwritten by your ingress. In Coolify, set this only after confirming that traffic reaches the app through the trusted Cloudflare and proxy path and that the origin rejects direct public traffic. When no trusted IP is available, public rate limits share an anonymous bucket. Production `GET /api/health` reports this configuration as degraded when the header name is missing or invalid. Redact bearer tokens in sign-in and order paths from production access logs.
 - Run `npm run worker:orders` under a process supervisor, or use a managed scheduler to call the expiry endpoint every minute. The worker also reconciles pending Stripe refunds and purges expired sessions, login links and rate-limit records. Monitor worker logs and failed webhook deliveries.
-- Owners can edit menus, modifier options, weekly hours, and ordering settings at `/manage`.
+- Owners edit the menu at `/menu` and weekly hours and ordering settings at `/manage` (see "Menu editor and photos").
 - Point an uptime monitor at `GET /api/health` and optionally set `ALERT_WEBHOOK_URL` for throttled operational alerts. The health check tests database access and flags a worker heartbeat or expiry backlog older than five minutes.
 - Existing Sprint 6 deployments can continue using `EMAIL_PROVIDER=resend` and `EMAIL_FROM`. `LOGIN_FROM_EMAIL` takes precedence when both sender settings are present.
 
@@ -129,3 +131,11 @@ Before taking live payments, verify card decline and retry, delayed webhook deli
 **Worth knowing about the all-in plans.** With Stripe direct charges the restaurant's own account pays the card fees, so on an all-in plan SROS keeps only the target percentage minus those fees, and nothing on very small orders. On a $20 order at 6% that is about $0.32. Plans with "+ card fees" earn more per order but cost the restaurant more. Compare them in the pilot before settling on a price.
 
 See the [Phase 4 integration handoff](docs/PHASE_4_INTEGRATION.md) for the migration allocation and remaining feature ports.
+
+## Menu editor and photos
+
+Owners edit the menu at `/menu`: categories, dishes, add-on groups and options (each option can be marked out of stock), ordering, and food photos. Staff can still mark dishes sold out from the dashboard. Weekly opening hours and ordering settings stay at `/manage`.
+
+- Photos are shrunk in the browser (max 1200px JPEG), stored in the database (`images` table, migration 0012) and served publicly at `/api/images/<id>` with a one-year cache. Uploads are owner-only, checked by their real file signature (JPEG, PNG or WebP), limited to 1.5 MB and 60 per hour, and capped at 500 per restaurant.
+- A replaced or removed photo is deleted with the change. Photos that were uploaded but never saved are removed after an hour by the order worker. Moving photos to object storage later only changes `lib/images.ts` and the two image routes.
+- The editor uses the design system in `app/ds.css`, which is scoped to elements inside a `.ds` wrapper (`app/menu/layout.tsx`). Screens that have not been moved over keep their current look; to move one, wrap it in `.ds`. `app/legacy.css` keeps the original page frame for the others.

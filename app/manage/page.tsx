@@ -1,82 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import type { HoursPeriod } from "@/lib/hours";
 
-type Category = { id: string; name: string; sortOrder: number; items: Item[] };
-type Item = { id: string; categoryId: string; name: string; description: string; priceCents: number; available: boolean; imageUrl: string | null; sortOrder: number; modifierGroups: Group[] };
-type Group = { id: string; name: string; minChoices: number; maxChoices: number; sortOrder: number; options: Option[] };
-type Option = { id: string; name: string; priceDeltaCents: number; available: boolean; sortOrder: number };
 type Settings = { acceptingOrders: boolean; minPrepMinutes: number; maxAdvanceDays: number; taxRateBps: number };
 
-const menuUrl = "/api/staff/menu";
 const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const text = (data: FormData, key: string) => String(data.get(key) ?? "");
 const number = (data: FormData, key: string) => Number(data.get(key));
-const named = (data: FormData) => ({ name: text(data, "name"), sortOrder: number(data, "sortOrder") });
-
-function NameFields({ value }: { value?: { name: string; sortOrder: number } }) {
-  return <>
-    <label>Name <input name="name" defaultValue={value?.name} required /></label>
-    <label>Sort order <input name="sortOrder" type="number" min={0} max={10000} defaultValue={value?.sortOrder ?? 0} required /></label>
-  </>;
-}
-
-function ItemFields({ item, categories, categoryId }: { item?: Item; categories: Category[]; categoryId: string }) {
-  return <>
-    <NameFields value={item} />
-    <label>Category <select name="categoryId" defaultValue={item?.categoryId ?? categoryId}>
-      {categories.map((category) => <option value={category.id} key={category.id}>{category.name}</option>)}
-    </select></label>
-    <label>Description <input name="description" maxLength={1000} defaultValue={item?.description} /></label>
-    <label>Price in cents <input name="priceCents" type="number" min={0} max={1_000_000} defaultValue={item?.priceCents} required /></label>
-    <label>Image URL <input name="imageUrl" type="url" maxLength={500} defaultValue={item?.imageUrl ?? ""} /></label>
-    <label><input name="available" type="checkbox" defaultChecked={item?.available ?? true} /> Available</label>
-  </>;
-}
-
-function itemInput(data: FormData) {
-  return { ...named(data), categoryId: text(data, "categoryId"), description: text(data, "description"),
-    priceCents: number(data, "priceCents"), imageUrl: text(data, "imageUrl") || null, available: data.has("available") };
-}
-
-function GroupFields({ group }: { group?: Group }) {
-  return <>
-    <NameFields value={group} />
-    <label>Minimum choices <input name="minChoices" type="number" min={0} max={20} defaultValue={group?.minChoices ?? 0} required /></label>
-    <label>Maximum choices <input name="maxChoices" type="number" min={1} max={20} defaultValue={group?.maxChoices ?? 1} required /></label>
-  </>;
-}
-
-function groupInput(data: FormData) {
-  return { ...named(data), minChoices: number(data, "minChoices"), maxChoices: number(data, "maxChoices") };
-}
-
-function OptionFields({ option }: { option?: Option }) {
-  return <>
-    <NameFields value={option} />
-    <label>Extra price in cents <input name="priceDeltaCents" type="number" min={0} max={100_000} defaultValue={option?.priceDeltaCents ?? 0} required /></label>
-    <label><input name="available" type="checkbox" defaultChecked={option?.available ?? true} /> Available</label>
-  </>;
-}
-
-function optionInput(data: FormData) {
-  return { ...named(data), priceDeltaCents: number(data, "priceDeltaCents"), available: data.has("available") };
-}
 
 export default function ManageRestaurant() {
-  const [menu, setMenu] = useState<Category[] | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [hours, setHours] = useState<HoursPeriod[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-
-  const loadMenu = useCallback(async () => {
-    const res = await fetch(menuUrl);
-    if (!res.ok) throw new Error("Could not load the menu");
-    setMenu(await res.json());
-  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -85,13 +23,13 @@ export default function ManageRestaurant() {
       if (!me.ok) throw new Error("Could not load your account");
       if ((await me.json()).role !== "owner") throw new Error("Only the restaurant owner can edit these settings.");
       const [settingsResponse, hoursResponse] = await Promise.all([
-        fetch("/api/staff/settings"), fetch("/api/staff/hours"), loadMenu(),
+        fetch("/api/staff/settings"), fetch("/api/staff/hours"),
       ]);
       if (!settingsResponse.ok || !hoursResponse.ok) throw new Error("Could not load ordering hours and settings");
       setSettings(await settingsResponse.json());
       setHours((await hoursResponse.json()).periods);
     })().catch((error: Error) => setError(error.message));
-  }, [loadMenu]);
+  }, []);
 
   async function save(url: string, method: string, body?: object) {
     setError(null);
@@ -111,7 +49,6 @@ export default function ManageRestaurant() {
         const data = await response.json().catch(() => ({}));
         throw new Error(data.issues?.[0]?.message ?? data.error ?? "Could not save the change");
       }
-      if (url.startsWith(menuUrl)) await loadMenu();
       if (url === "/api/staff/settings") setSettings(await response.json());
       if (url === "/api/staff/hours") setHours((await response.json()).periods);
       setNotice("Saved.");
@@ -182,66 +119,9 @@ export default function ManageRestaurant() {
         </form>
       </section>
     </>}
-    {menu && <section>
+    <section>
       <h2>Menu</h2>
-      <details>
-        <summary>Add category</summary>
-        <form onSubmit={submit(`${menuUrl}/categories`, "POST", named)}>
-          <NameFields /><button disabled={busy}>Add category</button>
-        </form>
-      </details>
-      {menu.map((category) => <details key={category.id}>
-        <summary>{category.name}</summary>
-        <form onSubmit={submit(`${menuUrl}/categories/${category.id}`, "PUT", named)}>
-          <NameFields value={category} /><button disabled={busy}>Save category</button>
-        </form>
-        <button disabled={busy} onClick={() => remove(`${menuUrl}/categories/${category.id}`, category.name)}>Remove category</button>
-        <details>
-          <summary>Add item</summary>
-          <form onSubmit={submit(`${menuUrl}/items`, "POST", itemInput)}>
-            <ItemFields categories={menu} categoryId={category.id} /><button disabled={busy}>Add item</button>
-          </form>
-        </details>
-        {category.items.map((item) => <details key={item.id}>
-          <summary>{item.name}</summary>
-          <form onSubmit={submit(`${menuUrl}/items/${item.id}`, "PUT", itemInput)}>
-            <ItemFields item={item} categories={menu} categoryId={category.id} /><button disabled={busy}>Save item</button>
-          </form>
-          <button disabled={busy} onClick={() => remove(`${menuUrl}/items/${item.id}`, item.name)}>Remove item</button>
-          <details>
-            <summary>Add modifier group</summary>
-            <form onSubmit={submit(`${menuUrl}/items/${item.id}/modifier-groups`, "POST", groupInput)}>
-              <GroupFields /><button disabled={busy}>Add modifier group</button>
-            </form>
-          </details>
-          {item.modifierGroups.map((group) => {
-            const groupUrl = `${menuUrl}/modifier-groups/${group.id}`;
-            return <details key={group.id}>
-              <summary>{group.name}</summary>
-              <form onSubmit={submit(groupUrl, "PUT", groupInput)}>
-                <GroupFields group={group} /><button disabled={busy}>Save modifier group</button>
-              </form>
-              <button disabled={busy} onClick={() => remove(groupUrl, group.name)}>Remove modifier group</button>
-              <details>
-                <summary>Add option</summary>
-                <form onSubmit={submit(`${groupUrl}/options`, "POST", optionInput)}>
-                  <OptionFields /><button disabled={busy}>Add option</button>
-                </form>
-              </details>
-              {group.options.map((option) => {
-                const optionUrl = `${menuUrl}/modifier-options/${option.id}`;
-                return <details key={option.id}>
-                  <summary>{option.name}</summary>
-                  <form onSubmit={submit(optionUrl, "PUT", optionInput)}>
-                    <OptionFields option={option} /><button disabled={busy}>Save option</button>
-                  </form>
-                  <button disabled={busy} onClick={() => remove(optionUrl, option.name)}>Remove option</button>
-                </details>;
-              })}
-            </details>;
-          })}
-        </details>)}
-      </details>)}
-    </section>}
+      <p>Categories, dishes, photos and add-ons are edited in the <a href="/menu">menu editor</a>.</p>
+    </section>
   </main>;
 }

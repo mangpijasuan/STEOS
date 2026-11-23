@@ -1,0 +1,3 @@
+/* Screens that have not moved to the design system (see ds.css) keep their original page frame. */
+body { margin: 0; font-family: system-ui, sans-serif; }
+body:not(:has(.ds)) { padding: 1rem; max-width: 720px; }
