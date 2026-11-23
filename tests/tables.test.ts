@@ -398,6 +398,30 @@ describe("rules and limits", () => {
 // ----------------------------------------------------------------------------------------------------------
 // Pay-later orders have no card payment, so card-only machinery must never touch them, while card orders must
 // keep going through it.
+describe("requests with an empty body", () => {
+  // A browser's POST with no body carries an empty stream, not a null body. A Request built here with no body at all
+  // would hide that, so these use an explicit empty string, like the kitchen's fetch.
+  const emptyPost = (token: string) =>
+    new Request("http://localhost/x", { method: "POST", headers: { "content-type": "application/json", ...cookie(token) } as Record<string, string>, body: "" });
+
+  it("cancels an accepted order, as the kitchen sends it", async () => {
+    await asOwner((c) => c.query("delete from request_rate_windows"));
+    const { res, body: out } = await dineIn(qr, { items: [{ itemId: a.itemId, quantity: 1 }], payLater: true });
+    expect(res.status).toBe(201);
+    const id = await orderIdFor(out.order.number, a.restaurantId);
+    await accept(staffReq("POST", staffToken, {}), idCtx(id));
+    const cancelled = await cancel(emptyPost(ownerToken), idCtx(id));
+    expect(cancelled.status).toBe(200);
+    expect(await cancelled.json()).toMatchObject({ status: "cancelled", refundInPerson: false });
+  });
+
+  it("still refuses a body that is present but not valid JSON", async () => {
+    const res = await cancel(new Request("http://localhost/x", { method: "POST", headers: { "content-type": "application/json", ...cookie(ownerToken) } as Record<string, string>, body: "{not json" }), idCtx(crypto.randomUUID()));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/valid JSON/);
+  });
+});
+
 describe("pay-later orders stay out of card expiry and refunds", () => {
   const body = (payLater: boolean) => ({ items: [{ itemId: a.itemId, quantity: 1 }], payLater });
   const reset = () => asOwner((c) => c.query("delete from request_rate_windows"));

@@ -125,6 +125,14 @@ describe("taking payment at the till", () => {
     expect(await state()).toEqual(recorded);
   });
 
+  it("declines an unpaid order when the request has an empty body, as the kitchen sends it", async () => {
+    // A browser's POST with no body carries an empty stream, not a null body; an explicit empty string reproduces that.
+    const { body } = await place(staffToken, { items: lines(), orderType: "counter", tipCents: 0, payment: { mode: "later" } });
+    const res = await decline(new Request("http://localhost/x", { method: "POST", headers: { "content-type": "application/json", cookie: `${SESSION_COOKIE}=${staffToken}` }, body: "" }), idCtx(body.id));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ status: "declined", refundInPerson: false });
+  });
+
   it("declines an order nobody has paid for without any confirmation", async () => {
     const { body } = await place(staffToken, { items: lines(), orderType: "counter", tipCents: 0, payment: { mode: "later" } });
     const res = await decline(req("POST", staffToken), idCtx(body.id));
