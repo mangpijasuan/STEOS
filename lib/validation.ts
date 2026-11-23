@@ -13,6 +13,7 @@ export const itemInput = z.object({
   priceCents: z.number().int().min(0).max(1_000_000),
   available: z.boolean().optional(),
   imageUrl: z.url().max(500).nullable().optional(),
+  imageId: z.uuid().nullable().optional(),
   sortOrder: sortOrder.optional(),
 });
 export const itemUpdate = itemInput.partial();
@@ -41,6 +42,26 @@ export const optionInput = z.object({
   sortOrder: sortOrder.optional(),
 });
 export const optionUpdate = optionInput.partial();
+
+const editorGroup = z.object({
+  id: z.uuid(),
+  name: name(80),
+  minChoices: z.number().int().min(0).max(20),
+  maxChoices: z.number().int().min(1).max(20),
+  options: z.array(optionInput.extend({ id: z.uuid() })).min(1),
+}).refine((g) => g.maxChoices >= g.minChoices, { message: "Maximum choices must be at least the minimum" });
+
+export const menuItemEditorInput = z.object({
+  createIfMissing: z.boolean(),
+  item: itemInput,
+  groups: z.array(editorGroup),
+}).refine(({ groups }) => {
+  const groupIds = groups.map((g) => g.id);
+  const optionIds = groups.flatMap((g) => g.options.map((o) => o.id));
+  return new Set(groupIds).size === groupIds.length && new Set(optionIds).size === optionIds.length;
+}, { message: "Duplicate add-on group or option" });
+
+export type MenuItemEditorInput = z.infer<typeof menuItemEditorInput>;
 
 export const loginRequest = z.object({ email: z.email().max(254) });
 

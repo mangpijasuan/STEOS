@@ -5,7 +5,7 @@ import Checkout from "./Checkout";
 
 type Option = { id: string; name: string; priceDeltaCents: number; available: boolean };
 type Group = { id: string; name: string; minChoices: number; maxChoices: number; options: Option[] };
-type Item = { id: string; name: string; description: string; priceCents: number; available: boolean; modifierGroups: Group[] };
+type Item = { id: string; name: string; description: string; priceCents: number; available: boolean; imageUrl?: string | null; modifierGroups: Group[] };
 type Category = { id: string; name: string; items: Item[] };
 type Store = {
   restaurant: { name: string; timezone: string; taxRateBps: number; orderingOpen: boolean; openNow: boolean; asap: string | null };
@@ -151,6 +151,10 @@ export default function Storefront({ params }: { params: Promise<{ slug: string 
           <h2>{category.name}</h2>
           {category.items.map((item) => (
             <div key={item.id} style={{ ...card, opacity: item.available ? 1 : 0.55 }}>
+              {item.imageUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={item.imageUrl} alt="" loading="lazy" style={{ display: "block", width: "100%", height: 160, objectFit: "cover", borderRadius: 8, marginBottom: 10, background: "#eee" }} />
+              )}
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                 <div>
                   <strong>{item.name}</strong>
@@ -295,6 +299,10 @@ function ItemPicker({ item, onAdd, onCancel }: { item: Item; onAdd: (line: CartL
 
   return (
     <div role="dialog" aria-label={item.name} style={{ ...card, border: "2px solid #c2410c" }}>
+      {item.imageUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={item.imageUrl} alt="" style={{ display: "block", width: "100%", maxHeight: 220, objectFit: "cover", borderRadius: 8, marginBottom: 10, background: "#eee" }} />
+      )}
       <h3 style={{ marginTop: 0 }}>{item.name}</h3>
       {item.modifierGroups.map((group) => (
         <fieldset key={group.id} style={{ border: "none", padding: 0, margin: "0 0 12px" }}>

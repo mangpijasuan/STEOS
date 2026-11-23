@@ -11,3 +11,10 @@ The proposed Phase 5 roadmap, release checklist, and engineering handoff are und
 - In the tables port, add regression tests proving that dine-in pay-later orders stay out of card expiry and refund processing while eligible card orders still go through those paths.
 - When porting POS, record a settlement timestamp for cash and include it in financial reporting. When adding promotions to checkout, include the normalized promo code in the request fingerprint and account for previously stored fingerprints. Keep the audited payment retry and reconciliation behavior for dine-in and pickup.
 - Rollout remains subject to the shared release checklist and founder approval. Configure the trusted client-IP header at ingress and subscribe the Stripe Connect webhook to the refund events documented in the README.
+
+## Photos and menu port (migration 0012)
+
+- Branch `integration/photos-menu`, based on `integration/sprint-6-foundation`. Adds the `images` table and `menu_items.image_id` (0012), owner-only upload, public serving, orphan cleanup in the order worker, the menu editor at `/menu`, and photos on the existing storefront.
+- `/manage` keeps the ordering settings and weekly hours editor unchanged. Its plain menu forms are replaced by a link to `/menu`; per-option availability, which only those forms offered, is now a switch in the new editor.
+- The design system arrives scoped under `.ds` (`app/ds.css`) so other screens do not change. The remaining screens (kitchen, storefront, order page, login, dashboard, reports, pricing) still need to be moved over; that port must keep this branch's behavior (kitchen paging and error handling, derived pickup selection, retry header in checkout, refund and net fields in reports).
+- Tests: image rules, file-type detection, tenant isolation, serving and cleanup (11 tests). Verified in a browser on a fresh database: upload, add-ons, out-of-stock option, reload, customer photos, hours and settings saves.
