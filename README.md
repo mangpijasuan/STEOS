@@ -75,6 +75,9 @@ In development the sign-in link is printed in the server console instead of bein
 | PUT, DELETE staff/menu/modifier-options/id | owner | Edit or remove an option |
 | POST staff/images | owner | Upload a food photo (raw JPEG, PNG or WebP body, up to 1.5 MB). Returns its id and URL |
 | GET images/id | public | A food photo, cached for a year |
+| POST staff/pos/quote, staff/pos/orders | staff | Price and place an order at the till (custom discounts: owner only) |
+| GET staff/orders/id | staff | An order's receipt |
+| GET, POST staff/promos; PUT, DELETE staff/promos/id | owner | Promo codes |
 | GET, POST staff/tables | staff, owner | Table board with live status; add tables (owner) |
 | PUT, DELETE staff/tables/id | owner | Edit, deactivate or delete a table |
 | POST staff/tables/id/clear, /qr | staff, owner | Clear a table after payment; replace its QR code (owner) |
@@ -183,3 +186,11 @@ Owners set up floors and tables at `/tables` (**Set up tables**), print a QR car
 - A table's QR code is private to it. Replace it from the table's settings if it leaks. Guests' requests ("call a waiter", the bill) show on the board and are settled when the bill is paid.
 - The table board needs staff names, but the runtime role cannot read `staff_users`. The board reads them through `tenant_staff_directory()`, which returns only display names for the current restaurant.
 - Like the menu editor, `/tables` uses the scoped design system. The guest page reuses the existing storefront and checkout, so it looks like the pickup page.
+
+## Till, promo codes and receipts
+
+- **Till** (`/pos`, "New order"): staff enter an order for a table or a walk-in. They take payment now (cash, card machine, other) or send it to the kitchen to pay later. Orders go to the kitchen like any other. A table's sheet has an **Add order** link and a **Receipt** link per order (`/orders/<id>/receipt`, printable at 80 mm).
+- **Promo codes** (`/promos`, owner): percent or dollar codes with an optional minimum spend, expiry and use limit. Customers enter a code on the storefront and at the table; staff can apply one at the till, and the owner can also type a custom discount.
+- **How a discount prices:** it comes off the food first, tax is charged on what is left, tips are never taxed, and a total cannot go negative. The SROS fee is computed on the food at its full price, so a discount is the restaurant's cost and does not reduce SROS's fee (the fee is still capped at the amount charged). Reports show discounts and net sales after them.
+- **Limited codes:** the last use cannot be taken twice. A use is given back when an order never completes (declined, expired, payment failed or cancelled), and taken again if a failed payment is later captured. Wrong guesses are rate limited per person.
+- **Till requests are idempotent:** reusing a request key with a different order is refused. Each till order records the staff member who entered it, and the database only allows staff of the same restaurant.

@@ -76,6 +76,7 @@ export const quoteInput = z.object({
   items: z.array(cartLine).min(1).max(50),
   tipCents: z.number().int().min(0).max(100_000).default(0),
   pickupTime: z.iso.datetime().optional(),
+  promoCode: z.string().trim().max(24).optional(),
 });
 
 export const settingsUpdate = z.object({
@@ -132,6 +133,7 @@ export const dineInCheckoutInput = z.object({
   items: z.array(cartLine).min(1).max(50),
   tipCents: z.number().int().min(0).max(100_000).default(0),
   payLater: z.boolean(),
+  promoCode: z.string().trim().max(24).optional(),
   customer: z
     .object({
       name: z.string().trim().max(80).default(""),
@@ -143,4 +145,44 @@ export const dineInCheckoutInput = z.object({
         .default(""),
     })
     .default({ name: "", phone: "" }),
+});
+
+// -------------------------------------------------------------------- promos
+const promoCode = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^[A-Z0-9][A-Z0-9_-]{2,19}$/, "Use 3 to 20 letters, numbers or dashes");
+export const promoInput = z
+  .object({
+    code: promoCode,
+    kind: z.enum(["percent", "fixed"]),
+    value: z.number().int().min(1).max(100_000),
+    minSubtotalCents: z.number().int().min(0).max(1_000_000).default(0),
+    active: z.boolean().default(true),
+    expiresAt: z.iso.datetime().nullable().default(null),
+    maxUses: z.number().int().min(1).max(1_000_000).nullable().default(null),
+  })
+  .refine((p) => p.kind !== "percent" || p.value <= 100, { message: "A percentage must be between 1 and 100", path: ["value"] });
+export const promoUpdate = z.object({
+  code: promoCode.optional(),
+  kind: z.enum(["percent", "fixed"]).optional(),
+  value: z.number().int().min(1).max(100_000).optional(),
+  minSubtotalCents: z.number().int().min(0).max(1_000_000).optional(),
+  active: z.boolean().optional(),
+  expiresAt: z.iso.datetime().nullable().optional(),
+  maxUses: z.number().int().min(1).max(1_000_000).nullable().optional(),
+});
+
+// ---------------------------------------------------------------------- POS
+export const posInput = z.object({
+  items: z.array(cartLine).min(1).max(50),
+  orderType: z.enum(["dine_in", "counter"]),
+  tableId: z.uuid().nullable().optional(),
+  customerName: z.string().trim().max(80).optional(),
+  customerPhone: z.string().trim().max(25).optional(),
+  tipCents: z.number().int().min(0).max(100_000).default(0),
+  promoCode: z.string().trim().max(24).optional(),
+  discount: z.object({ kind: z.enum(["percent", "fixed"]), value: z.number().int().min(1).max(100_000) }).refine((d) => d.kind !== "percent" || d.value <= 100, "A percentage must be between 1 and 100").optional(),
+  payment: z.discriminatedUnion("mode", [z.object({ mode: z.literal("later") }), z.object({ mode: z.literal("now"), method: z.enum(["cash", "card_terminal", "other"]) })]).default({ mode: "later" }),
 });

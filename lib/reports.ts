@@ -8,7 +8,10 @@ export type Report = {
   to: string;
   timezone: string;
   paidOrders: number;
+  /** Food total before discounts. */
   subtotalCents: number;
+  /** Discounts and promo codes given. */
+  discountCents: number;
   taxCents: number;
   tipCents: number;
   grossCents: number;
@@ -50,6 +53,7 @@ export async function buildReport(db: Tx, from: Date, to: Date): Promise<Report>
       capturedAt: payments.capturedAt,
       refundedAt: payments.refundedAt,
       subtotal: orders.subtotalCents,
+      discount: orders.discountCents,
       tax: orders.taxCents,
       tip: orders.tipCents,
       total: orders.totalCents,
@@ -126,6 +130,7 @@ export async function buildReport(db: Tx, from: Date, to: Date): Promise<Report>
     timezone,
     paidOrders: paid.length,
     subtotalCents: sum(paid, (o) => o.subtotal),
+    discountCents: sum(paid, (o) => o.discount),
     taxCents,
     tipCents: sum(paid, (o) => o.tip),
     grossCents,
@@ -136,7 +141,8 @@ export async function buildReport(db: Tx, from: Date, to: Date): Promise<Report>
     byType,
     netEstimateCents: grossCents - taxCents - platformFeeCents - processingEstimateCents
       - sum(refunded, (o) => o.total - o.tax - o.fee),
-    netSalesCents: sum(paid, (o) => o.subtotal) - sum(refunded, (o) => o.subtotal),
+    // Sales after discounts, less what was refunded.
+    netSalesCents: sum(paid, (o) => o.subtotal - o.discount) - sum(refunded, (o) => o.subtotal - o.discount),
     netChargedCents: grossCents - refundedCents,
     refunds: { count: refunded.length, totalCents: refundedCents },
     notCompleted: {

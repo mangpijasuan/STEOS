@@ -27,3 +27,11 @@ The proposed Phase 5 roadmap, release checklist, and engineering handoff are und
 - Differences from the feature branch: the guest page reuses this branch's audited storefront and checkout (a table mode) instead of the redesigned storefront, which is a later port. Kitchen cards gain the table and payment state; the customer status page and `/manage` settings gain the dine-in toggles.
 - Still to come: till and promotions (0014), dashboard and navigation, and moving the remaining screens to the design system.
 
+## Till and promotions port (migration 0014)
+
+- Branch `integration/till-promos`, stacked on `integration/tables-dinein`. Adds promo codes, discounts, till orders and receipts (0014), `/pos`, `/promos` and the receipt page, and a promo field on the existing storefront and checkout.
+- Handoff items handled: the normalized promo code is in the checkout fingerprint only when a code is used, so stored fingerprints keep matching; cash and manual payments keep their capture time; the audited retry and reconciliation behavior is untouched.
+- Additions beyond the feature branch: promo uses are returned for orders that never complete (declined, expired, payment failed or cancelled), till requests use a keyed fingerprint instead of comparing totals, and `created_by` has a same-restaurant composite key.
+- Founder decision (resolved): the SROS fee stays on the food at its full price, before discounts. Discounts are the restaurant's cost. The fee is still capped at the amount charged.
+- Still to come: dashboard and navigation, and moving the remaining screens to the design system. Till and promo pages are on the scoped design system; the storefront promo field is in the existing style.
+

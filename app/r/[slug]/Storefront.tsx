@@ -16,8 +16,11 @@ type CartLine = { key: string; itemId: string; quantity: number; optionIds: stri
 type Quote = {
   lines: { itemId: string; name: string; quantity: number; options: { name: string }[]; note: string | null; lineTotalCents: number }[];
   subtotalCents: number;
+  discountCents: number;
+  discountLabel: string | null;
   taxCents: number;
   totalCents: number;
+  promoError: string | null;
 };
 type Issue = { line: number | null; message: string };
 
@@ -39,6 +42,8 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
   const [issues, setIssues] = useState<Issue[]>([]);
   const [picking, setPicking] = useState<Item | null>(null);
   const [tipPct, setTipPct] = useState(0);
+  const [promoText, setPromoText] = useState("");
+  const [promo, setPromo] = useState(""); // the code applied to the quote
 
   // Load menu and pickup times.
   useEffect(() => {
@@ -76,7 +81,7 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
       ? chosenPickup
       : store?.restaurant.asap ? "asap" : slots[0] ?? "";
 
-  const quoteKey = JSON.stringify([slug, cart, pickup]);
+  const quoteKey = JSON.stringify([slug, cart, pickup, promo]);
   const quote = quoted?.key === quoteKey ? quoted.quote : null;
 
   // Ask the server to price the cart whenever it changes.
@@ -97,6 +102,7 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
           body: JSON.stringify({
             items: cart.map((l) => ({ itemId: l.itemId, quantity: l.quantity, optionIds: l.optionIds, note: l.note || undefined })),
             pickupTime: pickup === "asap" || !pickup ? undefined : pickup,
+            promoCode: promo || undefined,
           }),
         });
         const data = await res.json().catch(() => ({}));
@@ -119,7 +125,7 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
       clearTimeout(timer);
       controller.abort();
     };
-  }, [cart, pickup, quoteKey, slug]);
+  }, [cart, pickup, promo, quoteKey, slug]);
 
   const itemName = useMemo(() => new Map((store?.categories ?? []).flatMap((c) => c.items).map((i) => [i.id, i.name])), [store]);
   const formatSlot = useCallback(
@@ -239,9 +245,30 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
                 ))}
               </select>
             </label>}
+            <div style={{ marginTop: 12 }}>
+              <label style={{ display: "block" }}>
+                Promo code
+                <span style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                  <input
+                    value={promoText}
+                    onChange={(e) => setPromoText(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); setPromo(promoText.trim()); } }}
+                    maxLength={24}
+                    autoCapitalize="characters"
+                    autoComplete="off"
+                    style={{ flex: 1, minWidth: 0, padding: 10, fontSize: 16, boxSizing: "border-box" }}
+                  />
+                  <button type="button" style={ghost} disabled={!promoText.trim() || promoText.trim().toUpperCase() === promo.toUpperCase()} onClick={() => setPromo(promoText.trim())}>Apply</button>
+                  {promo && <button type="button" style={ghost} onClick={() => { setPromo(""); setPromoText(""); }}>Remove</button>}
+                </span>
+              </label>
+              {quote?.promoError && <p role="alert" style={{ color: "#a00", margin: "6px 0 0", fontSize: 14 }}>{quote.promoError}. Your order will be priced without it.</p>}
+              {quote && quote.discountCents > 0 && <p role="status" style={{ color: "#166534", margin: "6px 0 0", fontSize: 14 }}>{quote.discountLabel} applied.</p>}
+            </div>
             {quote && (
               <div style={{ marginTop: 12 }}>
                 <Row label="Subtotal" value={money(quote.subtotalCents)} />
+                {quote.discountCents > 0 && <Row label={quote.discountLabel ?? "Discount"} value={`− ${money(quote.discountCents)}`} />}
                 <Row label={`Tax (${(restaurant.taxRateBps / 100).toFixed(2)}%)`} value={money(quote.taxCents)} />
                 {tipCents > 0 && <Row label="Tip" value={money(tipCents)} />}
                 <Row label="Total" value={money(quote.totalCents + tipCents)} bold />
@@ -261,6 +288,7 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
               <Checkout
                 slug={slug}
                 table={table}
+                promoCode={quote.promoError ? undefined : promo || undefined}
                 lines={cart.map((l) => ({ itemId: l.itemId, quantity: l.quantity, optionIds: l.optionIds, note: l.note }))}
                 pickup={pickup}
                 tipCents={tipCents}

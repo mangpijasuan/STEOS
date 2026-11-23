@@ -129,7 +129,7 @@ export default function Kitchen() {
     setBusy(order.id);
     try {
       const body = action === "accept" ? { prepMinutes: prep[order.id] ?? 15 } :
-        action === "cancel" && needsInPersonRefund(order) ? { inPersonRefundReturned: true } : undefined;
+        (action === "cancel" || action === "decline") && needsInPersonRefund(order) ? { inPersonRefundReturned: true } : undefined;
       const res = await fetch(`/api/staff/orders/${order.id}/${action}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -200,7 +200,7 @@ export default function Kitchen() {
             </label>
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
               <button style={{ ...big, background: "#15803d", flex: 1 }} disabled={busy !== null} onClick={() => act(o, "accept")}>Accept</button>
-              <button style={{ ...big, background: "#6b7280" }} disabled={busy !== null} onClick={() => act(o, "decline")}>Decline</button>
+              <button style={{ ...big, background: "#6b7280" }} disabled={busy !== null} onClick={() => (!needsInPersonRefund(o) || window.confirm(declineQuestion(o))) && act(o, "decline")}>Decline</button>
             </div>
           </OrderCard>
         );
@@ -251,6 +251,10 @@ function needsInPersonRefund(order: Order): boolean {
   return order.paymentMode === "pay_later" && order.paidAt !== null;
 }
 
+function declineQuestion(o: Order): string {
+  return `Confirm that you have already returned ${money(o.totalCents)} to the guest in person. This records the refund and declines order #${o.number}.`;
+}
+
 function cancelQuestion(o: Order): string {
   if (o.paymentMode === "online") return `Cancel order #${o.number} and refund ${money(o.totalCents)}?`;
   return needsInPersonRefund(o)
@@ -266,7 +270,7 @@ function OrderCard({ order, timezone, accent, children }: { order: Order; timezo
           #{order.number} · {order.orderType === "dine_in" && order.tableLabel ? `Table ${order.tableLabel}` : order.customerName}
         </strong>
         <span>
-          {order.orderType === "dine_in" ? "Out around" : "Pickup"} {time(order.pickupAt, timezone)}{order.prepMinutes ? ` · promised ${order.prepMinutes} min` : ""}
+          {order.orderType === "dine_in" ? "Out around" : order.orderType === "counter" ? "Takeaway · out around" : "Pickup"} {time(order.pickupAt, timezone)}{order.prepMinutes ? ` · promised ${order.prepMinutes} min` : ""}
         </span>
       </div>
       <div style={{ color: "#555", fontSize: 14 }}>
