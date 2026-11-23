@@ -101,11 +101,36 @@ describe("taking payment at the till", () => {
     expect(pay).toMatchObject({ provider: "manual", method: "cash", status: "captured", amount_cents: 1200 });
   });
 
-  it("tells the kitchen to hand the money back if it declines an order that was already paid", async () => {
+  it("will not decline an order already paid in person until staff confirm the money was handed back", async () => {
     const { body } = await place(staffToken, { items: lines(), orderType: "counter", tipCents: 0, payment: { mode: "now", method: "cash" } });
-    const res = await decline(req("POST", staffToken), idCtx(body.id));
+    const state = async () => (await asOwner((c) => c.query("select o.status as order_status, p.status as payment_status, p.refunded_at from orders o join payments p on p.order_id = o.id where o.id = $1", [body.id]))).rows[0];
+    const confirmation = { inPersonRefundReturned: true };
+
+    // Without the confirmation nothing changes, and nothing is recorded as refunded.
+    const unconfirmed = await decline(req("POST", staffToken), idCtx(body.id));
+    expect(unconfirmed.status).toBe(409);
+    expect((await unconfirmed.json()).error).toMatch(/confirm the refund/);
+    expect(await state()).toEqual({ order_status: "awaiting_acceptance", payment_status: "captured", refunded_at: null });
+    // Another restaurant cannot do it.
+    expect((await decline(req("POST", otherOwner, confirmation), idCtx(body.id))).status).toBe(404);
+    expect((await state()).payment_status).toBe("captured");
+
+    const res = await decline(req("POST", staffToken, confirmation), idCtx(body.id));
+    expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ status: "declined", refundInPerson: true });
-    expect((await asOwner((c) => c.query("select status from payments where order_id = $1", [body.id]))).rows[0].status).toBe("refunded");
+    const recorded = await state();
+    expect(recorded).toEqual({ order_status: "declined", payment_status: "refunded", refunded_at: expect.any(Date) });
+    // A repeat of the confirmation (a lost response) is answered and changes nothing.
+    expect((await decline(req("POST", staffToken, confirmation), idCtx(body.id))).status).toBe(200);
+    expect(await state()).toEqual(recorded);
+  });
+
+  it("declines an order nobody has paid for without any confirmation", async () => {
+    const { body } = await place(staffToken, { items: lines(), orderType: "counter", tipCents: 0, payment: { mode: "later" } });
+    const res = await decline(req("POST", staffToken), idCtx(body.id));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ status: "declined", refundInPerson: false });
+    expect((await asOwner((c) => c.query("select count(*)::int as n from payments where order_id = $1", [body.id]))).rows[0].n).toBe(0);
   });
 
   it("lets a later order be accepted, then paid", async () => {
