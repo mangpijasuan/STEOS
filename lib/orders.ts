@@ -131,8 +131,12 @@ export async function createCheckout(
       if (!pickupAt) throw new HttpError(409, "ASAP pickup is unavailable. Choose a scheduled pickup time.");
     }
 
-    const provider = await getProvider();
-    if (!payLater && provider.name === "stripe" && (!account.stripeAccountId || !process.env.STRIPE_PUBLISHABLE_KEY)) throw new HttpError(503, "This restaurant cannot take card payments yet");
+    if (!payLater) {
+      const provider = await getProvider();
+      if (provider.name === "stripe" && (!account.stripeAccountId || !process.env.STRIPE_PUBLISHABLE_KEY)) {
+        throw new HttpError(503, "This restaurant cannot take card payments yet");
+      }
+    }
     const fee = applicationFee({
       subtotalCents: cart.subtotalCents, totalCents: cart.totalCents,
       feeBps: account.platformFeeBps, model: account.feeModel as FeeModel,
@@ -315,7 +319,6 @@ export type Decision = "accept" | "decline" | "expire";
 
 /** Kitchen decision on an order that is waiting. Accept captures the money; decline and expiry release the hold. */
 export async function decideOrder(restaurantId: string, orderId: string, decision: Decision, requestedAt?: Date, prepMinutes?: number) {
-  const provider = await getProvider();
   return withTenant(restaurantId, async (db) => {
     const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).for("update");
     if (!order) throw new HttpError(404, "Order not found");
@@ -324,15 +327,16 @@ export async function decideOrder(restaurantId: string, orderId: string, decisio
     const online = order.paymentMode === "online";
     const payment = online ? await loadPayment(db, order.id) : null;
     if (online && !payment) throw new HttpError(409, "This order has no payment");
-    const account = await paymentAccount(db, order);
 
     const now = requestedAt ?? new Date();
     const lapsed = order.acceptDeadline !== null && order.acceptDeadline.getTime() <= now.getTime();
     const effective: Decision = lapsed ? "expire" : decision;
     if (effective === "expire" && !lapsed) throw new HttpError(409, "The acceptance deadline has not passed");
 
+    const provider = payment ? await getProvider() : null;
+    const account = payment ? await paymentAccount(db, order) : null;
     if (effective === "accept") {
-      if (payment) {
+      if (payment && provider) {
         try {
           await provider.capture(payment.providerPaymentId, account);
         } catch {
@@ -349,7 +353,7 @@ export async function decideOrder(restaurantId: string, orderId: string, decisio
       return { status: "accepted" as const };
     }
 
-    if (payment) {
+    if (payment && provider) {
       try {
         await provider.cancel(payment.providerPaymentId, account);
       } catch {
@@ -380,24 +384,35 @@ export async function advanceOrder(restaurantId: string, orderId: string, step: 
   });
 }
 
-/** Cancels an order the kitchen already accepted. The customer gets a full refund. */
-export async function cancelAcceptedOrder(restaurantId: string, orderId: string, now = new Date()) {
-  const provider = await getProvider();
+/** Cancels an accepted order and refunds a card charge or records a confirmed in-person refund. */
+export async function cancelAcceptedOrder(
+  restaurantId: string, orderId: string, now = new Date(), inPersonRefundReturned = false,
+) {
   return withTenant(restaurantId, async (db) => {
     const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).for("update");
     if (!order) throw new HttpError(404, "Order not found");
-    if (!["accepted", "ready"].includes(order.status)) throw new HttpError(409, `This order is ${order.status.replaceAll("_", " ")}`);
     const payment = await loadPayment(db, order.id);
+    if (order.status === "cancelled" && order.paymentMode === "pay_later"
+      && payment?.provider === "manual" && payment.status === "refunded" && inPersonRefundReturned) {
+      return { status: "cancelled" as const, refundStatus: null, refundInPerson: true };
+    }
+    if (!["accepted", "ready"].includes(order.status)) throw new HttpError(409, `This order is ${order.status.replaceAll("_", " ")}`);
+
     if (order.paymentMode === "pay_later") {
-      // No card was charged through SROS, so there is nothing for the provider to refund. If the restaurant already
-      // took payment itself, handing the money back is theirs to do in person; we record that it happened.
       if (payment) {
+        if (payment.provider !== "manual" || payment.status !== "captured") {
+          throw new HttpError(409, "There is no settled in-person payment to refund");
+        }
+        if (!inPersonRefundReturned) {
+          throw new HttpError(409, "Return the payment in person and confirm the refund before cancelling this order");
+        }
         await db.update(payments).set({ status: "refunded", refundStatus: "succeeded", refundedAt: now }).where(eq(payments.id, payment.id));
       }
       await db.update(orders).set({ status: "cancelled", cancelledAt: now }).where(eq(orders.id, order.id));
       return { status: "cancelled" as const, refundStatus: null, refundInPerson: !!payment };
     }
     if (!payment || payment.status !== "captured") throw new HttpError(409, "There is no captured payment to refund");
+    const provider = await getProvider();
     const attempt = payment.refundAttempt + 1;
     const refund = await provider.refund({
       orderId: order.id, restaurantId,

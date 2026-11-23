@@ -2,6 +2,7 @@ import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { menuCategories, menuItems, modifierGroups, modifierOptions } from "../db/schema";
 import type { Tx } from "./db";
 import { HttpError } from "./http";
+import type { MenuItemEditorInput } from "./validation";
 
 type Patch = Record<string, unknown>;
 
@@ -90,7 +91,9 @@ export async function updateItem(db: Tx, id: string, input: Patch) {
   mustChange(patch);
   if (typeof patch.categoryId === "string") await requireActiveCategory(db, patch.categoryId, 409);
   try {
-    const [before] = "imageId" in patch ? await db.select({ imageId: menuItems.imageId }).from(menuItems).where(eq(menuItems.id, id)) : [];
+    const [before] = "imageId" in patch
+      ? await db.select({ imageId: menuItems.imageId }).from(menuItems).where(eq(menuItems.id, id)).for("update")
+      : [];
     const updated = found(
       await db
         .update(menuItems)
@@ -98,12 +101,70 @@ export async function updateItem(db: Tx, id: string, input: Patch) {
         .where(and(eq(menuItems.id, id), isNull(menuItems.deletedAt)))
         .returning(),
     );
-    // A replaced or removed photo is deleted with the change, so old photos do not pile up.
-    if (before?.imageId && before.imageId !== updated.imageId) await db.execute(sql`delete from images where id = ${before.imageId}`);
+    if (before?.imageId && before.imageId !== updated.imageId) {
+      await db.execute(sql`select remove_unused_menu_image(${before.imageId})`);
+    }
     return updated;
   } catch (error) {
     friendly(error, "Category or photo not found");
   }
+}
+
+/** Saves the editor's item and add-ons in the caller's tenant transaction. */
+export async function saveMenuItemEditor(db: Tx, restaurantId: string, itemId: string, input: MenuItemEditorInput) {
+  await db.execute(sql`select pg_advisory_xact_lock(hashtextextended(${"menu-editor:" + itemId}, 0))`);
+  const [existing] = await db.select({ id: menuItems.id }).from(menuItems).where(eq(menuItems.id, itemId));
+  let item: typeof menuItems.$inferSelect;
+  if (!existing && input.createIfMissing) {
+    await requireActiveCategory(db, input.item.categoryId, 409);
+    try {
+      const [created] = await db.insert(menuItems).values({ ...input.item, id: itemId, restaurantId })
+        .onConflictDoNothing({ target: menuItems.id }).returning();
+      if (!created) throw new HttpError(409, "Item is unavailable");
+      item = created;
+    } catch (error) {
+      friendly(error, "Category or photo not found");
+    }
+  } else {
+    item = await updateItem(db, itemId, input.item);
+  }
+
+  const savedGroups = await db.select({ id: modifierGroups.id }).from(modifierGroups)
+    .where(eq(modifierGroups.itemId, itemId));
+  const savedGroupIds = new Set(savedGroups.map((group) => group.id));
+  const draftGroupIds = new Set(input.groups.map((group) => group.id));
+
+  for (const [sortOrder, group] of input.groups.entries()) {
+    const { id, options, ...fields } = group;
+    if (savedGroupIds.has(id)) {
+      await updateGroup(db, id, { ...fields, sortOrder });
+    } else {
+      const [created] = await db.insert(modifierGroups).values({ ...fields, id, itemId, restaurantId, sortOrder })
+        .onConflictDoNothing({ target: modifierGroups.id }).returning({ id: modifierGroups.id });
+      if (!created) throw new HttpError(409, "Add-on group is unavailable");
+    }
+
+    const savedOptions = await db.select({ id: modifierOptions.id }).from(modifierOptions)
+      .where(eq(modifierOptions.groupId, id));
+    const savedOptionIds = new Set(savedOptions.map((option) => option.id));
+    const draftOptionIds = new Set(options.map((option) => option.id));
+    for (const [position, option] of options.entries()) {
+      if (savedOptionIds.has(option.id)) {
+        await updateOption(db, option.id, { name: option.name, priceDeltaCents: option.priceDeltaCents, available: option.available, sortOrder: position });
+      } else {
+        const [created] = await db.insert(modifierOptions).values({ ...option, groupId: id, restaurantId, sortOrder: position })
+          .onConflictDoNothing({ target: modifierOptions.id }).returning({ id: modifierOptions.id });
+        if (!created) throw new HttpError(409, "Add-on option is unavailable");
+      }
+    }
+    for (const option of savedOptions) {
+      if (!draftOptionIds.has(option.id)) await deleteOption(db, option.id);
+    }
+  }
+  for (const group of savedGroups) {
+    if (!draftGroupIds.has(group.id)) await deleteGroup(db, group.id);
+  }
+  return item;
 }
 
 /** Soft delete: past orders keep pointing at the item. */

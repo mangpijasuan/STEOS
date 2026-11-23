@@ -128,14 +128,15 @@ export default function Kitchen() {
     setActionError(null);
     setBusy(order.id);
     try {
+      const body = action === "accept" ? { prepMinutes: prep[order.id] ?? 15 } :
+        action === "cancel" && needsInPersonRefund(order) ? { inPersonRefundReturned: true } : undefined;
       const res = await fetch(`/api/staff/orders/${order.id}/${action}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: action === "accept" ? JSON.stringify({ prepMinutes: prep[order.id] ?? 15 }) : undefined,
+        body: body ? JSON.stringify(body) : undefined,
       });
       const result = await res.json().catch(() => ({}));
       if (!res.ok || result.refundStatus === "failed") setActionError(result.error ?? "The refund failed. Try again.");
-      else if (result.refundInPerson) setActionError("Order cancelled. This guest already paid at the restaurant, so please hand their money back in person.");
       await refresh();
     } catch {
       setActionError("The order action could not be confirmed. Check the order before trying again.");
@@ -217,7 +218,7 @@ export default function Kitchen() {
                 disabled={busy !== null}
                 onClick={() => window.confirm(cancelQuestion(o)) && act(o, "cancel")}
               >
-                {o.paymentMode === "pay_later" ? "Cancel order" : "Cancel and refund"}
+                {o.paymentMode === "online" ? "Cancel and refund" : needsInPersonRefund(o) ? "Record refund and cancel" : "Cancel order"}
               </button>
             )}
           </div>
@@ -236,7 +237,7 @@ export default function Kitchen() {
                 disabled={busy !== null}
                 onClick={() => window.confirm(cancelQuestion(o)) && act(o, "cancel")}
               >
-                {o.paymentMode === "pay_later" ? "Cancel order" : "Cancel and refund"}
+                {o.paymentMode === "online" ? "Cancel and refund" : needsInPersonRefund(o) ? "Record refund and cancel" : "Cancel order"}
               </button>
             )}
           </div>
@@ -246,10 +247,14 @@ export default function Kitchen() {
   );
 }
 
+function needsInPersonRefund(order: Order): boolean {
+  return order.paymentMode === "pay_later" && order.paidAt !== null;
+}
+
 function cancelQuestion(o: Order): string {
   if (o.paymentMode === "online") return `Cancel order #${o.number} and refund ${money(o.totalCents)}?`;
-  return o.paidAt
-    ? `Cancel order #${o.number}? The guest already paid ${money(o.totalCents)} at the restaurant, so you will need to hand it back in person.`
+  return needsInPersonRefund(o)
+    ? `Confirm that you have already returned ${money(o.totalCents)} to the guest in person. This records the refund and cancels order #${o.number}.`
     : `Cancel order #${o.number}? Nothing has been paid.`;
 }
 
