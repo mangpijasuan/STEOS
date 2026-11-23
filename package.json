@@ -10,7 +10,8 @@
     "db:seed": "tsx --env-file=.env scripts/seed.ts",
     "test": "vitest run",
     "report:platform": "tsx --env-file=.env scripts/platform-report.ts",
-    "worker:orders": "node --env-file-if-exists=.env scripts/order-worker.mjs"
+    "worker:orders": "node --env-file-if-exists=.env scripts/order-worker.mjs",
+    "db:seed:zogam": "tsx --env-file=.env scripts/seed-zogam-cafe.ts"
   },
   "dependencies": {
     "@stripe/react-stripe-js": "^7.1.0",
