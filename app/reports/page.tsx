@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 
 type Report = {
   paidOrders: number;
@@ -70,9 +70,9 @@ export default function Reports() {
           <p>Average order {money(report.averageOrderCents)} · Refunded {report.refunds.count} ({money(report.refunds.totalCents)}) · Declined {report.notCompleted.declined} · Timed out {report.notCompleted.expired} · Card failed {report.notCompleted.paymentFailed}</p>
           <h2>Top items</h2>
           {report.topItems.length === 0 && <p style={{ color: "#666" }}>No sales yet.</p>}
-          {report.topItems.map((i) => row(`${i.quantity} × ${i.name}`, money(i.salesCents)))}
+          {report.topItems.map((i, n) => <Fragment key={n}>{row(`${i.quantity} × ${i.name}`, money(i.salesCents))}</Fragment>)}
           <h2>By day</h2>
-          {report.days.map((d) => row(`${d.date} · ${d.orders} orders`, money(d.grossCents)))}
+          {report.days.map((d) => <Fragment key={d.date}>{row(`${d.date} · ${d.orders} ${d.orders === 1 ? "order" : "orders"}`, money(d.grossCents))}</Fragment>)}
           <p style={{ color: "#666", fontSize: 14 }}>Card fees are estimated at 2.9% + 30¢. Your Stripe dashboard has the exact amounts. This report is not tax advice.</p>
         </>
       )}

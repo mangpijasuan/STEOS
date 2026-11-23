@@ -9,6 +9,7 @@ export async function getSettings(db: Tx) {
     .select({
       name: restaurants.name,
       slug: restaurants.slug,
+      timezone: restaurants.timezone,
       status: restaurants.status,
       taxRateBps: restaurants.taxRateBps,
       minPrepMinutes: restaurants.minPrepMinutes,

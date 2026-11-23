@@ -17,21 +17,29 @@ type Order = {
   createdAt: string;
   items: Line[];
 };
-type Settings = { acceptingOrders: boolean; timezone?: string };
+type Settings = { acceptingOrders: boolean; timezone: string };
 
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 const big = { padding: "14px 18px", borderRadius: 12, border: "none", fontSize: 18, cursor: "pointer", color: "#fff" } as const;
 const POLL_MS = 4000;
 const REPEAT_BEEP_MS = 8000;
 
-function time(iso: string) {
-  return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+/**
+ * Pickup time in the restaurant's own time zone, so a tablet with the wrong clock setting still shows the
+ * time the customer was promised. Orders for another day also show the weekday.
+ */
+function time(iso: string, timeZone: string | undefined) {
+  const when = new Date(iso);
+  const day = (d: Date) => d.toLocaleDateString("en-CA", { timeZone });
+  const sameDay = day(when) === day(new Date());
+  return when.toLocaleString([], { timeZone, hour: "numeric", minute: "2-digit", ...(sameDay ? {} : { weekday: "short" }) });
 }
 
 export default function Kitchen() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [role, setRole] = useState<string | null>(null);
   const [accepting, setAccepting] = useState<boolean | null>(null);
+  const [timezone, setTimezone] = useState<string | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [soundOn, setSoundOn] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -60,7 +68,11 @@ export default function Kitchen() {
       }
       setRole((await me.json()).role);
       const s = await fetch("/api/staff/settings");
-      if (s.ok) setAccepting(((await s.json()) as Settings).acceptingOrders);
+      if (s.ok) {
+        const settings = (await s.json()) as Settings;
+        setAccepting(settings.acceptingOrders);
+        setTimezone(settings.timezone);
+      }
     })();
   }, []);
 
@@ -148,7 +160,7 @@ export default function Kitchen() {
       {waiting.map((o) => {
         const left = secondsLeft(o);
         return (
-          <OrderCard key={o.id} order={o} accent="#c2410c">
+          <OrderCard timezone={timezone} key={o.id} order={o} accent="#c2410c">
             <p style={{ margin: "8px 0", fontWeight: 700, color: left !== null && left < 60 ? "#b91c1c" : "#111" }}>
               {left !== null ? `Respond within ${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}` : "Respond now"}
             </p>
@@ -171,7 +183,7 @@ export default function Kitchen() {
       <h2>In the kitchen {cooking.length > 0 && `(${cooking.length})`}</h2>
       {cooking.length === 0 && <p style={{ color: "#666" }}>Nothing cooking.</p>}
       {cooking.map((o) => (
-        <OrderCard key={o.id} order={o} accent="#1d4ed8">
+        <OrderCard timezone={timezone} key={o.id} order={o} accent="#1d4ed8">
           <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
             <button style={{ ...big, background: "#15803d", flex: 1 }} onClick={() => act(o, "ready")}>Mark ready</button>
             {role === "owner" && (
@@ -189,7 +201,7 @@ export default function Kitchen() {
       <h2>Ready for pickup {ready.length > 0 && `(${ready.length})`}</h2>
       {ready.length === 0 && <p style={{ color: "#666" }}>Nothing waiting for pickup.</p>}
       {ready.map((o) => (
-        <OrderCard key={o.id} order={o} accent="#15803d">
+        <OrderCard timezone={timezone} key={o.id} order={o} accent="#15803d">
           <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
             <button style={{ ...big, background: "#15803d", flex: 1 }} onClick={() => act(o, "complete")}>Picked up</button>
             {role === "owner" && (
@@ -207,12 +219,12 @@ export default function Kitchen() {
   );
 }
 
-function OrderCard({ order, accent, children }: { order: Order; accent: string; children: React.ReactNode }) {
+function OrderCard({ order, accent, timezone, children }: { order: Order; accent: string; timezone: string | undefined; children: React.ReactNode }) {
   return (
     <section style={{ border: `3px solid ${accent}`, borderRadius: 14, padding: 14, marginBottom: 12, background: "#fff" }}>
       <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap" }}>
         <strong style={{ fontSize: 22 }}>#{order.number} · {order.customerName}</strong>
-        <span>Pickup {time(order.pickupAt)}{order.prepMinutes ? ` · promised ${order.prepMinutes} min` : ""}</span>
+        <span>Pickup {time(order.pickupAt, timezone)}{order.prepMinutes ? ` · promised ${order.prepMinutes} min` : ""}</span>
       </div>
       <div style={{ color: "#555", fontSize: 14 }}>
         <a href={`tel:${order.customerPhone}`}>{order.customerPhone}</a> · {money(order.totalCents)} paid online
