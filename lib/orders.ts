@@ -444,3 +444,51 @@ export async function listActiveOrders(db: Tx) {
     items: items.filter((i) => i.orderId === o.id).map((i) => ({ name: i.name, quantity: i.quantity, options: i.options, note: i.note })),
   }));
 }
+
+
+// ------------------------------------------------------------ order history
+export type HistoryFilter = { status?: "active" | "completed" | "closed"; type?: "pickup" | "dine_in" | "counter"; q?: string; limit?: number; offset?: number };
+
+const ACTIVE = ["awaiting_acceptance", "accepted", "ready"];
+const CLOSED = ["declined", "cancelled", "expired", "payment_failed"];
+
+/** Recent orders, newest first, for the orders page and the dashboard. Excludes cards still being entered online. */
+export async function listOrderHistory(db: Tx, filter: HistoryFilter = {}) {
+  const limit = Math.min(Math.max(filter.limit ?? 25, 1), 100);
+  const conditions = [sql`${orders.status} <> 'pending_payment'`];
+  if (filter.status === "active") conditions.push(inArray(orders.status, ACTIVE));
+  if (filter.status === "completed") conditions.push(eq(orders.status, "completed"));
+  if (filter.status === "closed") conditions.push(inArray(orders.status, CLOSED));
+  if (filter.type) conditions.push(eq(orders.orderType, filter.type));
+  const q = filter.q?.trim();
+  if (q) {
+    // "#21" or "21" finds an order number; anything else searches the name.
+    const digits = q.replace(/^#/, "");
+    conditions.push(/^\d{1,9}$/.test(digits) ? eq(orders.number, Number(digits)) : sql`${orders.customerName} ilike ${"%" + q.replace(/[%_\\]/g, "\\$&") + "%"}`);
+  }
+  const rows = await db
+    .select({ o: orders, tableLabel: diningTables.label })
+    .from(orders)
+    .leftJoin(diningTables, eq(orders.tableId, diningTables.id))
+    .where(and(...conditions))
+    // Number breaks ties, so paging never skips or repeats an order that shares a timestamp.
+    .orderBy(desc(orders.createdAt), desc(orders.number))
+    .limit(limit + 1)
+    .offset(filter.offset ?? 0);
+  return {
+    orders: rows.slice(0, limit).map(({ o, tableLabel }) => ({
+      id: o.id,
+      number: o.number,
+      status: o.status,
+      orderType: o.orderType,
+      tableLabel,
+      customerName: o.customerName,
+      paymentMode: o.paymentMode,
+      paid: !!o.paidAt,
+      totalCents: o.totalCents,
+      discountCents: o.discountCents,
+      createdAt: o.createdAt.toISOString(),
+    })),
+    hasMore: rows.length > limit,
+  };
+}

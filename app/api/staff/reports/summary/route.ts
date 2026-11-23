@@ -10,5 +10,13 @@ export const GET = handle(async (req) => {
   if (!Number.isInteger(days) || days < 1 || days > 366) throw new HttpError(400, "days must be between 1 and 366");
   const to = new Date();
   const from = new Date(to.getTime() - days * 86_400_000);
-  return json(await withTenant(staff.restaurantId, (db) => buildReport(db, from, to)), 200, { "Cache-Control": "no-store" });
+  const compare = new URL(req.url).searchParams.get("compare") === "1";
+  const result = await withTenant(staff.restaurantId, async (db) => {
+    const report = await buildReport(db, from, to);
+    if (!compare) return report;
+    // The same length of time just before, so the dashboard can say "up 12% on the last 30 days".
+    const before = await buildReport(db, new Date(from.getTime() - days * 86_400_000), from);
+    return { ...report, previous: { paidOrders: before.paidOrders, grossCents: before.grossCents, averageOrderCents: before.averageOrderCents, netEstimateCents: before.netEstimateCents } };
+  });
+  return json(result, 200, { "Cache-Control": "no-store" });
 });

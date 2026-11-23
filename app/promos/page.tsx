@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Icon } from "../icons";
 import { Alert, Button, Segmented, Sheet, Skeleton, StaffTopbar, api, useMe, useToasts } from "../ui";
 import { money, plural } from "@/lib/format";
-import { toCents } from "../dashboard/editor";
+import { toCents } from "../menu/editor";
 
 type Promo = { id: string; code: string; kind: "percent" | "fixed"; value: number; minSubtotalCents: number; active: boolean; expiresAt: string | null; maxUses: number | null; uses: number };
 

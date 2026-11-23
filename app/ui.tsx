@@ -205,7 +205,7 @@ export async function api<T>(url: string, init?: RequestInit & { json?: unknown 
   return { ok: true, data: body as T };
 }
 
-export type Me = { email: string; name: string; role: "owner" | "staff"; restaurantId: string };
+export type Me = { email: string; name: string; role: "owner" | "staff"; restaurantId: string; restaurantName?: string };
 
 /** Loads the signed-in staff member once per page. Redirects to sign-in when there is no session. */
 export function useMe() {
@@ -216,46 +216,124 @@ export function useMe() {
   return me;
 }
 
-const LINKS = [
-  { href: "/kitchen", label: "Kitchen", ownerOnly: false },
-  { href: "/tables", label: "Tables", ownerOnly: false },
-  { href: "/pos", label: "New order", ownerOnly: false },
-  { href: "/dashboard", label: "Menu", ownerOnly: false },
-  { href: "/promos", label: "Promos", ownerOnly: true },
-  { href: "/reports", label: "Reports", ownerOnly: true },
-  { href: "/pricing", label: "Plan", ownerOnly: true },
+const NAV: { group: string; items: { href: string; label: string; icon: IconName; ownerOnly?: boolean }[] }[] = [
+  {
+    group: "Main",
+    items: [
+      { href: "/dashboard", label: "Dashboard", icon: "home" },
+      { href: "/kitchen", label: "Kitchen", icon: "chef" },
+      { href: "/tables", label: "Tables", icon: "table" },
+      { href: "/pos", label: "New order", icon: "plus" },
+      { href: "/orders", label: "Orders", icon: "receipt" },
+    ],
+  },
+  {
+    group: "Manage",
+    items: [
+      { href: "/menu", label: "Menu", icon: "list" },
+      { href: "/promos", label: "Promos", icon: "tag", ownerOnly: true },
+    ],
+  },
+  {
+    group: "Business",
+    items: [
+      { href: "/reports", label: "Reports", icon: "chart", ownerOnly: true },
+      { href: "/pricing", label: "Plan", icon: "card", ownerOnly: true },
+    ],
+  },
 ];
 
+/**
+ * Staff navigation. A side menu on large screens (full width on wide screens, a slim icon rail on tablets,
+ * collapsible and remembered per device) and the compact top bar on phones.
+ */
 export function StaffTopbar({ current, me }: { current: string; me: Me | null }) {
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("sros:side");
+      if (saved === "full" || saved === "rail") document.documentElement.dataset.side = saved;
+    } catch {}
+  }, []);
+
+  function toggleSide() {
+    const root = document.documentElement;
+    const wide = window.matchMedia("(min-width: 1280px)").matches;
+    const now = root.dataset.side ?? (wide ? "full" : "rail");
+    const next = now === "full" ? "rail" : "full";
+    root.dataset.side = next;
+    try {
+      localStorage.setItem("sros:side", next);
+    } catch {}
+  }
+
   async function signOut() {
     setBusy(true);
     await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
     window.location.href = "/login";
   }
+
+  const groups = NAV.map((g) => ({ ...g, items: g.items.filter((i) => !i.ownerOnly || me?.role === "owner") })).filter((g) => g.items.length > 0);
+  const flat = groups.flatMap((g) => g.items);
+  const initials = (me?.name || me?.email || "?").split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
+
   return (
-    <header className="topbar">
-      <div className="container topbar-inner">
-        <a className="brandmark" href="/dashboard" aria-label="SROS home">
-          <span className="logo">S</span>
-          <span className="sr-only">SROS</span>
-        </a>
-        <nav className="nav grow" aria-label="Staff">
-          {LINKS.filter((l) => !l.ownerOnly || me?.role === "owner").map((l) => (
-            <a key={l.href} href={l.href} aria-current={current === l.href ? "page" : undefined}>
-              {l.label}
-            </a>
+    <>
+      <aside className="sidebar" aria-label="Main">
+        <div className="side-head">
+          <a className="brandmark" href="/dashboard" title="Dashboard">
+            <span className="logo">S</span>
+            <span className="nav-text side-name">{me?.restaurantName || "SROS"}</span>
+          </a>
+        </div>
+        <nav className="side-nav" aria-label="Staff">
+          {groups.map((g) => (
+            <div key={g.group} className="side-group">
+              <div className="side-label nav-text">{g.group}</div>
+              {g.items.map((i) => (
+                <a key={i.href} className="side-link" href={i.href} title={i.label} aria-current={current === i.href ? "page" : undefined}>
+                  <Icon name={i.icon} size={20} />
+                  <span className="nav-text">{i.label}</span>
+                </a>
+              ))}
+            </div>
           ))}
         </nav>
-        {me && (
-          <div className="row" style={{ "--gap": "6px" } as React.CSSProperties}>
-            <span className="subtle" style={{ whiteSpace: "nowrap" }} title={me.email}>
-              {me.role === "owner" ? "Owner" : "Staff"}
-            </span>
-            <Button variant="ghost" size="sm" icon="logout" aria-label="Sign out" loading={busy} onClick={signOut} />
-          </div>
-        )}
-      </div>
-    </header>
+        <div className="side-foot">
+          <button type="button" className="side-link" onClick={toggleSide} title="Collapse or expand the menu">
+            <Icon name="chevronLeft" size={20} className="side-collapse" />
+            <span className="nav-text">Collapse</span>
+          </button>
+          {me && (
+            <div className="side-user">
+              <span className="avatar" aria-hidden="true">{initials}</span>
+              <span className="nav-text side-who">
+                <span className="strong">{me.name || me.email.split("@")[0]}</span>
+                <span className="subtle">{me.role === "owner" ? "Owner" : "Staff"}</span>
+              </span>
+              <Button variant="ghost" size="sm" icon="logout" aria-label="Sign out" className="nav-text" loading={busy} onClick={signOut} />
+            </div>
+          )}
+        </div>
+      </aside>
+
+      <header className="topbar mobile-only">
+        <div className="container topbar-inner">
+          <a className="brandmark" href="/dashboard" aria-label="Dashboard">
+            <span className="logo">S</span>
+            <span className="sr-only">SROS</span>
+          </a>
+          <nav className="nav grow" aria-label="Staff">
+            {flat.map((l) => (
+              <a key={l.href} href={l.href} aria-current={current === l.href ? "page" : undefined}>
+                {l.label}
+              </a>
+            ))}
+          </nav>
+          {me && <Button variant="ghost" size="sm" icon="logout" aria-label="Sign out" loading={busy} onClick={signOut} />}
+        </div>
+      </header>
+    </>
   );
 }

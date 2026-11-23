@@ -1,185 +1,252 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Icon } from "../icons";
-import { Alert, Button, Skeleton, StaffTopbar, api, useMe, useToasts } from "../ui";
-import { money, plural } from "@/lib/format";
-import { CategorySheet, ItemSheet, photoUrl, type Category, type Item } from "./editor";
+import { AreaChart, Donut, type Slice } from "../charts";
+import { Icon, type IconName } from "../icons";
+import { Alert, Button, Segmented, Skeleton, StaffTopbar, api, useMe } from "../ui";
+import { clockTime, money, plural } from "@/lib/format";
+import { OrdersTable, TYPE_LABEL, type RecentOrder } from "../orders-table";
+import type { Board } from "../tables/types";
 
-type Editing = { kind: "item"; item: Item | null; categoryId: string } | { kind: "category"; category: Category | null } | null;
+type Report = {
+  timezone: string;
+  paidOrders: number;
+  grossCents: number;
+  averageOrderCents: number;
+  netEstimateCents: number;
+  byType: Record<"pickup" | "dine_in" | "counter", { orders: number; grossCents: number }>;
+  byCategory: { name: string; sortOrder: number; salesCents: number }[];
+  days: { date: string; orders: number; grossCents: number }[];
+  previous?: { paidOrders: number; grossCents: number; averageOrderCents: number; netEstimateCents: number };
+};
+type Active = { status: string }[];
+
+const PERIODS = [7, 30, 90].map((d) => ({ value: d, label: `${d} days` }));
+const SLICE_COLORS = ["var(--c1)", "var(--c2)", "var(--c3)", "var(--c4)"];
+
+function Delta({ now, before, label }: { now: number; before: number | undefined; label: string }) {
+  if (before === undefined) return null;
+  if (before === 0) return <span className="delta flat">{now > 0 ? "New this period" : "No change"}</span>;
+  const pct = Math.round(((now - before) / before) * 100);
+  if (pct === 0) return <span className="delta flat">No change {label}</span>;
+  return (
+    <span className={`delta ${pct > 0 ? "up" : "down"}`}>
+      <Icon name={pct > 0 ? "trendUp" : "trendDown"} size={14} />
+      {pct > 0 ? "Up" : "Down"} {Math.abs(pct)}% {label}
+    </span>
+  );
+}
 
 export default function Dashboard() {
   const me = useMe();
   const isOwner = me?.role === "owner";
-  const [menu, setMenu] = useState<Category[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
-  const [pending, setPending] = useState<Set<string>>(new Set());
-  const [editing, setEditing] = useState<Editing>(null);
-  const { toast, toasts } = useToasts();
+  const [days, setDays] = useState(7);
+  const [report, setReport] = useState<Report | null>(null);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const [active, setActive] = useState<Active | null>(null);
+  const [board, setBoard] = useState<Board | null>(null);
+  const [recent, setRecent] = useState<RecentOrder[] | null>(null);
+  const [timezone, setTimezone] = useState<string | undefined>();
 
-  const load = useCallback(async () => {
-    const r = await api<Category[]>("/api/staff/menu");
-    if (r.ok) {
-      setMenu(r.data);
-      setError(null);
-    } else setError(r.error);
+  const loadLive = useCallback(async () => {
+    const [a, t, h] = await Promise.all([api<{ orders: Active }>("/api/staff/orders"), api<Board>("/api/staff/tables"), api<{ orders: RecentOrder[] }>("/api/staff/orders/history?limit=8")]);
+    if (a.ok) setActive(a.data.orders);
+    if (t.ok) setBoard(t.data);
+    if (h.ok) setRecent(h.data.orders);
   }, []);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    void load();
-  }, [load]);
+    void loadLive();
+    void api<{ timezone: string }>("/api/staff/settings").then((r) => r.ok && setTimezone(r.data.timezone));
+    const t = setInterval(loadLive, 8000);
+    return () => clearInterval(t);
+  }, [loadLive]);
 
-  async function toggle(item: Item) {
-    const next = !item.available;
-    // Update the screen immediately; put it back if the server says no.
-    const set = (available: boolean) => setMenu((m) => m && m.map((c) => ({ ...c, items: c.items.map((i) => (i.id === item.id ? { ...i, available } : i)) })));
-    set(next);
-    setPending((p) => new Set(p).add(item.id));
-    const r = await api(`/api/staff/menu/items/${item.id}/availability`, { method: "PATCH", json: { available: next } });
-    setPending((p) => {
-      const n = new Set(p);
-      n.delete(item.id);
-      return n;
+  useEffect(() => {
+    if (!isOwner) return;
+    let live = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setReport(null);
+    void api<Report>(`/api/staff/reports/summary?days=${days}&compare=1`).then((r) => {
+      if (!live) return;
+      if (r.ok) {
+        setReport(r.data);
+        setReportError(null);
+      } else setReportError(r.error);
     });
-    if (r.ok) toast(next ? `${item.name} is back in stock` : `${item.name} marked sold out`);
-    else {
-      set(!next);
-      toast(r.error, "danger");
-    }
-  }
+    return () => {
+      live = false;
+    };
+  }, [days, isOwner]);
 
-  /** Moves an entry up or down by rewriting sort positions for the entries that changed. */
-  async function move<T extends { id: string; sortOrder: number }>(list: T[], index: number, dir: -1 | 1, url: (id: string) => string) {
-    const target = index + dir;
-    if (target < 0 || target >= list.length) return;
-    const next = [...list];
-    [next[index], next[target]] = [next[target], next[index]];
-    const changed = next.map((entry, position) => ({ entry, position })).filter(({ entry, position }) => entry.sortOrder !== position);
-    const results = await Promise.all(changed.map(({ entry, position }) => api(url(entry.id), { method: "PUT", json: { sortOrder: position } })));
-    const failed = results.find((r) => !r.ok);
-    if (failed && !failed.ok) toast(failed.error, "danger");
-    await load();
-  }
-
-  const saved = (message: string) => {
-    setEditing(null);
-    toast(message);
-    void load();
+  const counts = {
+    waiting: active?.filter((o) => o.status === "awaiting_acceptance").length ?? 0,
+    cooking: active?.filter((o) => o.status === "accepted").length ?? 0,
+    ready: active?.filter((o) => o.status === "ready").length ?? 0,
+    attention: board?.tables.filter((t) => t.active && t.priority).length ?? 0,
   };
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  const first = me?.name?.split(/\s+/)[0] || me?.email?.split("@")[0] || "";
 
-  const searching = query.trim().length > 0;
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!menu) return null;
-    if (!q) return menu;
-    return menu.map((c) => ({ ...c, items: c.items.filter((i) => i.name.toLowerCase().includes(q)) })).filter((c) => c.items.length > 0);
-  }, [menu, query]);
-  const all = menu?.flatMap((c) => c.items) ?? [];
-  const soldOut = all.filter((i) => !i.available).length;
-  const withPhotos = all.filter((i) => photoUrl(i)).length;
+  // One point per day for the whole period, so quiet days show as zero instead of being skipped.
+  const series = useMemo(() => {
+    if (!report) return [];
+    const byDate = new Map(report.days.map((d) => [d.date, d]));
+    return Array.from({ length: days }, (_, i) => {
+      const date = new Intl.DateTimeFormat("en-CA", { timeZone: report.timezone }).format(new Date(Date.now() - (days - 1 - i) * 86_400_000));
+      const d = byDate.get(date);
+      return {
+        key: date,
+        label: new Date(`${date}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        value: d?.grossCents ?? 0,
+        detail: plural(d?.orders ?? 0, "order"),
+      };
+    });
+  }, [report, days]);
+
+  const slices: Slice[] = useMemo(() => {
+    if (!report) return [];
+    // A category keeps its colour for good (by its place in the menu); only the first four get one.
+    const known = report.byCategory.filter((c) => c.name !== "Other");
+    let other = report.byCategory.find((c) => c.name === "Other")?.salesCents ?? 0;
+    const out: Slice[] = [];
+    known.forEach((c, i) => {
+      if (i < SLICE_COLORS.length) {
+        if (c.salesCents > 0) out.push({ name: c.name, value: c.salesCents, color: SLICE_COLORS[i] });
+      } else other += c.salesCents;
+    });
+    if (other > 0) out.push({ name: "Other", value: other, color: "var(--c-other)" });
+    return out.sort((a, b) => b.value - a.value);
+  }, [report]);
+
+  const bestDay = series.reduce((m, d) => (d.value > m.value ? d : m), { label: "", value: 0, detail: "", key: "" });
+
+  const tile = (href: string, label: string, n: number, icon: IconName, hot = false) => (
+    <a className={`live-tile ${hot && n > 0 ? "hot" : ""}`} href={href}>
+      <span className="live-l"><Icon name={icon} size={16} />{label}</span>
+      <span className="live-n">{active || board ? n : "–"}</span>
+    </a>
+  );
 
   return (
     <>
       <StaffTopbar current="/dashboard" me={me} />
-      <main className="container container-md page stack" style={{ "--gap": "16px" } as React.CSSProperties}>
-        <div className="row-between wrap">
+      <main className="container page stack" style={{ "--gap": "18px", maxWidth: 1240 } as React.CSSProperties}>
+        <div className="page-head">
           <div>
-            <h1>Menu</h1>
-            <p className="muted">{menu ? `${plural(all.length, "item")}${soldOut ? ` · ${soldOut} sold out` : ""}${all.length ? ` · ${withPhotos} with photos` : ""}` : "Loading…"}</p>
+            <h1>{greeting}{first ? `, ${first}` : ""}</h1>
+            <p className="muted">Here's how {me?.restaurantName || "your restaurant"} is doing.</p>
           </div>
           <div className="row wrap">
-            {isOwner && <Button icon="plus" onClick={() => setEditing({ kind: "category", category: null })}>Category</Button>}
-            {isOwner && menu && menu.length > 0 && <Button variant="primary" icon="plus" onClick={() => setEditing({ kind: "item", item: null, categoryId: menu[0].id })}>Add item</Button>}
+            <a className="btn btn-primary" href="/pos"><Icon name="plus" size={18} /> New order</a>
+            <a className="btn" href="/kitchen"><Icon name="chef" size={18} /> Kitchen</a>
           </div>
         </div>
 
-        {error && <Alert tone="danger" action={<Button size="sm" onClick={load}>Retry</Button>}>{error}</Alert>}
+        <section className="live-grid" aria-label="Right now">
+          {tile("/kitchen", "Waiting for kitchen", counts.waiting, "receipt", true)}
+          {tile("/kitchen", "Cooking", counts.cooking, "fire")}
+          {tile("/kitchen", "Ready to serve", counts.ready, "bag", true)}
+          {tile("/tables", "Tables need attention", counts.attention, "bell", true)}
+        </section>
 
-        <div className="sticky-search">
-          <div className="input-icon">
-            <Icon name="search" size={18} />
-            <input className="input" type="search" placeholder="Search the menu" aria-label="Search the menu" value={query} onChange={(e) => setQuery(e.target.value)} />
-          </div>
-        </div>
-
-        {!filtered && (
-          <div className="card card-flush">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="menu-row"><Skeleton height={48} width={48} /><Skeleton height={18} width="50%" /></div>
-            ))}
-          </div>
-        )}
-
-        {menu?.length === 0 && (
-          <div className="empty">
-            <Icon name="store" size={36} />
-            <p className="strong" style={{ color: "var(--text)" }}>Your menu is empty.</p>
-            <p className="small">{isOwner ? "Start with a category like Mains or Drinks, then add your dishes." : "Ask the owner to add menu items."}</p>
-            {isOwner && <Button variant="primary" style={{ marginTop: 14 }} icon="plus" onClick={() => setEditing({ kind: "category", category: null })}>Add your first category</Button>}
-          </div>
-        )}
-        {filtered && filtered.length === 0 && menu && menu.length > 0 && (
-          <div className="empty"><Icon name="search" size={32} /><p>No items match “{query}”.</p></div>
-        )}
-
-        {filtered?.map((category, ci) => (
-          <section key={category.id} aria-labelledby={`c-${category.id}`}>
-            <div className="cat-head">
-              <h2 id={`c-${category.id}`}>{category.name}</h2>
-              {isOwner && !searching && (
-                <div className="row-actions">
-                  <Button variant="ghost" size="sm" icon="arrowUp" aria-label={`Move ${category.name} up`} disabled={ci === 0} onClick={() => move(menu!, ci, -1, (id) => `/api/staff/menu/categories/${id}`)} />
-                  <Button variant="ghost" size="sm" icon="arrowDown" aria-label={`Move ${category.name} down`} disabled={ci === menu!.length - 1} onClick={() => move(menu!, ci, 1, (id) => `/api/staff/menu/categories/${id}`)} />
-                  <Button variant="ghost" size="sm" icon="edit" aria-label={`Edit ${category.name}`} onClick={() => setEditing({ kind: "category", category })} />
-                  <Button size="sm" icon="plus" onClick={() => setEditing({ kind: "item", item: null, categoryId: category.id })}>Item</Button>
-                </div>
+        {isOwner && (
+          <>
+            <div className="row-between wrap">
+              <h2>Performance</h2>
+              <div style={{ minWidth: 260 }}><Segmented label="Period" value={days} onChange={setDays} options={PERIODS} /></div>
+            </div>
+            {reportError && <Alert tone="danger">{reportError}</Alert>}
+            <div className="stats">
+              {!report ? (
+                Array.from({ length: 4 }).map((_, i) => <div key={i} className="stat"><Skeleton height={14} width="50%" /><Skeleton height={32} width="70%" style={{ marginTop: 10 }} /></div>)
+              ) : (
+                <>
+                  <div className="stat stat-hero">
+                    <div className="stat-label">Sales</div>
+                    <div className="stat-value">{money(report.grossCents)}</div>
+                    <Delta now={report.grossCents} before={report.previous?.grossCents} label={`vs last ${days} days`} />
+                  </div>
+                  <div className="stat">
+                    <div className="stat-label">Orders</div>
+                    <div className="stat-value">{report.paidOrders}</div>
+                    <Delta now={report.paidOrders} before={report.previous?.paidOrders} label={`vs last ${days} days`} />
+                  </div>
+                  <div className="stat">
+                    <div className="stat-label">Average order</div>
+                    <div className="stat-value">{money(report.averageOrderCents)}</div>
+                    <Delta now={report.averageOrderCents} before={report.previous?.averageOrderCents} label={`vs last ${days} days`} />
+                  </div>
+                  <div className="stat">
+                    <div className="stat-label">What you keep (estimated)</div>
+                    <div className="stat-value">{money(report.netEstimateCents)}</div>
+                    <Delta now={report.netEstimateCents} before={report.previous?.netEstimateCents} label={`vs last ${days} days`} />
+                  </div>
+                </>
               )}
             </div>
-            <div className="card card-flush list">
-              {category.items.length === 0 && <div className="menu-row subtle">No items yet.</div>}
-              {category.items.map((item, ii) => {
-                const photo = photoUrl(item);
-                return (
-                  <div key={item.id} className={`menu-row ${item.available ? "" : "off"}`}>
-                    {photo ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img className="thumb" src={photo} alt="" loading="lazy" />
-                    ) : (
-                      <span className="thumb" aria-hidden="true"><Icon name="image" size={20} /></span>
-                    )}
-                    <div className="grow">
-                      <div className="menu-row-name">{item.name}</div>
-                      <div className="subtle num">
-                        {money(item.priceCents)}
-                        {item.modifierGroups.length > 0 && ` · ${plural(item.modifierGroups.length, "add-on group")}`}
-                      </div>
-                    </div>
-                    {isOwner && !searching && (
-                      <div className="row-actions">
-                        <Button variant="ghost" size="sm" icon="arrowUp" aria-label={`Move ${item.name} up`} disabled={ii === 0} onClick={() => move(category.items, ii, -1, (id) => `/api/staff/menu/items/${id}`)} />
-                        <Button variant="ghost" size="sm" icon="arrowDown" aria-label={`Move ${item.name} down`} disabled={ii === category.items.length - 1} onClick={() => move(category.items, ii, 1, (id) => `/api/staff/menu/items/${id}`)} />
-                      </div>
-                    )}
-                    <label className="switch" title={item.available ? "Mark sold out" : "Back in stock"}>
-                      <input type="checkbox" role="switch" checked={item.available} disabled={pending.has(item.id)} onChange={() => toggle(item)} aria-label={`${item.name} available`} />
-                      <span />
-                    </label>
-                    {isOwner && <Button size="sm" icon="edit" aria-label={`Edit ${item.name}`} onClick={() => setEditing({ kind: "item", item, categoryId: category.id })}>Edit</Button>}
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        ))}
-      </main>
 
-      {editing?.kind === "item" && menu && (
-        <ItemSheet key={editing.item?.id ?? "new"} item={editing.item} categories={menu} categoryId={editing.categoryId} onClose={() => setEditing(null)} onSaved={saved} />
-      )}
-      {editing?.kind === "category" && <CategorySheet category={editing.category} count={menu?.length ?? 0} onClose={() => setEditing(null)} onSaved={saved} />}
-      {toasts}
+            <div className="dash-grid">
+              <section className="card" aria-labelledby="trend">
+                <div className="section-title">
+                  <h2 id="trend">Sales by day</h2>
+                  {report && bestDay.value > 0 && <span className="subtle">Best day {bestDay.label} · {money(bestDay.value)}</span>}
+                </div>
+                {!report ? <Skeleton height={230} /> : report.paidOrders === 0 ? (
+                  <div className="empty"><Icon name="chart" size={32} /><p>No paid orders in this period yet.</p></div>
+                ) : (
+                  <>
+                    <AreaChart data={series} format={(v) => money(Math.round(v))} summary={`Sales for each of the last ${days} days. Total ${money(report.grossCents)}. Best day ${bestDay.label}, ${money(bestDay.value)}.`} />
+                    <details style={{ marginTop: 12 }}>
+                      <summary className="subtle" style={{ cursor: "pointer" }}>View as a table</summary>
+                      <div className="list" style={{ marginTop: 8 }}>
+                        {[...series].reverse().map((d) => <div key={d.key} className="kv"><span>{d.label} · {d.detail}</span><span>{money(d.value)}</span></div>)}
+                      </div>
+                    </details>
+                  </>
+                )}
+              </section>
+
+              <div className="stack">
+                <section className="card" aria-labelledby="cats">
+                  <h2 id="cats" style={{ marginBottom: 12 }}>Sales by category</h2>
+                  {!report ? <Skeleton height={170} /> : slices.length === 0 ? (
+                    <div className="empty"><Icon name="chart" size={28} /><p>No sales yet.</p></div>
+                  ) : (
+                    <Donut slices={slices} format={(v) => money(v)} centerLabel="of sales" />
+                  )}
+                </section>
+                <section className="card" aria-labelledby="types">
+                  <h2 id="types" style={{ marginBottom: 4 }}>Order type</h2>
+                  {!report ? <Skeleton height={110} /> : (
+                    (["pickup", "dine_in", "counter"] as const).map((t) => {
+                      const v = report.byType[t];
+                      const max = Math.max(1, ...Object.values(report.byType).map((x) => x.grossCents));
+                      return (
+                        <div key={t} className="rank">
+                          <span>{TYPE_LABEL[t]} <span className="subtle">· {plural(v.orders, "order")}</span></span>
+                          <span className="num strong">{money(v.grossCents)}</span>
+                          <div className="rank-track"><div className="rank-fill" style={{ width: `${(v.grossCents / max) * 100}%` }} /></div>
+                        </div>
+                      );
+                    })
+                  )}
+                </section>
+              </div>
+            </div>
+          </>
+        )}
+
+        <section className="card card-flush" aria-labelledby="recent">
+          <div className="card-header row-between">
+            <h2 id="recent">Recent orders</h2>
+            <a href="/orders" className="small">View all <Icon name="arrowRight" size={14} /></a>
+          </div>
+          <OrdersTable orders={recent} timezone={timezone} />
+        </section>
+      </main>
     </>
   );
 }

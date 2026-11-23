@@ -5,7 +5,7 @@ import { Icon } from "../icons";
 import { Alert, Button, Segmented, Sheet, Skeleton, Stepper, StaffTopbar, api, useMe, useToasts } from "../ui";
 import { ItemSheet, type CartLine, type Item as SheetItem } from "../r/[slug]/ItemSheet";
 import { money, plural } from "@/lib/format";
-import { photoUrl, toCents, type Category } from "../dashboard/editor";
+import { photoUrl, toCents, type Category } from "../menu/editor";
 import type { Board } from "../tables/types";
 
 type Quote = {

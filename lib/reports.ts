@@ -1,5 +1,5 @@
 import { and, eq, gte, inArray, lt } from "drizzle-orm";
-import { orderItems, orders, payments, restaurants } from "../db/schema";
+import { menuCategories, menuItems, orderItems, orders, payments, restaurants } from "../db/schema";
 import type { Tx } from "./db";
 import { estimateProcessingCents } from "./fees";
 
@@ -30,6 +30,8 @@ export type Report = {
   byMethod: Record<"card_online" | "cash" | "card_terminal" | "other", { orders: number; grossCents: number }>;
   /** Paid orders by where they came from. */
   byType: Record<"pickup" | "dine_in" | "counter", { orders: number; grossCents: number }>;
+  /** Food sales (before discounts) by menu category, in menu order, including categories with no sales. Items no longer on the menu fall under "Other". */
+  byCategory: { name: string; sortOrder: number; salesCents: number }[];
   days: { date: string; orders: number; grossCents: number }[];
   topItems: { name: string; quantity: number; salesCents: number }[];
 };
@@ -102,6 +104,25 @@ export async function buildReport(db: Tx, from: Date, to: Date): Promise<Report>
         .from(orderItems)
         .where(inArray(orderItems.orderId, paidIds))
     : [];
+  const categoryRows = paidIds.length
+    ? await db
+        .select({ name: menuCategories.name, sortOrder: menuCategories.sortOrder, line: orderItems.lineTotalCents })
+        .from(orderItems)
+        .leftJoin(menuItems, eq(orderItems.itemId, menuItems.id))
+        .leftJoin(menuCategories, eq(menuItems.categoryId, menuCategories.id))
+        .where(inArray(orderItems.orderId, paidIds))
+    : [];
+  // Every category is listed, even with no sales, so a chart can give each one a colour that never changes.
+  const byCategory = new Map<string, { sortOrder: number; salesCents: number }>();
+  for (const c of await db.select({ name: menuCategories.name, sortOrder: menuCategories.sortOrder }).from(menuCategories)) {
+    byCategory.set(c.name, { sortOrder: c.sortOrder, salesCents: 0 });
+  }
+  for (const c of categoryRows) {
+    const name = c.name ?? "Other";
+    const row = byCategory.get(name) ?? { sortOrder: c.name ? (c.sortOrder ?? 0) : 10_001, salesCents: 0 };
+    row.salesCents += c.line;
+    byCategory.set(name, row);
+  }
   const byItem = new Map<string, { quantity: number; salesCents: number }>();
   for (const i of items) {
     const row = byItem.get(i.name) ?? { quantity: 0, salesCents: 0 };
@@ -133,6 +154,7 @@ export async function buildReport(db: Tx, from: Date, to: Date): Promise<Report>
     averageOrderCents: paid.length ? Math.round(grossCents / paid.length) : 0,
     byMethod,
     byType,
+    byCategory: [...byCategory.entries()].map(([name, v]) => ({ name, ...v })).sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)),
     days: [...byDay.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([date, v]) => ({ date, ...v })),
     topItems: [...byItem.entries()]
       .map(([name, v]) => ({ name, ...v }))

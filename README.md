@@ -159,6 +159,14 @@ Still to do: backups, and the first run against the Stripe sandbox.
 
 All screens share one design system: `app/globals.css` (colors, spacing, components, light and dark themes), `app/ui.tsx` (buttons, sheets, toasts, staff top bar) and `app/icons.tsx`. Change the brand color in the `--brand*` variables at the top of `globals.css`. The kitchen screen always uses the dark theme. Customer screens follow the device's light or dark setting. Prices are always calculated on the server, never in the browser.
 
+### Dashboard and navigation
+
+Staff navigation is a side menu on large screens (full width on wide screens, a slim icon rail on tablets, collapsible with the button at its foot and remembered per device) and the compact top bar on phones. Owners see Dashboard, Kitchen, Tables, New order, Orders, Menu, Promos, Reports and Plan; other staff see only the screens they can use.
+
+- **Dashboard** (`/dashboard`): live tiles for everyone (waiting for the kitchen, cooking, ready to serve, tables needing attention, refreshed every 8 seconds) and recent orders. Owners also get sales, orders, average order and what they keep, each compared with the previous period of the same length; a sales-by-day chart with a hover tooltip and keyboard arrows; sales by category as a ring (a category keeps its colour by its place in the menu, the first four get colours, the rest group under Other); and order-type bars. Every chart has a text summary and a table view.
+- **Orders** (`/orders`): all orders, newest first, searchable by number (`21` or `#21`) or by name, filterable by status and type, with paging and a receipt link on each order.
+- The old menu screen moved from `/dashboard` to `/menu`.
+
 ### The till (staff POS), promo codes and receipts
 
 - **New order** (`/pos`, every staff member): pick dishes (photos, search, categories, add-ons), choose **Dine-in** with a table or **Takeaway**, optionally a name, then either **Take payment** (cash with a change calculator, the restaurant's own card machine, or other) or **Send to kitchen, pay later**. The order reaches the kitchen like any other and rings there. On a phone the order summary is a bottom sheet. A table's sheet has an **Add order** shortcut.
