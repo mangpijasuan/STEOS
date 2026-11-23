@@ -4,7 +4,7 @@ Multi-tenant restaurant ordering platform with a storefront, staff kitchen queue
 
 ## Architecture
 
-Siamsil-SROS is a **modular monolith**. One Next.js application serves the customer storefront, kitchen, owner screens, and HTTP APIs. PostgreSQL holds order and payment state and enforces restaurant-level isolation.
+Siamsil-SROS is a **modular monolith**. One Next.js application serves the customer storefront and table ordering, the kitchen, the table board and till, owner screens, and HTTP APIs. PostgreSQL holds order, payment and photo data and enforces restaurant-level isolation.
 
 ```mermaid
 flowchart LR
@@ -19,12 +19,12 @@ flowchart LR
 
 | Component | Responsibility | Stack |
 | --- | --- | --- |
-| Application | Routes, access checks, menu management, checkout, kitchen workflow, and reports | Next.js App Router, React, TypeScript |
-| Data | Restaurants, menus, orders, payment history, sessions, and shared rate limits | PostgreSQL 16, Drizzle, SQL migrations |
+| Application | Routes, access checks, menu and photo management, pickup and dine-in checkout, the till and promotions, kitchen workflow, and reports | Next.js App Router, React, TypeScript |
+| Data | Restaurants, menus, photos, tables, orders, payment history, sessions, and shared rate limits | PostgreSQL 16, Drizzle, SQL migrations |
 | Payments and email | Connected-account card authorizations, captures and refunds, plus staff sign-in email | Stripe Connect, Resend |
-| Order maintenance | Release unanswered card holds, reconcile pending refunds, and purge expired runtime data | Node.js worker or managed scheduler calling a protected route |
+| Order maintenance | Release unanswered card holds, reconcile pending refunds, remove unattached photos, and purge expired runtime data | Node.js worker or managed scheduler calling a protected route |
 
-See the [architecture guide](docs/architecture.md) for checkout and sign-in flows, tenant isolation, and scaling trade-offs.
+See the [architecture guide](docs/architecture.md) for the checkout, dine-in and sign-in flows, tenant isolation, reporting, operations, and scaling trade-offs.
 
 ## Run it
 
@@ -75,6 +75,18 @@ In development the sign-in link is printed in the server console instead of bein
 | PUT, DELETE staff/menu/modifier-options/id | owner | Edit or remove an option |
 | POST staff/images | owner | Upload a food photo (raw JPEG, PNG or WebP body, up to 1.5 MB). Returns its id and URL |
 | GET images/id | public | A food photo, cached for a year |
+| POST staff/pos/quote, staff/pos/orders | staff | Price and place an order at the till (custom discounts: owner only) |
+| GET staff/orders/id | staff | An order's receipt |
+| GET, POST staff/promos; PUT, DELETE staff/promos/id | owner | Promo codes |
+| GET staff/orders/history | staff | Recent orders, filtered by status and type, searched by number or name, paged |
+| GET, POST staff/tables | staff, owner | Table board with live status; add tables (owner) |
+| PUT, DELETE staff/tables/id | owner | Edit, deactivate or delete a table |
+| POST staff/tables/id/clear, /qr | staff, owner | Clear a table after payment; replace its QR code (owner) |
+| POST, PUT, DELETE staff/floors[/id] | owner | Floors |
+| POST staff/table-requests/id/resolve | staff | Mark a guest request done |
+| POST staff/orders/id/pay | staff | Record an in-person payment (cash, card machine) on a pay-later order |
+| GET t/token | public | A scanned table's restaurant and options |
+| POST t/token/checkout, /requests | public | Table order (pay now or pay later); call a waiter or ask for the bill |
 | GET r/slug/menu | public | Storefront menu, open/closed state, earliest pickup |
 | GET r/slug/pickup-slots | public | 15-minute pickup times (empty when paused or closed) |
 | POST r/slug/quote | public, rate limited | Price a cart on the server: subtotal, tax, tip, total |
@@ -158,8 +170,44 @@ See the [Phase 4 integration handoff](docs/PHASE_4_INTEGRATION.md) for the migra
 
 ## Menu editor and photos
 
-Owners edit the menu at `/menu`: categories, dishes, add-on groups and options (each option can be marked out of stock), ordering, and food photos. Staff can still mark dishes sold out from the dashboard. Weekly opening hours and ordering settings stay at `/manage`.
+Owners edit the menu at `/menu`: categories, dishes, add-on groups and options (each option can be marked out of stock), ordering, and food photos. Staff can mark dishes sold out and back in stock at `/menu`; only owners edit the menu itself. Weekly opening hours and ordering settings stay at `/manage`.
 
 - Photos are shrunk in the browser (max 1200px JPEG), stored in the database (`images` table, migration 0012) and served publicly at `/api/images/<id>` with a one-year cache. Uploads are owner-only, checked by their real file signature (JPEG, PNG or WebP), limited to 1.5 MB and 60 per hour, and capped at 500 per restaurant.
 - Replacing or removing a photo deletes it once no dish references it. Photos that were uploaded but never saved are removed after an hour by the order worker. Moving photos to object storage later only changes `lib/images.ts` and the two image routes.
 - The editor uses the design system in `app/ds.css`, which is scoped to elements inside a `.ds` wrapper (`app/menu/layout.tsx`). Screens that have not been moved over keep their current look; to move one, wrap it in `.ds`. `app/legacy.css` keeps the original page frame for the others.
+
+## Tables and dine-in
+
+Owners set up floors and tables at `/tables` (**Set up tables**), print a QR card per table at `/tables/qr`, and turn on **Guests can order by QR code** (also at `/manage`). A guest who scans a code lands on `/t/<code>`: the same menu, without a pickup time, with name and phone optional, and a choice of **pay at the table** or **pay now by card**.
+
+- Pay-later orders go straight to the kitchen. There is no card, no acceptance timer and no refund. Staff record cash or card-machine payment from the table sheet; that payment is stored with a capture time so reports include it. SROS's fee on these orders is **invoiced** rather than taken from a card payment, and the card-fee estimate in reports covers online card payments only.
+- Pay-now orders use the normal card flow: held, then charged when the kitchen accepts, and expired if it does not respond in time.
+- The database refuses a pay-later order with an acceptance deadline, so the expiry sweep and refund reconciliation can never act on one. Pay-later checkout and kitchen decisions can run without Stripe configuration.
+- To cancel a paid pay-later order, the owner returns the payment in person, then confirms the refund in the kitchen screen. The app records the refund and cancellation together.
+- A table's QR code is private to it. Replace it from the table's settings if it leaks. Guests' requests ("call a waiter", the bill) show on the board and are settled when the bill is paid.
+- The table board needs staff names, but the runtime role cannot read `staff_users`. The board reads them through `tenant_staff_directory()`, which returns only display names for the current restaurant.
+- Like the menu editor, `/tables` uses the scoped design system. The guest page reuses the existing storefront and checkout, so it looks like the pickup page.
+
+## Till, promo codes and receipts
+
+- **Till** (`/pos`, "New order"): staff enter an order for a table or a walk-in. They take payment now (cash, card machine, other) or send it to the kitchen to pay later. Orders go to the kitchen like any other. A table's sheet has an **Add order** link and a **Receipt** link per order (`/orders/<id>/receipt`, printable at 80 mm).
+- **Promo codes** (`/promos`, owner): percent or dollar codes with an optional minimum spend, expiry and use limit. Customers enter a code on the storefront and at the table; staff can apply one at the till, and the owner can also type a custom discount.
+- **How a discount prices:** it comes off the food first, tax is charged on what is left, tips are never taxed, and a total cannot go negative. The SROS fee is computed on the food at its full price, so a discount is the restaurant's cost and does not reduce SROS's fee (the fee is still capped at the amount charged). Reports show discounts and net sales after them.
+- **Limited codes:** the last use cannot be taken twice. A use is given back when an order never completes (declined, expired, payment failed or cancelled), and taken again if a failed payment is later captured. Wrong guesses are rate limited per person.
+- **Till requests are idempotent:** reusing a request key with a different order is refused. Each till order records the staff member who entered it, and the database only allows staff of the same restaurant.
+
+## Dashboard and navigation
+
+- **Navigation:** staff screens on the design system share a side menu: full width on large screens, a slim icon rail on tablets (collapsible, remembered per device), and a compact top bar on phones. Owners also see Hours & settings, Promos, Reports and Plan. Every staff screen now has it, except the sign-in confirmation page.
+- **Dashboard** (`/dashboard`): live counts (waiting for the kitchen, cooking, ready, tables needing attention), recent orders, and, for owners, performance over 7, 30 or 90 days: sales, orders, average order and what the restaurant keeps, each compared with the period just before, plus sales by day, by menu category and by order type.
+- **Sales are after refunds.** The headline and the chart use the money charged less refunds confirmed in the period, the same "net charged" figure as the sales report, and the comparison uses the same figure for the earlier period. A day with more refunded than sold shows as zero on the chart.
+- **Orders** (`/orders`): all recent orders with filters, search by order number or name, and receipts.
+
+## Design system
+
+All screens use the design system in `app/ds.css`: the staff screens, the kitchen (always dark, for a tablet on the pass), the customer storefront, checkout and order status, the table ordering page, sign-in and the home page. Customer screens follow the device's light or dark setting. The styles are scoped to a `.ds` wrapper, which each route's `layout.tsx` provides, and the brand color is the `--brand*` variables at the top of the file.
+
+The one exception is the sign-in confirmation page (`/api/auth/verify`). It is rendered by the server with a strict content policy that forbids external styles, so it carries its own small inline stylesheet.
+
+Behavior added during the audit is kept on these screens: the kitchen pages past 100 orders, aborts a stale refresh and reports a failed refund; the storefront derives the pickup time from what is offered and ties each quote to the cart it priced; checkout keeps one idempotency key and retry proof per attempt; the order page keeps checking until a pending refund settles; reports show refunds and net sales; and the hours editor is owner-only and shows the server's validation messages.
+

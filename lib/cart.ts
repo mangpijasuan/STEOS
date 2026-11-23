@@ -17,7 +17,10 @@ export type PricedLine = {
 
 export type PricedCart = {
   lines: PricedLine[];
+  /** Food total before any discount. */
   subtotalCents: number;
+  discountCents: number;
+  discountLabel: string | null;
   taxCents: number;
   tipCents: number;
   totalCents: number;
@@ -28,12 +31,15 @@ export function taxCents(subtotalCents: number, taxRateBps: number): number {
   return Math.floor((subtotalCents * taxRateBps + 5000) / 10000);
 }
 
+/** Given the food subtotal, says how much to take off, or throws if the discount does not apply to this cart. */
+export type DiscountRule = (subtotalCents: number) => { cents: number; label: string };
+
 /**
  * Validates a cart against the live menu and prices it. The browser's prices are never trusted:
  * only item ids, option ids, quantities and notes come from the customer.
- * Tax applies to the food subtotal only. Tips are not taxed.
+ * A discount comes off the food subtotal first, and tax is charged on what is left. Tips are not taxed.
  */
-export function priceCart(menu: MenuTree, input: CartLineInput[], opts: { taxRateBps: number; tipCents?: number }): PricedCart {
+export function priceCart(menu: MenuTree, input: CartLineInput[], opts: { taxRateBps: number; tipCents?: number; discount?: DiscountRule }): PricedCart {
   const issues: Issue[] = [];
   if (input.length === 0) throw new HttpError(422, "Cart has problems", [{ line: null, message: "Your cart is empty" }]);
 
@@ -98,7 +104,18 @@ export function priceCart(menu: MenuTree, input: CartLineInput[], opts: { taxRat
   if (issues.length) throw new HttpError(422, "Cart has problems", issues);
 
   const subtotalCents = lines.reduce((sum, l) => sum + l.lineTotalCents, 0);
-  const tax = taxCents(subtotalCents, opts.taxRateBps);
+  const rule = opts.discount?.(subtotalCents) ?? null;
+  // A discount can never be more than the food, so a total can never go negative.
+  const discountCents = rule ? Math.min(subtotalCents, Math.max(0, Math.round(rule.cents))) : 0;
+  const tax = taxCents(subtotalCents - discountCents, opts.taxRateBps);
   const tipCents = opts.tipCents ?? 0;
-  return { lines, subtotalCents, taxCents: tax, tipCents, totalCents: subtotalCents + tax + tipCents };
+  return {
+    lines,
+    subtotalCents,
+    discountCents,
+    discountLabel: discountCents > 0 ? rule!.label : null,
+    taxCents: tax,
+    tipCents,
+    totalCents: subtotalCents - discountCents + tax + tipCents,
+  };
 }

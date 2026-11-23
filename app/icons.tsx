@@ -42,6 +42,12 @@ const PATHS = {
   printer: "M7 8V4h10v4M7 17H5a1 1 0 0 1-1-1v-6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1h-2M7 14h10v6H7v-6Z",
   cash: "M3 7h18v10H3V7Zm9 7.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5ZM6 10v.01M18 14v.01",
   more: "M5 12h.01M12 12h.01M19 12h.01",
+  home: "M4 11 12 4l8 7v9a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1v-9Z",
+  list: "M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01",
+  chevronLeft: "m15 6-6 6 6 6",
+  chevronRight: "m9 6 6 6-6 6",
+  trendUp: "m3 17 6-6 4 4 8-8m0 0h-5m5 0v5",
+  trendDown: "m3 7 6 6 4-4 8 8m0 0h-5m5 0v-5",
 } as const;
 
 export type IconName = keyof typeof PATHS;

@@ -1,5 +1,5 @@
 import { and, eq, gte, inArray, lt, or } from "drizzle-orm";
-import { orderItems, orders, payments, restaurants } from "../db/schema";
+import { menuCategories, menuItems, orderItems, orders, payments, restaurants } from "../db/schema";
 import type { Tx } from "./db";
 import { estimateProcessingCents } from "./fees";
 
@@ -8,14 +8,23 @@ export type Report = {
   to: string;
   timezone: string;
   paidOrders: number;
+  /** Food total before discounts. */
   subtotalCents: number;
+  /** Discounts and promo codes given. */
+  discountCents: number;
   taxCents: number;
   tipCents: number;
   grossCents: number;
-  /** Fees SROS took on these orders. */
+  /** Fees SROS earned on these orders, whether taken from the card payment or invoiced. */
   platformFeeCents: number;
-  /** Card fees, estimated at the standard rate. Stripe's own reports have the exact figure. */
+  /** The part of the SROS fee on orders the restaurant collected itself (cash, own card machine). Billed separately. */
+  platformFeeInvoicedCents: number;
+  /** Card fees on online payments, estimated at the standard rate. Stripe's own reports have the exact figure. */
   processingEstimateCents: number;
+  /** Paid orders by how they were paid. */
+  byMethod: Record<"card_online" | "cash" | "card_terminal" | "other", { orders: number; grossCents: number }>;
+  /** Paid orders by where they came from. */
+  byType: Record<"pickup" | "dine_in" | "counter", { orders: number; grossCents: number }>;
   /** What the restaurant keeps from card payments: gross minus SROS fee and estimated card fees. Tax is not income. */
   netEstimateCents: number;
   netSalesCents: number;
@@ -23,6 +32,8 @@ export type Report = {
   refunds: { count: number; totalCents: number };
   notCompleted: { declined: number; expired: number; paymentFailed: number };
   averageOrderCents: number;
+  /** Food sales (before discounts) by menu category, in menu order, including categories with no sales. Items no longer on the menu fall under "Other". */
+  byCategory: { name: string; sortOrder: number; salesCents: number }[];
   days: { date: string; orders: number; grossCents: number; refundCents: number }[];
   topItems: { name: string; quantity: number; salesCents: number }[];
 };
@@ -44,10 +55,14 @@ export async function buildReport(db: Tx, from: Date, to: Date): Promise<Report>
       capturedAt: payments.capturedAt,
       refundedAt: payments.refundedAt,
       subtotal: orders.subtotalCents,
+      discount: orders.discountCents,
       tax: orders.taxCents,
       tip: orders.tipCents,
       total: orders.totalCents,
       fee: orders.feeCents,
+      feeCollection: orders.feeCollection,
+      orderType: orders.orderType,
+      method: payments.method,
     })
     .from(orders)
     .leftJoin(payments, eq(payments.orderId, orders.id))
@@ -65,7 +80,20 @@ export async function buildReport(db: Tx, from: Date, to: Date): Promise<Report>
 
   const grossCents = sum(paid, (o) => o.total);
   const platformFeeCents = sum(paid, (o) => o.fee);
-  const processingEstimateCents = sum(paid, (o) => estimateProcessingCents(o.total));
+  // Only online card payments have fees we can estimate. Cash costs nothing, and a restaurant's own card machine has
+  // terms we do not know.
+  const processingEstimateCents = sum(paid.filter((o) => o.method === "card_online"), (o) => estimateProcessingCents(o.total));
+  const platformFeeInvoicedCents = sum(paid.filter((o) => o.feeCollection === "invoice"), (o) => o.fee);
+  const byMethod = { card_online: { orders: 0, grossCents: 0 }, cash: { orders: 0, grossCents: 0 }, card_terminal: { orders: 0, grossCents: 0 }, other: { orders: 0, grossCents: 0 } };
+  const byType = { pickup: { orders: 0, grossCents: 0 }, dine_in: { orders: 0, grossCents: 0 }, counter: { orders: 0, grossCents: 0 } };
+  for (const o of paid) {
+    const m = byMethod[o.method && o.method in byMethod ? (o.method as keyof typeof byMethod) : "other"];
+    m.orders += 1;
+    m.grossCents += o.total;
+    const t = byType[o.orderType in byType ? (o.orderType as keyof typeof byType) : "pickup"];
+    t.orders += 1;
+    t.grossCents += o.total;
+  }
   const taxCents = sum(paid, (o) => o.tax);
 
   const refundedCents = sum(refunded, (o) => o.total);
@@ -90,6 +118,25 @@ export async function buildReport(db: Tx, from: Date, to: Date): Promise<Report>
         .from(orderItems)
         .where(inArray(orderItems.orderId, paidIds))
     : [];
+  const categoryRows = paidIds.length
+    ? await db
+        .select({ name: menuCategories.name, sortOrder: menuCategories.sortOrder, line: orderItems.lineTotalCents })
+        .from(orderItems)
+        .leftJoin(menuItems, eq(orderItems.itemId, menuItems.id))
+        .leftJoin(menuCategories, eq(menuItems.categoryId, menuCategories.id))
+        .where(inArray(orderItems.orderId, paidIds))
+    : [];
+  // Every category is listed, even with no sales, so a chart can give each one a colour that never changes.
+  const byCategory = new Map<string, { sortOrder: number; salesCents: number }>();
+  for (const c of await db.select({ name: menuCategories.name, sortOrder: menuCategories.sortOrder }).from(menuCategories)) {
+    byCategory.set(c.name, { sortOrder: c.sortOrder, salesCents: 0 });
+  }
+  for (const c of categoryRows) {
+    const name = c.name ?? "Other";
+    const row = byCategory.get(name) ?? { sortOrder: c.name ? (c.sortOrder ?? 0) : 10_001, salesCents: 0 };
+    row.salesCents += c.line;
+    byCategory.set(name, row);
+  }
   const byItem = new Map<string, { quantity: number; salesCents: number }>();
   for (const i of items) {
     const row = byItem.get(i.name) ?? { quantity: 0, salesCents: 0 };
@@ -104,14 +151,20 @@ export async function buildReport(db: Tx, from: Date, to: Date): Promise<Report>
     timezone,
     paidOrders: paid.length,
     subtotalCents: sum(paid, (o) => o.subtotal),
+    discountCents: sum(paid, (o) => o.discount),
     taxCents,
     tipCents: sum(paid, (o) => o.tip),
     grossCents,
     platformFeeCents,
+    platformFeeInvoicedCents,
     processingEstimateCents,
+    byMethod,
+    byType,
+    byCategory: [...byCategory.entries()].map(([name, v]) => ({ name, ...v })).sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name)),
     netEstimateCents: grossCents - taxCents - platformFeeCents - processingEstimateCents
       - sum(refunded, (o) => o.total - o.tax - o.fee),
-    netSalesCents: sum(paid, (o) => o.subtotal) - sum(refunded, (o) => o.subtotal),
+    // Sales after discounts, less what was refunded.
+    netSalesCents: sum(paid, (o) => o.subtotal - o.discount) - sum(refunded, (o) => o.subtotal - o.discount),
     netChargedCents: grossCents - refundedCents,
     refunds: { count: refunded.length, totalCents: refundedCents },
     notCompleted: {
