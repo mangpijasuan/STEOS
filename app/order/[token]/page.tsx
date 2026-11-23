@@ -11,6 +11,7 @@ type Order = {
   orderType: string;
   paymentMode: string;
   paid: boolean;
+  paymentState: "paid" | "refunded" | "unpaid";
   table: { label: string; qrToken: string } | null;
   number: number;
   status: string;
@@ -196,6 +197,7 @@ export default function OrderPage({ params }: { params: Promise<{ token: string 
             <Alert tone="info">Pay at the table when you're done. Ask for the bill below, or flag down a server.</Alert>
           )}
           {dineIn && order.paid && <Alert tone="success">Paid. Thank you!</Alert>}
+          {dineIn && order.paymentState === "refunded" && <Alert tone="info">Your payment was handed back to you in person.</Alert>}
           <div className="row wrap">
             <a className="btn grow" href={`/t/${order.table!.qrToken}`}>
               <Icon name="plus" size={18} /> Order more
