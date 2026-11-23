@@ -134,6 +134,25 @@ describe("attaching photos to menu items", () => {
     expect((await get(second)).status).toBe(404);
   });
 
+  it("keeps a shared photo until its last dish is detached", async () => {
+    const photo = (await (await send(ownerToken, PNG)).json()).id as string;
+    const second = await asOwner(async (client) => {
+      const { rows } = await client.query(
+        "insert into menu_items (restaurant_id, category_id, name, price_cents) values ($1, $2, 'Second dish', 1000) returning id",
+        [a.restaurantId, a.categoryId],
+      );
+      return rows[0].id as string;
+    });
+    expect((await putItem(ownerToken, a.itemId, { imageId: photo })).status).toBe(200);
+    expect((await putItem(ownerToken, second, { imageId: photo })).status).toBe(200);
+    expect((await putItem(ownerToken, a.itemId, { imageId: null })).status).toBe(200);
+    expect((await get(photo)).status).toBe(200);
+    const saved = await asOwner((client) => client.query("select image_id from menu_items where id = $1", [second]));
+    expect(saved.rows[0].image_id).toBe(photo);
+    expect((await putItem(ownerToken, second, { imageId: null })).status).toBe(200);
+    expect((await get(photo)).status).toBe(404);
+  });
+
   it("will not attach another restaurant's photo", async () => {
     const theirs = (await (await send(otherOwnerToken, PNG)).json()).id as string;
     const res = await putItem(ownerToken, a.itemId, { imageId: theirs });

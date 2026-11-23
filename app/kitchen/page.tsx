@@ -143,13 +143,16 @@ export default function Kitchen() {
       const res = await fetch(`/api/staff/orders/${order.id}/${action}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: action === "accept" ? JSON.stringify({ prepMinutes: prep[order.id] ?? 15 }) : undefined,
+        body: JSON.stringify(
+          action === "accept" ? { prepMinutes: prep[order.id] ?? 15 }
+            // Staff have just confirmed they handed the money back, which is what lets the refund be recorded.
+            : (action === "cancel" || action === "decline") && needsInPersonRefund(order) ? { inPersonRefundReturned: true }
+            : undefined,
+        ),
       });
       const result = await res.json().catch(() => ({}));
       if (!res.ok) setActionError(result.error ?? "That did not work. Try again.");
       else if (result.refundStatus === "failed") setActionError("The refund failed. Try again.");
-      // Money already taken in person is not the card provider's to return: staff hand it back.
-      else if (result.refundInPerson) setActionError("This guest already paid at the restaurant, so please hand their money back in person.");
       await refresh();
     } catch {
       // The request may or may not have reached the server, so do not claim it failed.
@@ -175,15 +178,23 @@ export default function Kitchen() {
   const secondsWaiting = (o: Order) => Math.max(0, Math.round((now - new Date(o.createdAt).getTime()) / 1000));
   const isOwner = me?.role === "owner";
 
-  // Refunds are two taps: the first arms the button and shows the amount, the second confirms.
+  // Refunds are two taps: the first arms the button and shows the amount, the second confirms. For money taken in
+  // person the second tap means "I have already handed it back", which is what records the refund.
   const refundButton = (o: Order) =>
     isOwner &&
     (confirmRefund === o.id ? (
       <Button variant="danger" size="lg" loading={busy[o.id] === "cancel"} onClick={() => act(o, "cancel")}>
-        {o.paymentMode === "online" ? `Refund ${money(o.totalCents)}?` : o.paidAt ? `Cancel and hand back ${money(o.totalCents)}?` : "Cancel order?"}
+        {o.paymentMode === "online" ? `Refund ${money(o.totalCents)}?` : needsInPersonRefund(o) ? `I handed back ${money(o.totalCents)}` : "Cancel order?"}
       </Button>
     ) : (
-      <Button variant="soft-danger" size="lg" aria-label={`Cancel order ${o.number}${o.paymentMode === "online" ? " and refund" : ""}`} icon="refund" disabled={!!busy[o.id]} onClick={() => setConfirmRefund(o.id)} />
+      <Button
+        variant="soft-danger"
+        size="lg"
+        aria-label={`Cancel order ${o.number}${o.paymentMode === "online" ? " and refund" : needsInPersonRefund(o) ? " and record the refund" : ""}`}
+        icon="refund"
+        disabled={!!busy[o.id]}
+        onClick={() => setConfirmRefund(o.id)}
+      />
     ));
 
   return (
@@ -263,9 +274,15 @@ export default function Kitchen() {
                   <Button variant="success" size="xl" className="grow" loading={busy[o.id] === "accept"} disabled={!!busy[o.id]} onClick={() => act(o, "accept")}>
                     Accept · {choice} min
                   </Button>
-                  <Button size="xl" loading={busy[o.id] === "decline"} disabled={!!busy[o.id]} onClick={() => act(o, "decline")}>
-                    Decline
-                  </Button>
+                  {needsInPersonRefund(o) && confirmRefund === `${o.id}:decline` ? (
+                    <Button variant="danger" size="xl" loading={busy[o.id] === "decline"} disabled={!!busy[o.id]} onClick={() => act(o, "decline")}>
+                      I handed back {money(o.totalCents)}
+                    </Button>
+                  ) : (
+                    <Button size="xl" loading={busy[o.id] === "decline"} disabled={!!busy[o.id]} onClick={() => (needsInPersonRefund(o) ? setConfirmRefund(`${o.id}:decline`) : act(o, "decline"))}>
+                      Decline
+                    </Button>
+                  )}
                 </div>
               </Ticket>
             );
@@ -318,6 +335,11 @@ export default function Kitchen() {
       </div>
     </div>
   );
+}
+
+/** An order the guest already paid for in person. Cancelling or declining it means handing the money back. */
+function needsInPersonRefund(order: Order): boolean {
+  return order.paymentMode === "pay_later" && order.paidAt !== null;
 }
 
 function Ticket({ order, variant, timezone, children }: { order: Order; variant: "new" | "cooking" | "ready" | "late"; timezone: string | undefined; children: React.ReactNode }) {
