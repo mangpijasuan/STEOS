@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import type { HoursPeriod } from "@/lib/hours";
 
-type Settings = { acceptingOrders: boolean; minPrepMinutes: number; maxAdvanceDays: number; taxRateBps: number };
+type Settings = { acceptingOrders: boolean; minPrepMinutes: number; maxAdvanceDays: number; taxRateBps: number; dineInEnabled: boolean; payLaterEnabled: boolean };
 
 const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const text = (data: FormData, key: string) => String(data.get(key) ?? "");
@@ -91,11 +91,15 @@ export default function ManageRestaurant() {
           maxAdvanceDays: number(data, "maxAdvanceDays"),
           taxRateBps: Math.round(number(data, "taxPercent") * 100),
           acceptingOrders: data.has("acceptingOrders"),
+          dineInEnabled: data.has("dineInEnabled"),
+          payLaterEnabled: data.has("payLaterEnabled"),
         }))}>
           <label>Minimum prep time (minutes) <input name="minPrepMinutes" type="number" min={5} max={240} defaultValue={settings.minPrepMinutes} required /></label>
           <label>Days available for advance orders <input name="maxAdvanceDays" type="number" min={0} max={14} defaultValue={settings.maxAdvanceDays} required /></label>
           <label>Sales tax (%) <input name="taxPercent" type="number" min={0} max={30} step={0.01} defaultValue={settings.taxRateBps / 100} required /></label>
           <label><input name="acceptingOrders" type="checkbox" defaultChecked={settings.acceptingOrders} /> Accept online orders</label>
+          <label><input name="dineInEnabled" type="checkbox" defaultChecked={settings.dineInEnabled} /> Let guests order from their table (set up tables in <a href="/tables">Tables</a>)</label>
+          <label><input name="payLaterEnabled" type="checkbox" defaultChecked={settings.payLaterEnabled} /> Let table guests pay at the table instead of by card</label>
           <button disabled={busy}>Save ordering settings</button>
         </form>
       </section>

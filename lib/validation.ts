@@ -83,6 +83,8 @@ export const settingsUpdate = z.object({
   minPrepMinutes: z.number().int().min(5).max(240).optional(),
   maxAdvanceDays: z.number().int().min(0).max(14).optional(),
   taxRateBps: z.number().int().min(0).max(3000).optional(),
+  dineInEnabled: z.boolean().optional(),
+  payLaterEnabled: z.boolean().optional(),
 });
 
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
@@ -97,4 +99,48 @@ export const checkoutInput = quoteInput.extend({
     name: z.string().trim().min(1).max(80),
     phone: z.string().trim().regex(/^[0-9+()\-\s.]{7,25}$/, "Enter a valid phone number"),
   }),
+});
+
+// ------------------------------------------------------------------ dine-in
+export const floorInput = z.object({ name: name(40) });
+export const floorUpdate = z.object({ name: name(40).optional(), sortOrder: sortOrder.optional() });
+
+const tableLabel = z
+  .string()
+  .trim()
+  .min(1)
+  .max(12)
+  .regex(/^[A-Za-z0-9][A-Za-z0-9 ._-]*$/, "Use letters, numbers, spaces or dashes");
+export const tablesCreate = z.object({
+  labels: z.array(tableLabel).min(1).max(100),
+  floorId: z.uuid().nullable().default(null),
+  seats: z.number().int().min(1).max(50).default(4),
+});
+export const tableUpdate = z.object({
+  label: tableLabel.optional(),
+  seats: z.number().int().min(1).max(50).optional(),
+  floorId: z.uuid().nullable().optional(),
+  active: z.boolean().optional(),
+  assignedTo: z.uuid().nullable().optional(),
+});
+
+export const requestInput = z.object({ kind: z.enum(["waiter", "bill_cash", "bill_card", "water", "other"]) });
+export const payInput = z.object({ method: z.enum(["cash", "card_terminal", "other"]) });
+
+/** Seated guests: a name and phone are optional (the table says who they are). */
+export const dineInCheckoutInput = z.object({
+  items: z.array(cartLine).min(1).max(50),
+  tipCents: z.number().int().min(0).max(100_000).default(0),
+  payLater: z.boolean(),
+  customer: z
+    .object({
+      name: z.string().trim().max(80).default(""),
+      phone: z
+        .string()
+        .trim()
+        .max(25)
+        .refine((v) => v === "" || /^[0-9+()\-\s.]{7,25}$/.test(v), "Enter a valid phone number")
+        .default(""),
+    })
+    .default({ name: "", phone: "" }),
 });
