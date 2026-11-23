@@ -5,17 +5,19 @@ export async function sendLoginEmail(to: string, url: string): Promise<void> {
     outbox.push({ to, url });
     return;
   }
-  const { RESEND_API_KEY, LOGIN_FROM_EMAIL } = process.env;
-  if (!RESEND_API_KEY || !LOGIN_FROM_EMAIL) {
-    if (process.env.NODE_ENV === "production") throw new Error("Login email delivery is missing configuration");
+  const { EMAIL_PROVIDER, RESEND_API_KEY, LOGIN_FROM_EMAIL, EMAIL_FROM } = process.env;
+  const from = LOGIN_FROM_EMAIL || EMAIL_FROM;
+  const provider = EMAIL_PROVIDER || (RESEND_API_KEY && from ? "resend" : "console");
+  if (provider === "console" && process.env.NODE_ENV !== "production") {
     console.log(`[dev] Login link for ${to}: ${url}`);
     return;
   }
+  if (provider !== "resend" || !RESEND_API_KEY || !from) throw new Error("Login email delivery is missing configuration");
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      from: LOGIN_FROM_EMAIL,
+      from,
       to: [to],
       subject: "Sign in to Siamsil Restaurant",
       text: `Open this link and confirm to sign in. It expires in 15 minutes.\n\n${url}`,

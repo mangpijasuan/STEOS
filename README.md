@@ -102,9 +102,11 @@ In development the sign-in link is printed in the server console instead of bein
 - Set an HTTPS `APP_URL`, a `RESEND_API_KEY`, and a verified Resend sender in `LOGIN_FROM_EMAIL`. A mail link opens a confirmation page and is spent only after submitting it.
 - Run migrations during the deployment window before replacing the old app. The auth migration revokes the old runtime role's direct table access.
 - Generate independent random values of at least 32 characters for `ORDER_TOKEN_SECRET` and `CRON_SECRET`. Keep the order secret stable for retries.
-- Set `TRUSTED_CLIENT_IP_HEADER` to a single-IP header owned and overwritten by your ingress. When no trusted IP is available, public rate limits share an anonymous bucket. Redact bearer tokens in sign-in and order paths from production access logs.
+- Set `TRUSTED_CLIENT_IP_HEADER` to a single-IP header owned and overwritten by your ingress. In Coolify, set this only after confirming that traffic reaches the app through the trusted Cloudflare and proxy path and that the origin rejects direct public traffic. When no trusted IP is available, public rate limits share an anonymous bucket. Production `GET /api/health` reports this configuration as degraded when the header name is missing or invalid. Redact bearer tokens in sign-in and order paths from production access logs.
 - Run `npm run worker:orders` under a process supervisor, or use a managed scheduler to call the expiry endpoint every minute. The worker also reconciles pending Stripe refunds and purges expired sessions, login links and rate-limit records. Monitor worker logs and failed webhook deliveries.
 - Owners can edit menus, modifier options, weekly hours, and ordering settings at `/manage`.
+- Point an uptime monitor at `GET /api/health` and optionally set `ALERT_WEBHOOK_URL` for throttled operational alerts. The health check tests database access and flags a worker heartbeat or expiry backlog older than five minutes.
+- Existing Sprint 6 deployments can continue using `EMAIL_PROVIDER=resend` and `EMAIL_FROM`. `LOGIN_FROM_EMAIL` takes precedence when both sender settings are present.
 
 ## Decisions made in Sprint 2
 
@@ -149,3 +151,5 @@ Before taking live payments, verify card decline and retry, delayed webhook deli
 - `npm run report:platform -- 30` prints what SROS earned across all restaurants in the last 30 days. It uses the owner database connection, so run it only on your own machine or server.
 
 **Worth knowing about the all-in plans.** With Stripe direct charges the restaurant's own account pays the card fees, so on an all-in plan SROS keeps only the target percentage minus those fees, and nothing on very small orders. On a $20 order at 6% that is about $0.32. Plans with "+ card fees" earn more per order but cost the restaurant more. Compare them in the pilot before settling on a price.
+
+See the [Phase 4 integration handoff](docs/PHASE_4_INTEGRATION.md) for the migration allocation and remaining feature ports.
