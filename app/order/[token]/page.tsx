@@ -1,5 +1,6 @@
 "use client";
 
+import { endedPayLaterNote, shouldKeepPolling } from "@/lib/order-status";
 import { use, useEffect, useState } from "react";
 import { Icon, type IconName } from "../../icons";
 import { Alert, Button, Skeleton } from "../../ui";
@@ -58,6 +59,12 @@ function dineInLook(order: Order, base: Look): Look {
       return { ...base, title: "On its way to your table", body: `A server will bring your order to table ${order.table?.label ?? ""}.`.replace(" .", ".") };
     case "completed":
       return { ...base, title: "Enjoy your meal", body: order.paid ? "Thanks for dining with us." : "Ask for the bill whenever you're ready." };
+    case "declined":
+    case "expired":
+    case "cancelled": {
+      const note = later ? endedPayLaterNote(order) : null;
+      return note ? { ...base, body: note } : base;
+    }
     default:
       return base;
   }
@@ -84,8 +91,8 @@ export default function OrderPage({ params }: { params: Promise<{ token: string 
         next = await res.json();
         setOrder(next);
       }
-      // Stop polling once nothing more can happen to the order. A refund still in progress can, so keep checking until it settles.
-      if (!next || !FINAL.has(next.status) || next.refundStatus === "pending") timer = setTimeout(poll, 5000);
+      // Stop polling once nothing more can happen to the order. A refund in progress can, and so can an unpaid pay-later bill.
+      if (!next || shouldKeepPolling(next)) timer = setTimeout(poll, 5000);
     }
     void poll();
     return () => {
@@ -197,7 +204,6 @@ export default function OrderPage({ params }: { params: Promise<{ token: string 
             <Alert tone="info">Pay at the table when you're done. Ask for the bill below, or flag down a server.</Alert>
           )}
           {dineIn && order.paid && <Alert tone="success">Paid. Thank you!</Alert>}
-          {dineIn && order.paymentState === "refunded" && <Alert tone="info">Your payment was handed back to you in person.</Alert>}
           <div className="row wrap">
             <a className="btn grow" href={`/t/${order.table!.qrToken}`}>
               <Icon name="plus" size={18} /> Order more
