@@ -35,3 +35,11 @@ The proposed Phase 5 roadmap, release checklist, and engineering handoff are und
 - Founder decision (resolved): the SROS fee stays on the food at its full price, before discounts. Discounts are the restaurant's cost. The fee is still capped at the amount charged.
 - Still to come: dashboard and navigation, and moving the remaining screens to the design system. Till and promo pages are on the scoped design system; the storefront promo field is in the existing style.
 
+## Dashboard and navigation port (no migration)
+
+- Branch `integration/dashboard-nav`, stacked on `integration/till-promos`. Adds the side navigation, the dashboard, the orders page, charts, order history, category sales and the period comparison. Read-only data, so no migration.
+- Differences from the feature branch, to keep Codex's reporting semantics: the headline "Sales", the daily chart and the "vs last period" change use sales after refunds (`netChargedCents`, and `refundCents` per day), not gross captured money, and the summary comparison carries `netChargedCents`.
+- The feature navigation had no entry for Hours & settings. It is kept in the Manage group for owners, because the ordering-hours editor at `/manage` must stay reachable.
+- Staff still mark dishes sold out from `/menu`. The new dashboard no longer has those toggles.
+- Still to come: moving the remaining screens (kitchen, storefront, order status, login, reports, pricing, hours and settings) onto the design system, which will bring them the side menu.
+
