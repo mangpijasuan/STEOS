@@ -590,3 +590,51 @@ body:has(.sidebar) { padding-left: 0 !important; }
 .ds .rank + .rank { border-top: 1px solid var(--border); }
 .ds .rank-track { grid-column: 1 / -1; height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
 .ds .rank-fill { height: 100%; background: var(--series); border-radius: 3px; }
+
+/* kitchen display */
+.ds .kds { min-height: 100dvh; background: var(--bg); color: var(--text); }
+.ds .kds-cols { display: grid; gap: 16px; padding: 16px; align-items: start; }
+@media (min-width: 900px) {
+  .ds .kds-cols { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+.ds .kds-col-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; padding: 0 2px; }
+.ds .kds-col-head h2 { font-size: 1.05rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-2); }
+.ds .count-pill { min-width: 28px; height: 28px; padding: 0 9px; border-radius: 14px; display: grid; place-items: center; background: var(--surface-3); font-weight: 750; font-variant-numeric: tabular-nums; }
+.ds .count-pill.hot { background: var(--brand); color: var(--brand-ink); animation: ring 1.6s infinite; }
+.ds .ticket { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px; margin-bottom: 12px; overflow: hidden; }
+.ds .ticket::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 6px; background: var(--accent, var(--border-strong)); }
+.ds .ticket-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.ds .ticket-num { font-size: 2rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; }
+.ds .ticket-name { font-weight: 650; font-size: 1.05rem; margin-top: 4px; }
+.ds .ticket-items { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 10px; }
+.ds .ticket-items li { display: grid; grid-template-columns: 34px 1fr; gap: 6px; font-size: 1.15rem; line-height: 1.3; }
+.ds .ticket-items .qty { font-weight: 800; font-variant-numeric: tabular-nums; }
+.ds .ticket-items .mods { font-size: 0.95rem; color: var(--text-2); }
+.ds .ticket-items .note { margin-top: 4px; padding: 6px 10px; border-radius: 8px; background: var(--warning-soft); color: var(--warning-ink); font-size: 0.95rem; font-weight: 600; }
+.ds .timer { margin-top: 14px; }
+.ds .timer-label { display: flex; justify-content: space-between; font-weight: 700; font-variant-numeric: tabular-nums; margin-bottom: 6px; }
+.ds .timer-track { height: 8px; border-radius: 4px; background: var(--surface-3); overflow: hidden; }
+.ds .timer-fill { height: 100%; border-radius: 4px; background: var(--brand); transition: width 1s linear; }
+.ds .timer.urgent .timer-fill { background: var(--danger); }
+.ds .timer.urgent .timer-label { color: var(--danger); }
+.ds .ticket-actions { display: flex; gap: 10px; margin-top: 14px; }
+.ds .prep-row { margin-top: 14px; }
+.ds .prep-row .label { display: block; margin-bottom: 6px; }
+.ds .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.ds .chips button { min-width: 48px; min-height: 44px; padding: 0 8px; border-radius: 12px; border: 1.5px solid var(--border-strong); background: var(--surface-2); color: var(--text); font-weight: 700; cursor: pointer; font-variant-numeric: tabular-nums; }
+.ds .chips button[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+.ds .kds-empty { padding: 26px 12px; text-align: center; color: var(--text-3); border: 1.5px dashed var(--border); border-radius: var(--radius-lg); }
+.ds .kds-banner { margin: 12px 16px 0; }
+
+/* kitchen ticket states */
+.ds .ticket-new { --accent: var(--brand); border-color: color-mix(in srgb, var(--brand) 45%, var(--border)); }
+.ds .ticket-cooking { --accent: var(--info); }
+.ds .ticket-ready { --accent: var(--success); }
+.ds .ticket-late { --accent: var(--danger); border-color: var(--danger); }
+
+/* kitchen header bar */
+.ds .kds-bar { position: sticky; top: 60px; z-index: 29; display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.ds .kds-bar h1 { font-size: 1.4rem; }
+@media (min-width: 960px) {
+  .ds .kds-bar { top: 0; }
+}
