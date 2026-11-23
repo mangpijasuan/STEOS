@@ -4,7 +4,7 @@ Multi-tenant restaurant ordering platform with a storefront, staff kitchen queue
 
 ## Architecture
 
-Siamsil-SROS is a **modular monolith**. One Next.js application serves the customer storefront, kitchen, owner screens, and HTTP APIs. PostgreSQL holds order and payment state and enforces restaurant-level isolation.
+Siamsil-SROS is a **modular monolith**. One Next.js application serves the customer storefront and table ordering, the kitchen, the table board and till, owner screens, and HTTP APIs. PostgreSQL holds order, payment and photo data and enforces restaurant-level isolation.
 
 ```mermaid
 flowchart LR
@@ -19,12 +19,12 @@ flowchart LR
 
 | Component | Responsibility | Stack |
 | --- | --- | --- |
-| Application | Routes, access checks, menu management, checkout, kitchen workflow, and reports | Next.js App Router, React, TypeScript |
-| Data | Restaurants, menus, orders, payment history, sessions, and shared rate limits | PostgreSQL 16, Drizzle, SQL migrations |
+| Application | Routes, access checks, menu and photo management, pickup and dine-in checkout, the till and promotions, kitchen workflow, and reports | Next.js App Router, React, TypeScript |
+| Data | Restaurants, menus, photos, tables, orders, payment history, sessions, and shared rate limits | PostgreSQL 16, Drizzle, SQL migrations |
 | Payments and email | Connected-account card authorizations, captures and refunds, plus staff sign-in email | Stripe Connect, Resend |
-| Order maintenance | Release unanswered card holds, reconcile pending refunds, and purge expired runtime data | Node.js worker or managed scheduler calling a protected route |
+| Order maintenance | Release unanswered card holds, reconcile pending refunds, remove unattached photos, and purge expired runtime data | Node.js worker or managed scheduler calling a protected route |
 
-See the [architecture guide](docs/architecture.md) for checkout and sign-in flows, tenant isolation, and scaling trade-offs.
+See the [architecture guide](docs/architecture.md) for the checkout, dine-in and sign-in flows, tenant isolation, reporting, operations, and scaling trade-offs.
 
 ## Run it
 
