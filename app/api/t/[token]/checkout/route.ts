@@ -25,7 +25,7 @@ export const POST = handle(async (req, ctx: { params: Promise<{ token: string }>
   const customer = { name: input.customer.name || `Table ${table.label}`, phone: input.customer.phone };
   const result = await createCheckout(
     store,
-    { items: input.items, tipCents: input.tipCents, customer },
+    { items: input.items, tipCents: input.tipCents, promoCode: input.promoCode, customer },
     key,
     new Date(),
     { tableId: table.tableId, tableLabel: table.label, payLater: input.payLater },

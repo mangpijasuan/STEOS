@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { businessHours } from "../db/schema";
+import { businessHours, restaurants } from "../db/schema";
 import type { MenuTree } from "./cart";
 import { pool, withTenant } from "./db";
 import { HttpError } from "./http";
@@ -28,6 +28,13 @@ export async function slugParam(ctx: { params: Promise<{ slug: string }> }): Pro
   const { slug } = await ctx.params;
   if (!SLUG.test(slug)) throw new HttpError(404, "Restaurant not found");
   return slug.toLowerCase();
+}
+
+/** The same store for a signed-in staff member, found by their restaurant id rather than a public slug. */
+export async function loadStoreById(restaurantId: string): Promise<Store> {
+  const found = await withTenant(restaurantId, (db) => db.select({ slug: restaurants.slug }).from(restaurants));
+  if (!found[0]) throw new HttpError(404, "Restaurant not found");
+  return loadStore(found[0].slug);
 }
 
 /** Looks up a restaurant by its public slug, then reads its menu and hours inside that restaurant's scope. */

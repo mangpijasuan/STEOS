@@ -219,7 +219,9 @@ export function useMe() {
 const LINKS = [
   { href: "/kitchen", label: "Kitchen", ownerOnly: false },
   { href: "/tables", label: "Tables", ownerOnly: false },
+  { href: "/pos", label: "New order", ownerOnly: false },
   { href: "/dashboard", label: "Menu", ownerOnly: false },
+  { href: "/promos", label: "Promos", ownerOnly: true },
   { href: "/reports", label: "Reports", ownerOnly: true },
   { href: "/pricing", label: "Plan", ownerOnly: true },
 ];

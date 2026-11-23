@@ -138,6 +138,9 @@ export const orders = pgTable("orders", {
   feeCollection: text("fee_collection").notNull().default("platform"),
   paidAt: timestamp("paid_at", { withTimezone: true }),
   servedAt: timestamp("served_at", { withTimezone: true }),
+  discountCents: integer("discount_cents").notNull().default(0),
+  promoCode: text("promo_code"),
+  createdBy: uuid("created_by"),
   ...timestamps,
 });
 
@@ -209,4 +212,18 @@ export const tableRequests = pgTable("table_requests", {
   status: text("status").notNull().default("open"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+});
+
+export const promoCodes = pgTable("promo_codes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  restaurantId: uuid("restaurant_id").notNull(),
+  code: text("code").notNull(),
+  kind: text("kind").notNull(),
+  value: integer("value").notNull(),
+  minSubtotalCents: integer("min_subtotal_cents").notNull().default(0),
+  active: boolean("active").notNull().default(true),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  maxUses: integer("max_uses"),
+  uses: integer("uses").notNull().default(0),
+  ...timestamps,
 });

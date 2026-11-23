@@ -159,6 +159,16 @@ Still to do: backups, and the first run against the Stripe sandbox.
 
 All screens share one design system: `app/globals.css` (colors, spacing, components, light and dark themes), `app/ui.tsx` (buttons, sheets, toasts, staff top bar) and `app/icons.tsx`. Change the brand color in the `--brand*` variables at the top of `globals.css`. The kitchen screen always uses the dark theme. Customer screens follow the device's light or dark setting. Prices are always calculated on the server, never in the browser.
 
+### The till (staff POS), promo codes and receipts
+
+- **New order** (`/pos`, every staff member): pick dishes (photos, search, categories, add-ons), choose **Dine-in** with a table or **Takeaway**, optionally a name, then either **Take payment** (cash with a change calculator, the restaurant's own card machine, or other) or **Send to kitchen, pay later**. The order reaches the kitchen like any other and rings there. On a phone the order summary is a bottom sheet. A table's sheet has an **Add order** shortcut.
+- **Money is always worked out on the server.** The till and the storefront only send what was ordered; `/api/staff/pos/quote` and the customer quote return the totals. Double taps are safe (idempotency key per attempt).
+- **Discounts.** A discount comes off the food before tax; tips are not discounted. The SROS fee is based on food sales after the discount. Owners can type a custom discount (percent or dollars); staff can only apply promo codes.
+- **Promo codes** (`/promos`, owner): percent or dollars off, optional minimum spend, end date and use limit, on/off switch. Customers type a code at checkout (pickup and table orders) and staff at the till. A code that does not apply gets a specific reason (expired, used up, minimum spend). The server checks it again at checkout, uses are counted in the same transaction as the order, and wrong guesses are limited to 8 per 10 minutes per person.
+- **Receipts** (`/orders/<id>/receipt`): an 80 mm receipt with the restaurant's address, items, discount, tax, tip, total and how it was paid. `?print=1` opens the print dialog. Linked from each order on a table's sheet and after placing an order at the till.
+- **Declining an order already paid in person** tells the kitchen to hand the money back, and marks that payment refunded.
+- **Not built yet:** shift and cash-drawer log, inventory, a customer directory, and line-by-line printing to a kitchen printer.
+
 ### Dine-in: tables, QR codes and the table board
 
 Owners set up floors and tables at `/tables` (Set up tables): add tables in bulk (`1-12`, `01-12`, `A1, A2`), assign a waiter to each, and print one QR card per table at `/tables/qr`. Each QR code holds a private secret for its table (`/t/<secret>`); if a code is photographed or leaked, "Replace QR code" in the table's settings makes the old one stop working. Table ordering stays off until the owner turns it on in Set up tables.

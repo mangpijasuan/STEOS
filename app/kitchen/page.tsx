@@ -142,6 +142,7 @@ export default function Kitchen() {
     }).catch(() => null);
     if (!res) setError("No connection. That did not go through; try again.");
     else if (!res.ok) setError((await res.json().catch(() => ({}))).error ?? "That did not work. Try again.");
+    else if ((await res.json().catch(() => ({}))).refundInPerson) setError("Declined. This order was already paid in person, so please hand the money back.");
     await refresh();
     setBusy((b) => ({ ...b, [order.id]: undefined }));
   }
@@ -314,6 +315,11 @@ function Ticket({ order, variant, timezone, children }: { order: Order; variant:
               <Icon name="table" size={16} /> Table {order.tableLabel}
             </span>
             <div className="subtle" style={{ marginTop: 4 }}>{order.prepMinutes ? `promised ${order.prepMinutes} min` : "dine-in"}</div>
+          </div>
+        ) : order.orderType === "counter" ? (
+          <div style={{ textAlign: "right" }}>
+            <span className="badge badge-info" style={{ fontSize: "1rem", height: 32 }}><Icon name="bag" size={16} /> Takeaway</span>
+            <div className="subtle" style={{ marginTop: 4 }}>{order.prepMinutes ? `promised ${order.prepMinutes} min` : "at the counter"}</div>
           </div>
         ) : (
           <div style={{ textAlign: "right" }}>

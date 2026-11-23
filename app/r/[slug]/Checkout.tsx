@@ -27,10 +27,11 @@ export default function Checkout(props: {
   totalCents: number;
   canOrder: boolean;
   onClearCart: () => void;
+  promoCode?: string;
   /** Set for guests at a table: name and phone are optional, and they can pay now or later. */
   table?: CheckoutTable;
 }) {
-  const { slug, lines, pickup, tipCents, totalCents, canOrder, onClearCart, table } = props;
+  const { slug, lines, pickup, tipCents, totalCents, canOrder, onClearCart, table, promoCode } = props;
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [touched, setTouched] = useState(false);
@@ -49,7 +50,7 @@ export default function Checkout(props: {
 
   // One key per attempt. Any change to the order starts a new attempt, so a changed cart is never mistaken for a retry.
   const key = useRef<string | null>(null);
-  const signature = JSON.stringify([lines, pickup, tipCents]);
+  const signature = JSON.stringify([lines, pickup, tipCents, promoCode]);
   useEffect(() => {
     key.current = null;
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -77,8 +78,8 @@ export default function Checkout(props: {
         headers: { "Content-Type": "application/json", "Idempotency-Key": key.current },
         body: JSON.stringify(
           table
-            ? { items, tipCents, payLater, customer: { name: name.trim(), phone: phone.trim() } }
-            : { items, tipCents, pickupTime: pickup === "asap" ? undefined : pickup, customer: { name, phone } },
+            ? { items, tipCents, payLater, promoCode, customer: { name: name.trim(), phone: phone.trim() } }
+            : { items, tipCents, pickupTime: pickup === "asap" ? undefined : pickup, promoCode, customer: { name, phone } },
         ),
       }).catch(() => null);
       if (!res) {

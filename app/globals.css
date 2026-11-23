@@ -571,3 +571,17 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .qr-card { border-radius: 8mm; padding: 8mm; }
   .page { padding: 0 !important; }
 }
+
+/* ================================================================= receipt */
+.receipt { width: 80mm; max-width: 100%; margin: 0 auto; background: #fff; color: #000; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 12.5px; line-height: 1.45; padding: 14px 12px; box-shadow: var(--shadow); border-radius: 6px; }
+.receipt h1 { font-size: 16px; text-align: center; letter-spacing: 0; font-weight: 800; }
+.receipt .r-center { text-align: center; }
+.receipt .r-rule { border: 0; border-top: 1px dashed #000; margin: 8px 0; }
+.receipt .r-row { display: flex; justify-content: space-between; gap: 10px; }
+.receipt .r-item { margin: 3px 0; }
+.receipt .r-sub { padding-left: 14px; color: #333; }
+.receipt .r-total { font-weight: 800; font-size: 15px; }
+@page { size: 80mm auto; margin: 3mm; }
+@media print {
+  .receipt { box-shadow: none; width: 100%; padding: 0; border-radius: 0; }
+}

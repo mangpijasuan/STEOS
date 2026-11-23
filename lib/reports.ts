@@ -8,7 +8,10 @@ export type Report = {
   to: string;
   timezone: string;
   paidOrders: number;
+  /** Food total before discounts. */
   subtotalCents: number;
+  /** Discounts and promo codes given. */
+  discountCents: number;
   taxCents: number;
   tipCents: number;
   grossCents: number;
@@ -46,6 +49,7 @@ export async function buildReport(db: Tx, from: Date, to: Date): Promise<Report>
       status: orders.status,
       createdAt: orders.createdAt,
       subtotal: orders.subtotalCents,
+      discount: orders.discountCents,
       tax: orders.taxCents,
       tip: orders.tipCents,
       total: orders.totalCents,
@@ -112,6 +116,7 @@ export async function buildReport(db: Tx, from: Date, to: Date): Promise<Report>
     timezone,
     paidOrders: paid.length,
     subtotalCents: sum(paid, (o) => o.subtotal),
+    discountCents: sum(paid, (o) => o.discount),
     taxCents,
     tipCents: sum(paid, (o) => o.tip),
     grossCents,

@@ -6,17 +6,17 @@ import { Alert, Button, Segmented, Sheet, Skeleton, Stepper, useToasts } from ".
 import { clockTime, money, plural } from "@/lib/format";
 import Checkout from "./Checkout";
 import { HelpSheet } from "../../t/help";
+import { ItemSheet, type CartLine, type Item, type Option, type Group } from "./ItemSheet";
 
-type Option = { id: string; name: string; priceDeltaCents: number; available: boolean };
-type Group = { id: string; name: string; minChoices: number; maxChoices: number; options: Option[] };
-type Item = { id: string; name: string; description: string; priceCents: number; available: boolean; imageUrl?: string | null; modifierGroups: Group[] };
 type Category = { id: string; name: string; items: Item[] };
 type Store = {
   restaurant: { name: string; timezone: string; taxRateBps: number; orderingOpen: boolean; openNow: boolean; asap: string | null };
   categories: Category[];
 };
-type CartLine = { key: string; itemId: string; quantity: number; optionIds: string[]; note: string };
 type Quote = {
+  discountCents: number;
+  discountLabel: string | null;
+  promoError: string | null;
   lines: { itemId: string; name: string; quantity: number; options: { name: string }[]; note: string | null; lineTotalCents: number }[];
   subtotalCents: number;
   taxCents: number;
@@ -42,6 +42,10 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
   const [issues, setIssues] = useState<Issue[]>([]);
   const [picking, setPicking] = useState<Item | null>(null);
   const [tipPct, setTipPct] = useState(0);
+  const [promoOpen, setPromoOpen] = useState(false);
+  const [promoDraft, setPromoDraft] = useState("");
+  const [promoCode, setPromoCode] = useState("");
+  const [promoMessage, setPromoMessage] = useState<string | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
   const [activeCat, setActiveCat] = useState<string | null>(null);
   const { toast, toasts } = useToasts();
@@ -100,6 +104,7 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
         body: JSON.stringify({
           items: cart.map((l) => ({ itemId: l.itemId, quantity: l.quantity, optionIds: l.optionIds, note: l.note || undefined })),
           pickupTime: pickup === "asap" ? undefined : pickup,
+          promoCode: promoCode || undefined,
         }),
       }).catch(() => null);
       if (cancelled) return;
@@ -109,6 +114,11 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
       if (res.ok) {
         setQuote(data);
         setIssues([]);
+        // The server says whether the code worked. A code that does not apply is dropped, and the reason shown.
+        if (data.promoError) {
+          setPromoCode("");
+          setPromoMessage(data.promoError);
+        } else if (promoCode) setPromoMessage(null);
       } else {
         setQuote(null);
         setIssues(data.issues ?? [{ line: null, message: data.error ?? "Could not price your order" }]);
@@ -118,7 +128,7 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [cart, pickup, slug]);
+  }, [cart, pickup, slug, promoCode]);
 
   // Highlight the category currently on screen in the sticky nav.
   useEffect(() => {
@@ -373,8 +383,26 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
                   </div>
                 </div>
 
+                <div className="stack" style={{ "--gap": "8px", marginTop: 12 } as React.CSSProperties}>
+                  {quote?.discountLabel ? (
+                    <div className="row-between">
+                      <span className="badge badge-success"><Icon name="check" size={14} /> {quote.discountLabel} applied</span>
+                      <Button variant="ghost" size="sm" onClick={() => { setPromoCode(""); setPromoDraft(""); setPromoMessage(null); }}>Remove</Button>
+                    </div>
+                  ) : promoOpen ? (
+                    <form className="row" onSubmit={(e) => { e.preventDefault(); if (promoDraft.trim()) { setPromoMessage(null); setPromoCode(promoDraft.trim()); } }}>
+                      <input className="input grow" style={{ textTransform: "uppercase" }} placeholder="Promo code" aria-label="Promo code" value={promoDraft} maxLength={24} onChange={(e) => setPromoDraft(e.target.value)} aria-invalid={!!promoMessage} />
+                      <Button type="submit" disabled={!promoDraft.trim()}>Apply</Button>
+                    </form>
+                  ) : (
+                    <Button variant="ghost" size="sm" onClick={() => setPromoOpen(true)} style={{ alignSelf: "flex-start" }}>Have a promo code?</Button>
+                  )}
+                  {promoMessage && <span className="error-text" role="alert">{promoMessage}</span>}
+                </div>
+
                 <div className="totals" aria-busy={pricing}>
                   <div className="row-between muted"><span>Subtotal</span><span>{quote ? money(quote.subtotalCents) : "—"}</span></div>
+                  {quote && quote.discountCents > 0 && <div className="row-between" style={{ color: "var(--success)" }}><span>{quote.discountLabel}</span><span>− {money(quote.discountCents)}</span></div>}
                   <div className="row-between muted"><span>Tax ({(restaurant.taxRateBps / 100).toFixed(2)}%)</span><span>{quote ? money(quote.taxCents) : "—"}</span></div>
                   {tipCents > 0 && <div className="row-between muted"><span>Tip</span><span>{money(tipCents)}</span></div>}
                   <div className="row-between grand"><span>Total</span><span>{totalCents !== null ? money(totalCents) : "—"}</span></div>
@@ -389,6 +417,7 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
                     totalCents={totalCents}
                     canOrder={canOrder && issues.length === 0 && !pricing}
                     onClearCart={() => setCart([])}
+                    promoCode={quote?.discountLabel ? promoCode : undefined}
                     table={table}
                   />
                 )}
@@ -448,105 +477,5 @@ function StoreSkeleton() {
         </div>
       </div>
     </div>
-  );
-}
-
-function ItemSheet({ item, onAdd, onClose }: { item: Item; onAdd: (line: Omit<CartLine, "key">) => void; onClose: () => void }) {
-  const [chosen, setChosen] = useState<Set<string>>(new Set());
-  const [quantity, setQuantity] = useState(1);
-  const [note, setNote] = useState("");
-  const [tried, setTried] = useState(false);
-  const firstProblem = useRef<HTMLFieldSetElement>(null);
-
-  const problems = new Map(
-    item.modifierGroups
-      .map((g) => {
-        const count = g.options.filter((o) => chosen.has(o.id)).length;
-        return [g.id, count < g.minChoices ? `Choose ${g.minChoices === 1 ? "one" : `at least ${g.minChoices}`}` : null] as const;
-      })
-      .filter(([, p]) => p !== null) as [string, string][],
-  );
-
-  function toggle(group: Group, option: Option) {
-    setChosen((prev) => {
-      const next = new Set(prev);
-      if (next.has(option.id)) {
-        next.delete(option.id);
-      } else {
-        if (group.maxChoices === 1) group.options.forEach((o) => next.delete(o.id));
-        const count = group.options.filter((o) => next.has(o.id)).length;
-        if (count < group.maxChoices) next.add(option.id);
-      }
-      return next;
-    });
-  }
-
-  const extra = item.modifierGroups.flatMap((g) => g.options).filter((o) => chosen.has(o.id)).reduce((s, o) => s + o.priceDeltaCents, 0);
-
-  function submit() {
-    if (problems.size) {
-      setTried(true);
-      firstProblem.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-      return;
-    }
-    onAdd({ itemId: item.id, quantity, optionIds: [...chosen], note: note.trim() });
-  }
-
-  const firstProblemId = item.modifierGroups.find((g) => problems.has(g.id))?.id;
-  return (
-    <Sheet
-      title={item.name}
-      subtitle={item.description || undefined}
-      onClose={onClose}
-      hero={
-        item.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={item.imageUrl} alt="" />
-        ) : undefined
-      }
-      footer={
-        <div className="row">
-          <Stepper value={quantity} onChange={setQuantity} label="Quantity" />
-          <Button variant="primary" size="lg" className="grow" onClick={submit}>
-            Add to order · {money((item.priceCents + extra) * quantity)}
-          </Button>
-        </div>
-      }
-    >
-      <div className="stack" style={{ "--gap": "20px" } as React.CSSProperties}>
-        {item.modifierGroups.map((group) => {
-          const problem = problems.get(group.id);
-          return (
-            <fieldset key={group.id} ref={group.id === firstProblemId ? firstProblem : undefined} style={{ border: 0, padding: 0, margin: 0 }} className="stack">
-              <legend className="row-between" style={{ width: "100%", marginBottom: 8 }}>
-                <span className="strong">{group.name}</span>
-                <span className={`badge ${group.minChoices > 0 ? (tried && problem ? "badge-danger" : "badge-brand") : ""}`}>
-                  {group.minChoices > 0 ? "Required" : group.maxChoices > 1 ? `Up to ${group.maxChoices}` : "Optional"}
-                </span>
-              </legend>
-              {group.options.map((option) => (
-                <label key={option.id} className="option">
-                  <input
-                    type={group.maxChoices === 1 ? "radio" : "checkbox"}
-                    name={group.id}
-                    disabled={!option.available}
-                    checked={chosen.has(option.id)}
-                    onChange={() => toggle(group, option)}
-                  />
-                  <span className="grow">{option.name}{!option.available && " · sold out"}</span>
-                  {option.priceDeltaCents > 0 && <span className="muted num">+{money(option.priceDeltaCents)}</span>}
-                </label>
-              ))}
-              {tried && problem && <span className="error-text">{problem}</span>}
-            </fieldset>
-          );
-        })}
-        <label className="field">
-          <span className="label">Special instructions</span>
-          <textarea className="textarea" value={note} maxLength={200} rows={2} placeholder="Allergies, no onions, extra spicy…" onChange={(e) => setNote(e.target.value)} />
-          <span className="hint">{note.length}/200</span>
-        </label>
-      </div>
-    </Sheet>
   );
 }

@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { diningTables, orderItems, orders, payments, restaurants } from "../db/schema";
 import { priceCart, type CartLineInput } from "./cart";
+import { PromoError, loadPromo, promoRule, redeemPromo } from "./promos";
 import { pool, withTenant, type Tx } from "./db";
 import { alert } from "./alerts";
 import { applicationFee, type FeeModel } from "./fees";
@@ -35,6 +36,7 @@ export function orderToken(restaurantId: string, idempotencyKey: string): string
 export type CheckoutInput = {
   items: CartLineInput[];
   tipCents: number;
+  promoCode?: string;
   pickupTime?: string;
   customer: { name: string; phone: string };
 };
@@ -53,7 +55,10 @@ export async function createCheckout(store: Store, input: CheckoutInput, idempot
   const { restaurant } = store;
   if (!orderingEnabled(restaurant)) throw new HttpError(409, "Online ordering is paused right now");
 
-  const cart = priceCart(store.menu, input.items, { taxRateBps: restaurant.taxRateBps, tipCents: input.tipCents });
+  // The code is checked here on the server again, whatever the quote said: it may have run out in the meantime.
+  const promo = input.promoCode ? await withTenant(restaurant.id, (db) => loadPromo(db, input.promoCode!)) : null;
+  if (input.promoCode && !promo) throw new PromoError("That promo code isn't valid");
+  const cart = priceCart(store.menu, input.items, { taxRateBps: restaurant.taxRateBps, tipCents: input.tipCents, discount: promo ? promoRule(promo, now) : undefined });
   const payLater = !!dineIn?.payLater;
   // The minimum only exists because card processors reject tiny charges; a bill paid at the table has no such limit.
   if (!payLater && cart.totalCents < MIN_CHARGE_CENTS) throw new HttpError(422, "The order total must be at least $0.50");
@@ -86,7 +91,8 @@ export async function createCheckout(store: Store, input: CheckoutInput, idempot
   if (!payLater && provider.name === "stripe" && !account.a) throw new HttpError(503, "This restaurant cannot take card payments yet");
 
   const fee = applicationFee({
-    subtotalCents: cart.subtotalCents,
+    // The fee is on what the restaurant actually sells the food for, after any discount.
+    subtotalCents: cart.subtotalCents - cart.discountCents,
     totalCents: cart.totalCents,
     feeBps: account.bps,
     model: account.model as FeeModel,
@@ -106,6 +112,7 @@ export async function createCheckout(store: Store, input: CheckoutInput, idempot
         .set({ nextOrderNumber: sql`${restaurants.nextOrderNumber} + 1` })
         .where(eq(restaurants.id, restaurant.id))
         .returning({ n: restaurants.nextOrderNumber });
+      if (promo) await redeemPromo(db, promo.id);
       const [order] = await db
         .insert(orders)
         .values({
@@ -124,6 +131,8 @@ export async function createCheckout(store: Store, input: CheckoutInput, idempot
           pickupType,
           pickupAt,
           subtotalCents: cart.subtotalCents,
+          discountCents: cart.discountCents,
+          promoCode: promo?.code ?? null,
           taxCents: cart.taxCents,
           tipCents: cart.tipCents,
           totalCents: cart.totalCents,
@@ -316,7 +325,7 @@ export async function decideOrder(restaurantId: string, orderId: string, decisio
         .set({ status: "accepted", decidedAt: now, prepMinutes: prepMinutes ?? null, ...(payment ? { paidAt: now } : {}) })
         .where(eq(orders.id, order.id));
       log.info("order.accepted", { restaurantId, orderId, totalCents: order.totalCents, prepMinutes });
-      return { status: "accepted" as const };
+      return { status: "accepted" as const, refundInPerson: false };
     }
 
     if (payment) {
@@ -329,9 +338,12 @@ export async function decideOrder(restaurantId: string, orderId: string, decisio
       await db.update(payments).set({ status: "canceled" }).where(eq(payments.id, payment.id));
     }
     const status = effective === "decline" ? ("declined" as const) : ("expired" as const);
+    // Declining an order the guest already paid for in person means handing the money back.
+    const refundInPerson = !payment && !!order.paidAt;
+    if (refundInPerson) await db.update(payments).set({ status: "refunded" }).where(eq(payments.orderId, order.id));
     await db.update(orders).set({ status, decidedAt: now }).where(eq(orders.id, order.id));
-    log.info(`order.${status}`, { restaurantId, orderId, totalCents: order.totalCents });
-    return { status };
+    log.info(`order.${status}`, { restaurantId, orderId, totalCents: order.totalCents, refundInPerson });
+    return { status, refundInPerson };
   });
 }
 

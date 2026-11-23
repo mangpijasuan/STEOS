@@ -8,6 +8,7 @@ import { money, plural } from "@/lib/format";
 type Report = {
   paidOrders: number;
   subtotalCents: number;
+  discountCents: number;
   taxCents: number;
   tipCents: number;
   grossCents: number;
@@ -126,6 +127,7 @@ export default function Reports() {
                   <section className="card" aria-labelledby="breakdown">
                     <h2 id="breakdown" style={{ marginBottom: 6 }}>Where the money goes</h2>
                     <div className="kv"><span>Food and drink sales</span><span>{money(report.subtotalCents)}</span></div>
+                    {report.discountCents > 0 && <div className="kv"><span>Discounts and promo codes</span><span>− {money(report.discountCents)}</span></div>}
                     <div className="kv"><span>Sales tax collected</span><span>{money(report.taxCents)}</span></div>
                     <div className="kv"><span>Tips</span><span>{money(report.tipCents)}</span></div>
                     <div className="kv total"><span>Charged to customers</span><span>{money(report.grossCents)}</span></div>

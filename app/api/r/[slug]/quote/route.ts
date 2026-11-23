@@ -1,5 +1,7 @@
-import { priceCart } from "@/lib/cart";
+import { priceCart, type DiscountRule } from "@/lib/cart";
+import { withTenant } from "@/lib/db";
 import { HttpError, handle, json } from "@/lib/http";
+import { PromoError, allowPromoMiss, loadPromo, promoRule } from "@/lib/promos";
 import { allow, clientIp } from "@/lib/ratelimit";
 import { loadStore, orderingEnabled, pickupSlots, slugParam } from "@/lib/storefront";
 import { quoteInput } from "@/lib/validation";
@@ -13,7 +15,23 @@ export const POST = handle(async (req, ctx) => {
   const input = quoteInput.parse(await req.json());
   const store = await loadStore(slug);
 
-  const cart = priceCart(store.menu, input.items, { taxRateBps: store.restaurant.taxRateBps, tipCents: input.tipCents });
+  // A wrong promo code never breaks the quote: the cart is priced without it and the reason is returned.
+  let discount: DiscountRule | undefined;
+  let promoError: string | null = null;
+  if (input.promoCode) {
+    const promo = await withTenant(store.restaurant.id, (db) => loadPromo(db, input.promoCode!));
+    discount = promoRule(promo);
+  }
+  const options = { taxRateBps: store.restaurant.taxRateBps, tipCents: input.tipCents };
+  let cart;
+  try {
+    cart = priceCart(store.menu, input.items, { ...options, discount });
+  } catch (error) {
+    if (!(error instanceof PromoError)) throw error;
+    promoError = error.message;
+    if (!(await allowPromoMiss(ip))) throw new HttpError(429, "Too many promo code attempts. Try again in a few minutes.");
+    cart = priceCart(store.menu, input.items, options);
+  }
 
   let pickup: { type: "asap" | "scheduled"; time: string | null } = { type: "asap", time: null };
   if (input.pickupTime) {
@@ -24,5 +42,5 @@ export const POST = handle(async (req, ctx) => {
     pickup = { type: "scheduled", time: new Date(wanted).toISOString() };
   }
 
-  return json({ ...cart, pickup, orderingOpen: orderingEnabled(store.restaurant) }, 200, { "Cache-Control": "no-store" });
+  return json({ ...cart, pickup, orderingOpen: orderingEnabled(store.restaurant), promoError }, 200, { "Cache-Control": "no-store" });
 });
