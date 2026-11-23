@@ -12,10 +12,16 @@ export type Report = {
   taxCents: number;
   tipCents: number;
   grossCents: number;
-  /** Fees SROS took on these orders. */
+  /** Fees SROS earned on these orders, whether taken from the card payment or invoiced. */
   platformFeeCents: number;
-  /** Card fees, estimated at the standard rate. Stripe's own reports have the exact figure. */
+  /** The part of the SROS fee on orders the restaurant collected itself (cash, own card machine). Billed separately. */
+  platformFeeInvoicedCents: number;
+  /** Card fees on online payments, estimated at the standard rate. Stripe's own reports have the exact figure. */
   processingEstimateCents: number;
+  /** Paid orders by how they were paid. */
+  byMethod: Record<"card_online" | "cash" | "card_terminal" | "other", { orders: number; grossCents: number }>;
+  /** Paid orders by where they came from. */
+  byType: Record<"pickup" | "dine_in" | "counter", { orders: number; grossCents: number }>;
   /** What the restaurant keeps from card payments: gross minus SROS fee and estimated card fees. Tax is not income. */
   netEstimateCents: number;
   netSalesCents: number;
@@ -48,6 +54,9 @@ export async function buildReport(db: Tx, from: Date, to: Date): Promise<Report>
       tip: orders.tipCents,
       total: orders.totalCents,
       fee: orders.feeCents,
+      feeCollection: orders.feeCollection,
+      orderType: orders.orderType,
+      method: payments.method,
     })
     .from(orders)
     .leftJoin(payments, eq(payments.orderId, orders.id))
@@ -65,7 +74,20 @@ export async function buildReport(db: Tx, from: Date, to: Date): Promise<Report>
 
   const grossCents = sum(paid, (o) => o.total);
   const platformFeeCents = sum(paid, (o) => o.fee);
-  const processingEstimateCents = sum(paid, (o) => estimateProcessingCents(o.total));
+  // Only online card payments have fees we can estimate. Cash costs nothing, and a restaurant's own card machine has
+  // terms we do not know.
+  const processingEstimateCents = sum(paid.filter((o) => o.method === "card_online"), (o) => estimateProcessingCents(o.total));
+  const platformFeeInvoicedCents = sum(paid.filter((o) => o.feeCollection === "invoice"), (o) => o.fee);
+  const byMethod = { card_online: { orders: 0, grossCents: 0 }, cash: { orders: 0, grossCents: 0 }, card_terminal: { orders: 0, grossCents: 0 }, other: { orders: 0, grossCents: 0 } };
+  const byType = { pickup: { orders: 0, grossCents: 0 }, dine_in: { orders: 0, grossCents: 0 }, counter: { orders: 0, grossCents: 0 } };
+  for (const o of paid) {
+    const m = byMethod[o.method && o.method in byMethod ? (o.method as keyof typeof byMethod) : "other"];
+    m.orders += 1;
+    m.grossCents += o.total;
+    const t = byType[o.orderType in byType ? (o.orderType as keyof typeof byType) : "pickup"];
+    t.orders += 1;
+    t.grossCents += o.total;
+  }
   const taxCents = sum(paid, (o) => o.tax);
 
   const refundedCents = sum(refunded, (o) => o.total);
@@ -108,7 +130,10 @@ export async function buildReport(db: Tx, from: Date, to: Date): Promise<Report>
     tipCents: sum(paid, (o) => o.tip),
     grossCents,
     platformFeeCents,
+    platformFeeInvoicedCents,
     processingEstimateCents,
+    byMethod,
+    byType,
     netEstimateCents: grossCents - taxCents - platformFeeCents - processingEstimateCents
       - sum(refunded, (o) => o.total - o.tax - o.fee),
     netSalesCents: sum(paid, (o) => o.subtotal) - sum(refunded, (o) => o.subtotal),

@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
-import { orderItems, orders, payments, restaurants } from "../db/schema";
+import { diningTables, orderItems, orders, payments, restaurants } from "../db/schema";
 import { priceCart, type CartLineInput } from "./cart";
 import { pool, withTenant, type Tx } from "./db";
 import { applicationFee, type FeeModel } from "./fees";
@@ -43,12 +43,15 @@ export type CheckoutInput = {
 
 type OrderRow = typeof orders.$inferSelect;
 
+/** Set when the order comes from a table's QR code. */
+export type DineInContext = { tableId: string; tableLabel: string; payLater: boolean };
+
 async function loadPayment(db: Tx, orderId: string) {
   const rows = await db.select().from(payments).where(eq(payments.orderId, orderId));
   return rows[0] ?? null;
 }
 
-function fingerprint(input: CheckoutInput, retryProof?: string): string {
+function fingerprint(input: CheckoutInput, retryProof?: string, dineIn?: DineInContext): string {
   const lines = input.items.map((line) => JSON.stringify([
     line.itemId, line.quantity, [...line.optionIds].sort(), line.note?.trim() || null,
   ])).sort();
@@ -56,6 +59,8 @@ function fingerprint(input: CheckoutInput, retryProof?: string): string {
     "checkout-v1", retryProof ?? null, lines, input.tipCents,
     input.pickupTime ? new Date(input.pickupTime).toISOString() : null,
     input.customer.name, input.customer.phone,
+    // Appended only for table orders, so fingerprints stored for pickup orders keep matching.
+    ...(dineIn ? [["dine-in", dineIn.tableId, dineIn.payLater]] : []),
   ])).digest("hex");
 }
 
@@ -80,9 +85,12 @@ async function paymentAccount(db: Tx, order: OrderRow): Promise<string | null> {
   return restaurant?.account ?? null;
 }
 
-export async function createCheckout(store: Store, input: CheckoutInput, idempotencyKey: string, now = new Date(), retryProof?: string) {
+export async function createCheckout(
+  store: Store, input: CheckoutInput, idempotencyKey: string, now = new Date(), retryProof?: string, dineIn?: DineInContext,
+) {
   const { restaurant } = store;
-  const requestFingerprint = fingerprint(input, retryProof);
+  const payLater = !!dineIn?.payLater;
+  const requestFingerprint = fingerprint(input, retryProof, dineIn);
 
   const saved = await withTenant(restaurant.id, async (db) => {
     await db.execute(sql`select pg_advisory_xact_lock(hashtextextended(${restaurant.id + ":" + idempotencyKey}, 0))`);
@@ -101,13 +109,19 @@ export async function createCheckout(store: Store, input: CheckoutInput, idempot
     if (!account || !orderingEnabled({ ...restaurant, ...account })) {
       throw new HttpError(409, "Online ordering is paused right now");
     }
+    if (dineIn && !account.dineInEnabled) throw new HttpError(409, "This restaurant is not taking table orders right now");
+    if (payLater && !account.payLaterEnabled) throw new HttpError(409, "Paying at the table is not available. Please pay by card.");
     const currentStore = { ...store, restaurant: { ...restaurant, ...account } };
     const cart = priceCart(store.menu, input.items, { taxRateBps: account.taxRateBps, tipCents: input.tipCents });
-    if (cart.totalCents < MIN_CHARGE_CENTS) throw new HttpError(422, "The order total must be at least $0.50");
+    // The minimum only exists because card processors reject tiny charges; a bill paid at the table has no such limit.
+    if (!payLater && cart.totalCents < MIN_CHARGE_CENTS) throw new HttpError(422, "The order total must be at least $0.50");
     if (cart.totalCents > 99_999_999) throw new HttpError(422, "The order total exceeds the supported payment limit");
 
     let pickupAt: Date | null;
-    if (input.pickupTime) {
+    if (dineIn) {
+      // Seated guests do not choose a pickup time; this is the kitchen's estimate of when food comes out.
+      pickupAt = new Date(now.getTime() + account.minPrepMinutes * 60_000);
+    } else if (input.pickupTime) {
       pickupAt = new Date(input.pickupTime);
       if (!pickupSlots(currentStore, now).some((slot) => slot.getTime() === pickupAt?.getTime())) {
         throw new HttpError(422, "Cart has problems", [{ line: null, message: "That pickup time is no longer available" }]);
@@ -118,7 +132,7 @@ export async function createCheckout(store: Store, input: CheckoutInput, idempot
     }
 
     const provider = await getProvider();
-    if (provider.name === "stripe" && (!account.stripeAccountId || !process.env.STRIPE_PUBLISHABLE_KEY)) throw new HttpError(503, "This restaurant cannot take card payments yet");
+    if (!payLater && provider.name === "stripe" && (!account.stripeAccountId || !process.env.STRIPE_PUBLISHABLE_KEY)) throw new HttpError(503, "This restaurant cannot take card payments yet");
     const fee = applicationFee({
       subtotalCents: cart.subtotalCents, totalCents: cart.totalCents,
       feeBps: account.platformFeeBps, model: account.feeModel as FeeModel,
@@ -130,9 +144,16 @@ export async function createCheckout(store: Store, input: CheckoutInput, idempot
       restaurantId: restaurant.id,
       locationId: restaurant.defaultLocationId,
       number: account.nextOrderNumber,
+      // Pay-later orders go straight to the kitchen (no card to authorize) and never get an acceptance deadline, so
+      // the expiry sweep, which only looks at orders with a deadline, can never release or cancel them.
+      ...(payLater ? { status: "awaiting_acceptance" } : {}),
+      orderType: dineIn ? "dine_in" : "pickup",
+      tableId: dineIn?.tableId ?? null,
+      paymentMode: payLater ? "pay_later" : "online",
+      feeCollection: payLater ? "invoice" : "platform",
       customerName: input.customer.name,
       customerPhone: input.customer.phone,
-      pickupType: input.pickupTime ? "scheduled" : "asap",
+      pickupType: !dineIn && input.pickupTime ? "scheduled" : "asap",
       pickupAt,
       subtotalCents: cart.subtotalCents,
       taxCents: cart.taxCents,
@@ -200,11 +221,17 @@ export async function getOrderByToken(token: string) {
     const items = await db.select().from(orderItems).where(eq(orderItems.orderId, order.id));
     const payment = await loadPayment(db, order.id);
     const [r] = await db.select({ name: restaurants.name, timezone: restaurants.timezone }).from(restaurants);
+    const [table] = order.tableId ? await db.select({ label: diningTables.label }).from(diningTables).where(eq(diningTables.id, order.tableId)) : [];
     return {
       restaurant: r,
+      orderType: order.orderType,
+      paymentMode: order.paymentMode,
+      paid: !!order.paidAt,
+      tableLabel: table?.label ?? null,
       number: order.number,
       status: order.status,
-      refundStatus: payment?.refundStatus ?? null,
+      // In-person refunds on pay-later orders are the restaurant's to hand back, so no card-refund message.
+      refundStatus: order.paymentMode === "online" ? payment?.refundStatus ?? null : null,
       customerName: order.customerName,
       pickupAt: order.pickupAt.toISOString(),
       pickupType: order.pickupType,
@@ -263,7 +290,7 @@ export async function applyPaymentEvent(event: PaymentEvent): Promise<"applied" 
       if (!payment.capturedAt && !payment.refundedAt && payment.status !== "refunded") {
         await db.update(payments).set({ status: "captured", capturedAt: at, clientSecret: null }).where(eq(payments.id, payment.id));
         if (["pending_payment", "awaiting_acceptance", "payment_failed"].includes(order.status)) {
-          await db.update(orders).set({ status: "accepted", decidedAt: at }).where(eq(orders.id, order.id));
+          await db.update(orders).set({ status: "accepted", decidedAt: at, paidAt: at }).where(eq(orders.id, order.id));
         }
       }
     } else if (payment.capturedAt || ["canceled", "refunded"].includes(payment.status)) {
@@ -293,8 +320,10 @@ export async function decideOrder(restaurantId: string, orderId: string, decisio
     const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).for("update");
     if (!order) throw new HttpError(404, "Order not found");
     if (order.status !== "awaiting_acceptance") throw new HttpError(409, `This order is already ${order.status.replaceAll("_", " ")}`);
-    const payment = await loadPayment(db, order.id);
-    if (!payment) throw new HttpError(409, "This order has no payment");
+    // Pay-later orders have no card payment at all: accepting only tells the kitchen to start.
+    const online = order.paymentMode === "online";
+    const payment = online ? await loadPayment(db, order.id) : null;
+    if (online && !payment) throw new HttpError(409, "This order has no payment");
     const account = await paymentAccount(db, order);
 
     const now = requestedAt ?? new Date();
@@ -303,26 +332,32 @@ export async function decideOrder(restaurantId: string, orderId: string, decisio
     if (effective === "expire" && !lapsed) throw new HttpError(409, "The acceptance deadline has not passed");
 
     if (effective === "accept") {
-      try {
-        await provider.capture(payment.providerPaymentId, account);
-      } catch {
-        throw new OperationalError("payment-capture", "The payment could not be captured. Try again.");
+      if (payment) {
+        try {
+          await provider.capture(payment.providerPaymentId, account);
+        } catch {
+          throw new OperationalError("payment-capture", "The payment could not be captured. Try again.");
+        }
       }
-      const capturedAt = new Date();
-      const readyAt = prepMinutes === undefined ? order.pickupAt : new Date(capturedAt.getTime() + prepMinutes * 60_000);
+      const decidedAt = new Date();
+      const readyAt = prepMinutes === undefined ? order.pickupAt : new Date(decidedAt.getTime() + prepMinutes * 60_000);
       const pickupAt = order.pickupType === "scheduled" && order.pickupAt > readyAt ? order.pickupAt : readyAt;
-      await db.update(payments).set({ status: "captured", capturedAt, clientSecret: null }).where(eq(payments.id, payment.id));
-      await db.update(orders).set({ status: "accepted", decidedAt: capturedAt, prepMinutes: prepMinutes ?? null, pickupAt }).where(eq(orders.id, order.id));
+      if (payment) await db.update(payments).set({ status: "captured", capturedAt: decidedAt, clientSecret: null }).where(eq(payments.id, payment.id));
+      await db.update(orders)
+        .set({ status: "accepted", decidedAt, prepMinutes: prepMinutes ?? null, pickupAt, ...(payment ? { paidAt: decidedAt } : {}) })
+        .where(eq(orders.id, order.id));
       return { status: "accepted" as const };
     }
 
-    try {
-      await provider.cancel(payment.providerPaymentId, account);
-    } catch {
-      throw new OperationalError("payment-hold-release", "The card hold could not be released. Try again.");
+    if (payment) {
+      try {
+        await provider.cancel(payment.providerPaymentId, account);
+      } catch {
+        throw new OperationalError("payment-hold-release", "The card hold could not be released. Try again.");
+      }
+      await db.update(payments).set({ status: "canceled", clientSecret: null }).where(eq(payments.id, payment.id));
     }
     const status = effective === "decline" ? ("declined" as const) : ("expired" as const);
-    await db.update(payments).set({ status: "canceled", clientSecret: null }).where(eq(payments.id, payment.id));
     await db.update(orders).set({ status, decidedAt: now }).where(eq(orders.id, order.id));
     return { status };
   });
@@ -337,7 +372,9 @@ export async function advanceOrder(restaurantId: string, orderId: string, step: 
     if (!order) throw new HttpError(404, "Order not found");
     const allowed: Record<Step, string[]> = { ready: ["accepted"], complete: ["accepted", "ready"] };
     if (!allowed[step].includes(order.status)) throw new HttpError(409, `This order is ${order.status.replaceAll("_", " ")}`);
-    const patch = step === "ready" ? { status: "ready", readyAt: now } : { status: "completed", completedAt: now, readyAt: order.readyAt ?? now };
+    const patch = step === "ready"
+      ? { status: "ready", readyAt: now }
+      : { status: "completed", completedAt: now, readyAt: order.readyAt ?? now, ...(order.orderType === "dine_in" ? { servedAt: now } : {}) };
     await db.update(orders).set(patch).where(eq(orders.id, order.id));
     return { status: patch.status };
   });
@@ -351,6 +388,15 @@ export async function cancelAcceptedOrder(restaurantId: string, orderId: string,
     if (!order) throw new HttpError(404, "Order not found");
     if (!["accepted", "ready"].includes(order.status)) throw new HttpError(409, `This order is ${order.status.replaceAll("_", " ")}`);
     const payment = await loadPayment(db, order.id);
+    if (order.paymentMode === "pay_later") {
+      // No card was charged through SROS, so there is nothing for the provider to refund. If the restaurant already
+      // took payment itself, handing the money back is theirs to do in person; we record that it happened.
+      if (payment) {
+        await db.update(payments).set({ status: "refunded", refundStatus: "succeeded", refundedAt: now }).where(eq(payments.id, payment.id));
+      }
+      await db.update(orders).set({ status: "cancelled", cancelledAt: now }).where(eq(orders.id, order.id));
+      return { status: "cancelled" as const, refundStatus: null, refundInPerson: !!payment };
+    }
     if (!payment || payment.status !== "captured") throw new HttpError(409, "There is no captured payment to refund");
     const attempt = payment.refundAttempt + 1;
     const refund = await provider.refund({
@@ -359,7 +405,7 @@ export async function cancelAcceptedOrder(restaurantId: string, orderId: string,
       feeCents: payment.feeCents, attempt,
     }).catch(() => { throw new OperationalError("payment-refund", "The refund could not be started. Try again."); });
     await recordRefund(db, order, payment, refund, attempt, now);
-    return { status: refund.status === "failed" ? order.status : "cancelled", refundStatus: refund.status };
+    return { status: refund.status === "failed" ? order.status : "cancelled", refundStatus: refund.status, refundInPerson: false };
   });
 }
 
@@ -422,13 +468,16 @@ export async function reconcilePendingRefunds(limit = 12): Promise<number> {
 }
 
 export async function listActiveOrders(db: Tx, offset = 0, limit = 100) {
-  const rows = await db
-    .select()
+  const joined = await db
+    .select({ o: orders, tableLabel: diningTables.label })
     .from(orders)
+    .leftJoin(diningTables, eq(orders.tableId, diningTables.id))
     .where(inArray(orders.status, ["awaiting_acceptance", "accepted", "ready"]))
     .orderBy(sql`(${orders.status} = 'awaiting_acceptance') desc`, sql`${orders.acceptDeadline} asc nulls last`, desc(orders.createdAt), orders.id)
     .limit(limit + 1)
     .offset(offset);
+  const rows = joined.map((j) => j.o);
+  const labels = new Map(joined.map((j) => [j.o.id, j.tableLabel]));
   const page = rows.slice(0, limit);
   const items = page.length ? await db.select().from(orderItems).where(inArray(orderItems.orderId, page.map((o) => o.id))) : [];
   return { hasMore: rows.length > limit, orders: page.map((o) => ({
@@ -443,6 +492,10 @@ export async function listActiveOrders(db: Tx, offset = 0, limit = 100) {
     prepMinutes: o.prepMinutes,
     createdAt: o.createdAt.toISOString(),
     tipCents: o.tipCents,
+    orderType: o.orderType,
+    tableLabel: labels.get(o.id) ?? null,
+    paymentMode: o.paymentMode,
+    paidAt: o.paidAt?.toISOString() ?? null,
     items: items.filter((i) => i.orderId === o.id).map((i) => ({ name: i.name, quantity: i.quantity, options: i.options, note: i.note })),
   })) };
 }
