@@ -177,6 +177,7 @@ export async function createCheckout(
       subtotalCents: cart.subtotalCents,
       discountCents: cart.discountCents,
       promoCode: promo?.code ?? null,
+      promoId: promo?.id ?? null,
       taxCents: cart.taxCents,
       tipCents: cart.tipCents,
       totalCents: cart.totalCents,
@@ -316,7 +317,7 @@ export async function applyPaymentEvent(event: PaymentEvent): Promise<"applied" 
         await db.update(payments).set({ status: "captured", capturedAt: at, clientSecret: null }).where(eq(payments.id, payment.id));
         if (["pending_payment", "awaiting_acceptance", "payment_failed"].includes(order.status)) {
           // A failed payment gave its promo use back; the order is going ahead after all, so take it again.
-          if (order.status === "payment_failed") await retakePromoUse(db, order.promoCode);
+          if (order.status === "payment_failed") await retakePromoUse(db, order.promoId);
           await db.update(orders).set({ status: "accepted", decidedAt: at, paidAt: at }).where(eq(orders.id, order.id));
         }
       }
@@ -330,11 +331,11 @@ export async function applyPaymentEvent(event: PaymentEvent): Promise<"applied" 
     } else if (event.type === "failed" && !event.retryable && order.status === "pending_payment") {
       await db.update(payments).set({ status: "failed", clientSecret: null }).where(eq(payments.id, payment.id));
       await db.update(orders).set({ status: "payment_failed" }).where(eq(orders.id, order.id));
-      await returnPromoUse(db, order.promoCode);
+      await returnPromoUse(db, order.promoId);
     } else if (event.type === "canceled" && ["pending_payment", "awaiting_acceptance", "payment_failed"].includes(order.status)) {
       await db.update(payments).set({ status: "canceled", clientSecret: null }).where(eq(payments.id, payment.id));
       await db.update(orders).set({ status: "cancelled", decidedAt: at }).where(eq(orders.id, order.id));
-      if (order.status !== "payment_failed") await returnPromoUse(db, order.promoCode);
+      if (order.status !== "payment_failed") await returnPromoUse(db, order.promoId);
     }
     return "applied";
   });
@@ -409,7 +410,7 @@ export async function decideOrder(
       await db.update(payments).set({ status: "refunded", refundStatus: "succeeded", refundedAt: now }).where(eq(payments.id, manual.id));
     }
     await db.update(orders).set({ status, decidedAt: now }).where(eq(orders.id, order.id));
-    await returnPromoUse(db, order.promoCode);
+    await returnPromoUse(db, order.promoId);
     return { status, refundInPerson };
   });
 }
