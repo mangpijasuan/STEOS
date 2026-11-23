@@ -244,11 +244,15 @@ export async function getOrderByToken(token: string) {
     const [r] = await db.select({ name: restaurants.name, slug: restaurants.slug, timezone: restaurants.timezone }).from(restaurants);
     // The holder of this private link already scanned this table's code, so it is what lets them order more or call a waiter.
     const [table] = order.tableId ? await db.select({ label: diningTables.label, qrToken: diningTables.qrToken }).from(diningTables).where(eq(diningTables.id, order.tableId)) : [];
+    const inPersonRefunded = order.paymentMode === "pay_later" && (payment?.status === "refunded" || !!payment?.refundedAt);
     return {
       restaurant: r,
       orderType: order.orderType,
       paymentMode: order.paymentMode,
-      paid: !!order.paidAt,
+      // Money taken in person and later handed back is "refunded", not "paid": paidAt keeps the historical capture time
+      // for reports, but the guest must never be told a cancelled order was paid.
+      paid: !!order.paidAt && !inPersonRefunded,
+      paymentState: (inPersonRefunded ? "refunded" : order.paidAt ? "paid" : "unpaid") as "paid" | "refunded" | "unpaid",
       table: table ?? null,
       number: order.number,
       status: order.status,
