@@ -2,6 +2,30 @@
 
 Multi-tenant restaurant ordering platform with a storefront, staff kitchen queue, Stripe Connect payments, and owner controls for menus, hours, pricing, and reports.
 
+## Architecture
+
+Siamsil-SROS is a **modular monolith**. One Next.js application serves the customer storefront, kitchen, owner screens, and HTTP APIs. PostgreSQL holds order and payment state and enforces restaurant-level isolation.
+
+```mermaid
+flowchart LR
+    Guest["Customer storefront"] --> App["Next.js application"]
+    Staff["Kitchen and owner screens"] --> App
+    Worker["Order worker or scheduler"] -->|"Scheduled HTTPS request"| App
+    App --> DB[("PostgreSQL")]
+    App -->|"Payment operations"| Stripe["Stripe Connect"]
+    Stripe -->|"Signed webhooks"| App
+    App -->|"Send sign-in links"| Resend["Resend"]
+```
+
+| Component | Responsibility | Stack |
+| --- | --- | --- |
+| Application | Routes, access checks, menu management, checkout, kitchen workflow, and reports | Next.js App Router, React, TypeScript |
+| Data | Restaurants, menus, orders, payment history, sessions, and shared rate limits | PostgreSQL 16, Drizzle, SQL migrations |
+| Payments and email | Connected-account card authorizations, captures and refunds, plus staff sign-in email | Stripe Connect, Resend |
+| Order maintenance | Release unanswered card holds, reconcile pending refunds, and purge expired runtime data | Node.js worker or managed scheduler calling a protected route |
+
+See the [architecture guide](docs/architecture.md) for checkout and sign-in flows, tenant isolation, and scaling trade-offs.
+
 ## Run it
 
 Requires Node 22+ and PostgreSQL 16.
@@ -28,7 +52,7 @@ In development the sign-in link is printed in the server console instead of bein
 - The running app connects as `siamsil_app`, which does not own the tables, so row-level security applies to it.
 - Restaurant queries run inside `withTenant(restaurantId, ...)` in `lib/db.ts`, which sets `app.restaurant_id` for that transaction only. No tenant set means no rows.
 - Composite foreign keys `(id, restaurant_id)` stop a row from pointing at another restaurant's row.
-- Every restaurant has one default location (migration 0002, created automatically); later tables such as orders will carry `location_id`.
+- Every restaurant gets a default location. Checkout records that location on new orders.
 - The app role cannot create or delete restaurants. Use the owner connection or admin tooling.
 - `tests/tenant-isolation.test.ts` proves the above against a real database.
 
@@ -145,7 +169,7 @@ See the [Phase 4 integration handoff](docs/PHASE_4_INTEGRATION.md) for the migra
 Owners edit the menu at `/menu`: categories, dishes, add-on groups and options (each option can be marked out of stock), ordering, and food photos. Staff can still mark dishes sold out from the dashboard. Weekly opening hours and ordering settings stay at `/manage`.
 
 - Photos are shrunk in the browser (max 1200px JPEG), stored in the database (`images` table, migration 0012) and served publicly at `/api/images/<id>` with a one-year cache. Uploads are owner-only, checked by their real file signature (JPEG, PNG or WebP), limited to 1.5 MB and 60 per hour, and capped at 500 per restaurant.
-- A replaced or removed photo is deleted with the change. Photos that were uploaded but never saved are removed after an hour by the order worker. Moving photos to object storage later only changes `lib/images.ts` and the two image routes.
+- Replacing or removing a photo deletes it once no dish references it. Photos that were uploaded but never saved are removed after an hour by the order worker. Moving photos to object storage later only changes `lib/images.ts` and the two image routes.
 - The editor uses the design system in `app/ds.css`, which is scoped to elements inside a `.ds` wrapper (`app/menu/layout.tsx`). Screens that have not been moved over keep their current look; to move one, wrap it in `.ds`. `app/legacy.css` keeps the original page frame for the others.
 
 ## Tables and dine-in

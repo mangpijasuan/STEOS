@@ -5,6 +5,7 @@ import { allow } from "../lib/ratelimit";
 import { GET as openLogin, POST as confirmLogin } from "../app/api/auth/verify/route";
 import { outbox, sendLoginEmail } from "../lib/mailer";
 import { GET as getMenu } from "../app/api/staff/menu/route";
+import { PUT as saveMenuItem } from "../app/api/staff/menu/items/[id]/editor/route";
 import { POST as createItem } from "../app/api/staff/menu/items/route";
 import { PATCH as setAvailability } from "../app/api/staff/menu/items/[id]/availability/route";
 import { POST as createCategory } from "../app/api/staff/menu/categories/route";
@@ -202,5 +203,70 @@ describe("menu API access", () => {
   it("creates and deletes an empty category", async () => {
     const created = await (await call(createCategory, "POST", ownerToken, { name: "Desserts" })).json();
     expect((await call(deleteCategory, "DELETE", ownerToken, undefined, created.id)).status).toBe(200);
+  });
+});
+
+describe("atomic menu editor", () => {
+  function draft() {
+    return {
+      createIfMissing: true,
+      item: { categoryId: f.categoryId, name: "Atomic dish", priceCents: 1200 },
+      groups: [{
+        id: crypto.randomUUID(), name: "Sides", minChoices: 2, maxChoices: 3,
+        options: ["Rice", "Salad", "Fruit"].map((name) => ({ id: crypto.randomUUID(), name })),
+      }],
+    };
+  }
+
+  it("retries a new item without duplicates and preserves its exact choice limits", async () => {
+    const id = crypto.randomUUID();
+    const input = draft();
+    const saved = await Promise.all([
+      call(saveMenuItem, "PUT", ownerToken, input, id),
+      call(saveMenuItem, "PUT", ownerToken, input, id),
+    ]);
+    for (const response of saved) {
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ id });
+    }
+    const response = await call(saveMenuItem, "PUT", ownerToken, {
+      ...input, createIfMissing: false, item: { ...input.item, name: "Renamed atomic dish" },
+    }, id);
+    expect(response.status).toBe(200);
+
+    const menu = await (await call(getMenu, "GET", ownerToken)).json();
+    const items = menu.flatMap((category: { items: { id: string; name: string }[] }) => category.items);
+    const edited = items.filter((item: { id: string }) => item.id === id);
+    expect(edited).toEqual([expect.objectContaining({
+      name: "Renamed atomic dish",
+      modifierGroups: [expect.objectContaining({
+        id: input.groups[0].id, minChoices: 2, maxChoices: 3,
+        options: input.groups[0].options.map((option) => expect.objectContaining(option)),
+      })],
+    })]);
+  });
+
+  it("rolls back the item and preceding add-ons after a write fails", async () => {
+    const id = crypto.randomUUID();
+    const input = draft();
+    const existingId = crypto.randomUUID();
+    const existing = draft();
+    expect((await call(saveMenuItem, "PUT", ownerToken, existing, existingId)).status).toBe(200);
+
+    input.groups[0].options[2].id = existing.groups[0].options[0].id;
+    expect((await call(saveMenuItem, "PUT", ownerToken, input, id)).status).toBe(409);
+    await asOwner(async (client) => {
+      expect((await client.query("select id from menu_items where id = $1", [id])).rowCount).toBe(0);
+      expect((await client.query("select id from modifier_groups where id = $1", [input.groups[0].id])).rowCount).toBe(0);
+      expect((await client.query("select id from modifier_options where id = $1", [input.groups[0].options[0].id])).rowCount).toBe(0);
+    });
+    input.groups[0].options[2].id = crypto.randomUUID();
+    expect((await call(saveMenuItem, "PUT", ownerToken, input, id)).status).toBe(200);
+  });
+
+  it("keeps full menu edits owner-only and tenant-scoped", async () => {
+    const input = draft();
+    expect((await call(saveMenuItem, "PUT", staffToken, input, crypto.randomUUID())).status).toBe(403);
+    expect((await call(saveMenuItem, "PUT", ownerToken, { ...input, createIfMissing: false }, other.itemId)).status).toBe(404);
   });
 });
