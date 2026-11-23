@@ -28,7 +28,12 @@ grant select, insert, update, delete on promo_codes to __APP_ROLE__;
 alter table orders
   -- subtotal_cents stays the food total before any discount; tax is charged on subtotal minus discount.
   add column discount_cents integer not null default 0 check (discount_cents >= 0),
+  -- promo_code is the text shown on receipts, kept as it was when the order was placed. promo_id is the promotion that
+  -- order used, so use counts follow the promotion even if its code is renamed. If the promotion is deleted the link
+  -- clears and nothing is returned to it; a new code with the same text is a different promotion.
   add column promo_code text,
+  add column promo_id uuid,
+  add constraint orders_promo_fk foreign key (promo_id, restaurant_id) references promo_codes (id, restaurant_id) on delete set null (promo_id),
   -- The staff member who entered the order at the till. Null for orders the customer placed. The composite key
   -- means it can only ever name staff of the same restaurant.
   add column created_by uuid,

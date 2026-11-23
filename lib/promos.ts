@@ -60,13 +60,13 @@ export async function redeemPromo(db: Tx, id: string): Promise<void> {
  * Gives a use back when an order that redeemed a code never completes (declined, expired, or its payment failed or
  * was cancelled), so abandoned or failed checkouts cannot use up a limited code. Runs inside the order's tenant scope.
  */
-export async function returnPromoUse(db: Tx, code: string | null): Promise<void> {
-  if (code) await db.execute(sql`update promo_codes set uses = greatest(uses - 1, 0) where code = ${code}`);
+export async function returnPromoUse(db: Tx, promoId: string | null): Promise<void> {
+  if (promoId) await db.execute(sql`update promo_codes set uses = greatest(uses - 1, 0) where id = ${promoId}`);
 }
 
 /** The opposite, for a payment that failed and was later captured after all: the order keeps its discount. */
-export async function retakePromoUse(db: Tx, code: string | null): Promise<void> {
-  if (code) await db.execute(sql`update promo_codes set uses = uses + 1 where code = ${code}`);
+export async function retakePromoUse(db: Tx, promoId: string | null): Promise<void> {
+  if (promoId) await db.execute(sql`update promo_codes set uses = uses + 1 where id = ${promoId}`);
 }
 
 /** Wrong guesses are limited per person, so codes cannot be found by trying them all. */
@@ -141,6 +141,6 @@ export async function updatePromo(db: Tx, id: string, patch: Partial<PromoInput>
 }
 
 export async function deletePromo(db: Tx, id: string) {
-  // Orders keep the code text, so deleting a code never changes past orders.
+  // Orders keep the code text for receipts. Their link to the promotion clears, so nothing is returned to a deleted code.
   found(await db.delete(promoCodes).where(and(eq(promoCodes.id, id))).returning({ id: promoCodes.id }));
 }

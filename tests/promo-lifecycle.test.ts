@@ -116,6 +116,54 @@ describe("a limited code is not used up by orders that never complete", () => {
   });
 });
 
+describe("a code is followed by identity, not by its text", () => {
+  it("returns the use to the same promotion after its code is renamed", async () => {
+    await newCode("NAME1", 5);
+    const order = await cardOrder("NAME1");
+    await event(order.id!, "authorized");
+    await asOwner((c) => c.query("update promo_codes set code = 'NAME2' where restaurant_id = $1 and code = 'NAME1'", [a.restaurantId]));
+    expect(await uses("NAME2")).toBe(1);
+    expect((await decline(staffReq("POST", staffToken, {}), idCtx(order.id!))).status).toBe(200);
+    expect(await uses("NAME2")).toBe(0);
+    // The receipt still shows the code as it was when the order was placed.
+    expect((await asOwner((c) => c.query("select promo_code from orders where id = $1", [order.id]))).rows[0].promo_code).toBe("NAME1");
+  });
+
+  it("does not touch a new code that reuses the text of a deleted one", async () => {
+    await newCode("GONE1", 5);
+    const old = await cardOrder("GONE1");
+    await event(old.id!, "authorized");
+    await asOwner((c) => c.query("delete from promo_codes where restaurant_id = $1 and code = 'GONE1'", [a.restaurantId]));
+    expect((await asOwner((c) => c.query("select promo_id, promo_code from orders where id = $1", [old.id]))).rows[0]).toEqual({ promo_id: null, promo_code: "GONE1" });
+    await newCode("GONE1", 5);
+    expect((await cardOrder("GONE1")).res.status).toBe(201);
+    expect(await uses("GONE1")).toBe(1);
+    expect((await decline(staffReq("POST", staffToken, {}), idCtx(old.id!))).status).toBe(200);
+    expect(await uses("GONE1")).toBe(1); // the new code's use was not given back for the old order
+  });
+});
+
+describe("retrying a till order that used a code", () => {
+  it("replays the order even after the last use was taken and the menu changed", async () => {
+    await newCode("TILLR1", 1);
+    const key = crypto.randomUUID();
+    const body = { items: items(1), orderType: "counter", tipCents: 0, promoCode: "TILLR1", payment: { mode: "later" } };
+    const send = () => posOrder(staffReq("POST", staffToken, body, { "idempotency-key": key }), {});
+    const first = await send();
+    expect(first.status).toBeLessThan(300);
+    const firstBody = await first.json();
+    expect(await uses("TILLR1")).toBe(1); // that was the only use
+    await asOwner((c) => c.query("update menu_items set price_cents = price_cents + 500 where restaurant_id = $1", [a.restaurantId]));
+    const retry = await send();
+    await asOwner((c) => c.query("update menu_items set price_cents = price_cents - 500 where restaurant_id = $1", [a.restaurantId]));
+    expect(retry.status).toBeLessThan(300);
+    expect(await retry.json()).toMatchObject({ id: firstBody.id, number: firstBody.number, totalCents: firstBody.totalCents });
+    expect(await uses("TILLR1")).toBe(1);
+    // A different request under the same key is still refused.
+    expect((await posOrder(staffReq("POST", staffToken, { ...body, tipCents: 100 }, { "idempotency-key": key }), {})).status).toBe(409);
+  });
+});
+
 describe("retrying a checkout that used a code", () => {
   it("replays the same order without using the code twice, and refuses a changed request under the same key", async () => {
     await newCode("RETRY1", null);

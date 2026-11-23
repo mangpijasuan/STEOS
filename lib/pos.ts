@@ -59,9 +59,6 @@ export async function createPosOrder(store: Store, input: PosInput, actor: Actor
   const { restaurant } = store;
   if (input.orderType === "dine_in" && !input.tableId) throw new HttpError(422, "Choose a table for a dine-in order");
 
-  const { rule, promoId, promoCode } = await discountFor(store, input, actor, now);
-  const cart = priceCart(store.menu, input.items, { taxRateBps: restaurant.taxRateBps, tipCents: input.tipCents, discount: rule });
-
   // What identifies this request. A reused key with anything different is refused, not quietly answered with another order.
   const requestFingerprint = signRequest(
     "pos-v1", actor.staffUserId,
@@ -69,6 +66,20 @@ export async function createPosOrder(store: Store, input: PosInput, actor: Actor
     input.orderType, input.tableId ?? null, input.customerName?.trim() ?? "", input.customerPhone?.trim() ?? "", input.tipCents,
     input.promoCode?.trim() ? normalizeCode(input.promoCode) : null, input.discount ?? null, input.payment,
   );
+
+
+  // An attempt that already succeeded is answered from the order it created, before the menu, prices or promo are looked
+  // at again. A later menu edit, or the promo's last use being taken, must not turn a retry into an error.
+  const replay = await withTenant(restaurant.id, async (db) => {
+    const [existing] = await db.select().from(orders).where(eq(orders.idempotencyKey, idempotencyKey));
+    if (!existing) return null;
+    if (existing.requestFingerprint !== requestFingerprint) throw new HttpError(409, "This request key was already used for a different order");
+    return existing;
+  });
+  if (replay) return { id: replay.id, number: replay.number, totalCents: replay.totalCents, discountCents: replay.discountCents, paid: input.payment.mode === "now" };
+
+  const { rule, promoId, promoCode } = await discountFor(store, input, actor, now);
+  const cart = priceCart(store.menu, input.items, { taxRateBps: restaurant.taxRateBps, tipCents: input.tipCents, discount: rule });
 
   const create = () =>
     withTenant(restaurant.id, async (db) => {
@@ -120,6 +131,7 @@ export async function createPosOrder(store: Store, input: PosInput, actor: Actor
           subtotalCents: cart.subtotalCents,
           discountCents: cart.discountCents,
           promoCode,
+          promoId,
           taxCents: cart.taxCents,
           tipCents: cart.tipCents,
           totalCents: cart.totalCents,
