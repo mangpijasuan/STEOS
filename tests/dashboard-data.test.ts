@@ -7,6 +7,8 @@ import { POST as posOrder } from "../app/api/staff/pos/orders/route";
 import { GET as summary } from "../app/api/staff/reports/summary/route";
 import { GET as history } from "../app/api/staff/orders/history/route";
 import { GET as me } from "../app/api/staff/me/route";
+import { GET as activeOrders } from "../app/api/staff/orders/route";
+import { chartRange } from "../app/charts";
 import { asOwner, createFixture, deleteFixture, type Fixture } from "./helpers";
 
 let a: Fixture;
@@ -136,6 +138,31 @@ describe("order history", () => {
   it("never shows another restaurant's orders, and needs a sign-in", async () => {
     expect((await hist(otherOwner)).orders).toHaveLength(0);
     expect((await history(req("GET", null), {})).status).toBe(401);
+  });
+});
+
+describe("the live counts", () => {
+  it("count every active order in the restaurant, not just the page shown", async () => {
+    const before = (await (await activeOrders(req("GET", ownerToken, undefined, "http://localhost/x"), {})).json()) as { counts: Record<string, number>; orders: unknown[] };
+    await sale(ownerToken, { payment: { mode: "later" } });
+    await sale(ownerToken, { payment: { mode: "later" } });
+    const res = (await (await activeOrders(req("GET", ownerToken, undefined, "http://localhost/x"), {})).json()) as { counts: Record<string, number>; orders: unknown[] };
+    expect(res.counts.awaiting_acceptance).toBe(before.counts.awaiting_acceptance + 2);
+    expect(Object.keys(res.counts).sort()).toEqual(["accepted", "awaiting_acceptance", "ready"]);
+    // Another restaurant's orders are never counted.
+    const theirs = (await (await activeOrders(req("GET", otherOwner, undefined, "http://localhost/x"), {})).json()) as { counts: Record<string, number> };
+    expect(theirs.counts.awaiting_acceptance).toBe(0);
+  });
+});
+
+describe("the sales chart axis", () => {
+  it("starts at zero when nothing is negative", () => {
+    expect(chartRange([0, 1200, 4500])).toEqual([0, 5000]);
+    expect(chartRange([0, 0])).toEqual([0, 1]);
+  });
+  it("reaches below zero for a day that refunded more than it sold, so it is drawn rather than hidden", () => {
+    expect(chartRange([-2300, 0, 4500])).toEqual([-5000, 5000]);
+    expect(chartRange([-800, -200])).toEqual([-1000, 0]);
   });
 });
 

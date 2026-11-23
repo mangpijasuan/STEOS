@@ -15,16 +15,25 @@ export function niceMax(value: number): number {
   return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * pow;
 }
 
+/** The axis for a set of values: from zero (or the tidy value below the lowest, when something is negative) to a tidy top. */
+export function chartRange(values: number[]): [number, number] {
+  const top = Math.max(0, ...values);
+  const bottom = Math.min(0, ...values);
+  return [bottom < 0 ? -niceMax(-bottom) : 0, top > 0 || bottom === 0 ? niceMax(top) : 0];
+}
+
 /** One line over time, with a hover crosshair and tooltip. A single series, so no legend: the card title names it. */
 export function AreaChart({ data, format, summary }: { data: Point[]; format: (v: number) => string; summary: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<number | null>(null);
-  const max = useMemo(() => niceMax(Math.max(0, ...data.map((d) => d.value))), [data]);
+  // The axis reaches below zero when any point does, so a day that refunded more than it sold is drawn, not hidden.
+  const [min, max] = useMemo(() => chartRange(data.map((d) => d.value)), [data]);
   const n = data.length;
   const x = (i: number) => (n === 1 ? 50 : (i / (n - 1)) * 100);
-  const y = (v: number) => 100 - (v / max) * 100;
+  const y = (v: number) => 100 - ((v - min) / (max - min || 1)) * 100;
+  const zero = y(0);
   const line = data.map((d, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(2)},${y(d.value).toFixed(2)}`).join(" ");
-  const area = n > 1 ? `${line} L100,100 L0,100 Z` : "";
+  const area = n > 1 ? `${line} L100,${zero.toFixed(2)} L0,${zero.toFixed(2)} Z` : "";
 
   function at(clientX: number) {
     const box = ref.current?.getBoundingClientRect();
@@ -38,8 +47,8 @@ export function AreaChart({ data, format, summary }: { data: Point[]; format: (v
     <div className="chart">
       <div className="chart-y" aria-hidden="true">
         <span>{format(max)}</span>
-        <span>{format(max / 2)}</span>
-        <span>{format(0)}</span>
+        <span>{format((max + min) / 2)}</span>
+        <span>{format(min)}</span>
       </div>
       <div
         ref={ref}
@@ -60,6 +69,7 @@ export function AreaChart({ data, format, summary }: { data: Point[]; format: (v
       >
         <div className="chart-grid" aria-hidden="true"><i /><i /><i /></div>
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          {min < 0 && <line x1="0" x2="100" y1={zero} y2={zero} stroke="currentColor" strokeOpacity="0.5" strokeWidth="1" vectorEffect="non-scaling-stroke" />}
           {area && <path className="chart-area" d={area} />}
           <path className="chart-line" d={line} />
         </svg>
