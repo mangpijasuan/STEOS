@@ -5,10 +5,9 @@ import { priceCart, type CartLineInput } from "./cart";
 import { pool, withTenant, type Tx } from "./db";
 import { applicationFee, type FeeModel } from "./fees";
 import { HttpError } from "./http";
-import { isOpenNow } from "./hours";
 import { getProvider } from "./payments/provider";
-import type { PaymentEvent } from "./payments/provider";
-import { orderingEnabled, pickupSlots, type Store } from "./storefront";
+import type { PaymentEvent, Refund } from "./payments/provider";
+import { asapPickup, orderingEnabled, pickupSlots, type Store } from "./storefront";
 
 export const ACCEPT_WINDOW_MINUTES = 5;
 const MIN_CHARGE_CENTS = 50;
@@ -17,17 +16,20 @@ const sha256 = (value: string) => crypto.createHash("sha256").update(value).dige
 
 function orderTokenSecret(): string {
   const secret = process.env.ORDER_TOKEN_SECRET;
+  if (process.env.NODE_ENV === "production" && (!secret || secret.length < 32 || /change-me|dev-only/i.test(secret))) {
+    throw new Error("Production requires a strong ORDER_TOKEN_SECRET");
+  }
   if (secret) return secret;
-  if (process.env.NODE_ENV === "production") throw new Error("ORDER_TOKEN_SECRET is required");
   return "dev-only-order-token-secret";
 }
 
-/**
- * The customer's private link. It is derived from the idempotency key, so a retried checkout gets the same link
- * back, while only its hash is stored. Nobody can guess it without the server secret.
- */
-export function orderToken(restaurantId: string, idempotencyKey: string): string {
-  return crypto.createHmac("sha256", orderTokenSecret()).update(`${restaurantId}:${idempotencyKey}`).digest("base64url");
+// Preserve status links issued before orders had their own token source.
+export function orderToken(restaurantId: string, legacyKey: string): string {
+  return crypto.createHmac("sha256", orderTokenSecret()).update(`${restaurantId}:${legacyKey}`).digest("base64url");
+}
+
+function newOrderToken(restaurantId: string, orderId: string): string {
+  return crypto.createHmac("sha256", orderTokenSecret()).update(`order-link:${restaurantId}:${orderId}`).digest("base64url");
 }
 
 export type CheckoutInput = {
@@ -44,148 +46,145 @@ async function loadPayment(db: Tx, orderId: string) {
   return rows[0] ?? null;
 }
 
-export async function createCheckout(store: Store, input: CheckoutInput, idempotencyKey: string, now = new Date()) {
+function fingerprint(input: CheckoutInput, retryProof?: string): string {
+  const lines = input.items.map((line) => JSON.stringify([
+    line.itemId, line.quantity, [...line.optionIds].sort(), line.note?.trim() || null,
+  ])).sort();
+  return crypto.createHmac("sha256", orderTokenSecret()).update(JSON.stringify([
+    "checkout-v1", retryProof ?? null, lines, input.tipCents,
+    input.pickupTime ? new Date(input.pickupTime).toISOString() : null,
+    input.customer.name, input.customer.phone,
+  ])).digest("hex");
+}
+
+async function legacyFingerprint(db: Tx, order: OrderRow): Promise<string> {
+  const items = await db.select().from(orderItems).where(eq(orderItems.orderId, order.id));
+  return fingerprint({
+    items: items.map((item) => ({
+      itemId: item.itemId ?? "",
+      quantity: item.quantity,
+      optionIds: (item.options as { id: string }[]).map((option) => option.id),
+      note: item.note ?? undefined,
+    })),
+    tipCents: order.tipCents,
+    pickupTime: order.pickupType === "scheduled" ? order.pickupAt.toISOString() : undefined,
+    customer: { name: order.customerName, phone: order.customerPhone },
+  });
+}
+
+async function paymentAccount(db: Tx, order: OrderRow): Promise<string | null> {
+  if (order.requestFingerprint) return order.providerAccountId;
+  const [restaurant] = await db.select({ account: restaurants.stripeAccountId }).from(restaurants);
+  return restaurant?.account ?? null;
+}
+
+export async function createCheckout(store: Store, input: CheckoutInput, idempotencyKey: string, now = new Date(), retryProof?: string) {
   const { restaurant } = store;
-  if (!orderingEnabled(restaurant)) throw new HttpError(409, "Online ordering is paused right now");
+  const requestFingerprint = fingerprint(input, retryProof);
 
-  const cart = priceCart(store.menu, input.items, { taxRateBps: restaurant.taxRateBps, tipCents: input.tipCents });
-  if (cart.totalCents < MIN_CHARGE_CENTS) throw new HttpError(422, "The order total must be at least $0.50");
-
-  const slots = pickupSlots(store, now);
-  let pickupType: "asap" | "scheduled" = "asap";
-  let pickupAt: Date;
-  if (input.pickupTime) {
-    const wanted = new Date(input.pickupTime);
-    if (!slots.some((s) => s.getTime() === wanted.getTime())) {
-      throw new HttpError(422, "Cart has problems", [{ line: null, message: "That pickup time is no longer available" }]);
-    }
-    pickupType = "scheduled";
-    pickupAt = wanted;
-  } else {
-    if (!isOpenNow(now, restaurant.timezone, store.periods) || slots.length === 0) {
-      throw new HttpError(409, "We are closed right now. Choose a pickup time.");
-    }
-    pickupAt = new Date(now.getTime() + restaurant.minPrepMinutes * 60_000);
-  }
-
-  const provider = await getProvider();
-  const account = await withTenant(restaurant.id, async (db) => {
-    const r = await db.select({ a: restaurants.stripeAccountId, bps: restaurants.platformFeeBps, model: restaurants.feeModel, plan: restaurants.pricingPlan }).from(restaurants);
-    return r[0];
-  });
-  if (provider.name === "stripe" && !account.a) throw new HttpError(503, "This restaurant cannot take card payments yet");
-
-  const fee = applicationFee({
-    subtotalCents: cart.subtotalCents,
-    totalCents: cart.totalCents,
-    feeBps: account.bps,
-    model: account.model as FeeModel,
-  });
-  const token = orderToken(restaurant.id, idempotencyKey);
-
-  // Step 1: save the order (or find the one this key already created).
-  const create = () =>
-    withTenant(restaurant.id, async (db) => {
-      const existing = await db.select().from(orders).where(eq(orders.idempotencyKey, idempotencyKey));
-      if (existing[0]) {
-        if (existing[0].totalCents !== cart.totalCents) throw new HttpError(409, "This request key was already used for a different order");
-        return existing[0];
+  const saved = await withTenant(restaurant.id, async (db) => {
+    await db.execute(sql`select pg_advisory_xact_lock(hashtextextended(${restaurant.id + ":" + idempotencyKey}, 0))`);
+    const [existing] = await db.select().from(orders).where(eq(orders.idempotencyKey, idempotencyKey));
+    if (existing) {
+      const matches = existing.requestFingerprint
+        ? existing.requestFingerprint === requestFingerprint
+        : await legacyFingerprint(db, existing) === fingerprint(input);
+      if (!matches) {
+        throw new HttpError(409, "This request key was already used for a different order");
       }
-      const bumped = await db
-        .update(restaurants)
-        .set({ nextOrderNumber: sql`${restaurants.nextOrderNumber} + 1` })
-        .where(eq(restaurants.id, restaurant.id))
-        .returning({ n: restaurants.nextOrderNumber });
-      const [order] = await db
-        .insert(orders)
-        .values({
-          restaurantId: restaurant.id,
-          locationId: restaurant.defaultLocationId,
-          number: bumped[0].n - 1,
-          customerName: input.customer.name,
-          customerPhone: input.customer.phone,
-          pickupType,
-          pickupAt,
-          subtotalCents: cart.subtotalCents,
-          taxCents: cart.taxCents,
-          tipCents: cart.tipCents,
-          totalCents: cart.totalCents,
-          feeCents: fee.applicationFeeCents,
-          feeSnapshot: { ...fee, plan: account.plan },
-          idempotencyKey,
-          publicTokenHash: sha256(token),
-        })
-        .returning();
-      await db.insert(orderItems).values(
-        cart.lines.map((l) => ({
-          restaurantId: restaurant.id,
-          orderId: order.id,
-          itemId: l.itemId,
-          name: l.name,
-          unitPriceCents: l.unitPriceCents,
-          quantity: l.quantity,
-          options: l.options,
-          note: l.note,
-          lineTotalCents: l.lineTotalCents,
-        })),
-      );
-      return order;
-    });
-
-  let order: OrderRow;
-  try {
-    order = await create();
-  } catch (error) {
-    // Two requests with the same key raced; the loser finds the winner's order.
-    if ((error as { code?: string }).code === "23505") order = await create();
-    else throw error;
-  }
-
-  // Step 2: ask the provider to hold the money, unless that already happened.
-  let payment = await withTenant(restaurant.id, (db) => loadPayment(db, order.id));
-  if (!payment && order.status === "pending_payment") {
-    let auth;
-    try {
-      auth = await provider.createAuthorization({
-        orderId: order.id,
-        restaurantId: restaurant.id,
-        amountCents: order.totalCents,
-        feeCents: order.feeCents,
-        connectedAccountId: account.a,
-        description: `${restaurant.name} order #${order.number}`,
-      });
-    } catch (error) {
-      await withTenant(restaurant.id, (db) =>
-        db.update(orders).set({ status: "payment_failed" }).where(and(eq(orders.id, order.id), eq(orders.status, "pending_payment"))),
-      );
-      if (error instanceof HttpError) throw error;
-      throw new HttpError(502, "We could not start the payment. Please try again.");
+      return existing;
     }
-    payment = await withTenant(restaurant.id, async (db) => {
-      await db
-        .insert(payments)
-        .values({
-          restaurantId: restaurant.id,
-          orderId: order.id,
-          provider: provider.name,
-          providerPaymentId: auth.providerPaymentId,
-          clientSecret: auth.clientSecret,
-          amountCents: order.totalCents,
-          feeCents: order.feeCents,
-        })
-        .onConflictDoNothing();
-      return loadPayment(db, order.id);
-    });
-  }
 
-  return {
-    orderToken: token,
-    order: { number: order.number, status: order.status, totalCents: order.totalCents, pickupAt: order.pickupAt.toISOString() },
-    payment:
-      payment && order.status === "pending_payment"
-        ? { provider: provider.name, clientSecret: payment.clientSecret, ...provider.publicConfig(account.a) }
-        : null,
-  };
+    const [account] = await db.select().from(restaurants).where(eq(restaurants.id, restaurant.id)).for("update");
+    if (!account || !orderingEnabled({ ...restaurant, ...account })) {
+      throw new HttpError(409, "Online ordering is paused right now");
+    }
+    const currentStore = { ...store, restaurant: { ...restaurant, ...account } };
+    const cart = priceCart(store.menu, input.items, { taxRateBps: account.taxRateBps, tipCents: input.tipCents });
+    if (cart.totalCents < MIN_CHARGE_CENTS) throw new HttpError(422, "The order total must be at least $0.50");
+    if (cart.totalCents > 99_999_999) throw new HttpError(422, "The order total exceeds the supported payment limit");
+
+    let pickupAt: Date | null;
+    if (input.pickupTime) {
+      pickupAt = new Date(input.pickupTime);
+      if (!pickupSlots(currentStore, now).some((slot) => slot.getTime() === pickupAt?.getTime())) {
+        throw new HttpError(422, "Cart has problems", [{ line: null, message: "That pickup time is no longer available" }]);
+      }
+    } else {
+      pickupAt = asapPickup(currentStore, now);
+      if (!pickupAt) throw new HttpError(409, "ASAP pickup is unavailable. Choose a scheduled pickup time.");
+    }
+
+    const provider = await getProvider();
+    if (provider.name === "stripe" && (!account.stripeAccountId || !process.env.STRIPE_PUBLISHABLE_KEY)) throw new HttpError(503, "This restaurant cannot take card payments yet");
+    const fee = applicationFee({
+      subtotalCents: cart.subtotalCents, totalCents: cart.totalCents,
+      feeBps: account.platformFeeBps, model: account.feeModel as FeeModel,
+    });
+    const id = crypto.randomUUID();
+    await db.update(restaurants).set({ nextOrderNumber: account.nextOrderNumber + 1 }).where(eq(restaurants.id, restaurant.id));
+    const [order] = await db.insert(orders).values({
+      id,
+      restaurantId: restaurant.id,
+      locationId: restaurant.defaultLocationId,
+      number: account.nextOrderNumber,
+      customerName: input.customer.name,
+      customerPhone: input.customer.phone,
+      pickupType: input.pickupTime ? "scheduled" : "asap",
+      pickupAt,
+      subtotalCents: cart.subtotalCents,
+      taxCents: cart.taxCents,
+      tipCents: cart.tipCents,
+      totalCents: cart.totalCents,
+      feeCents: fee.applicationFeeCents,
+      feeSnapshot: { ...fee, plan: account.pricingPlan },
+      idempotencyKey,
+      requestFingerprint,
+      providerAccountId: account.stripeAccountId,
+      publicTokenHash: sha256(newOrderToken(restaurant.id, id)),
+    }).returning();
+    await db.insert(orderItems).values(cart.lines.map((line) => ({
+      restaurantId: restaurant.id,
+      orderId: order.id,
+      itemId: line.itemId,
+      name: line.name,
+      unitPriceCents: line.unitPriceCents,
+      quantity: line.quantity,
+      options: line.options,
+      note: line.note,
+      lineTotalCents: line.lineTotalCents,
+    })));
+    return order;
+  });
+
+  return withTenant(restaurant.id, async (db) => {
+    const [order] = await db.select().from(orders).where(eq(orders.id, saved.id)).for("update");
+    const token = order.requestFingerprint ? newOrderToken(restaurant.id, order.id) : orderToken(restaurant.id, idempotencyKey);
+    const orderSummary = { number: order.number, status: order.status, totalCents: order.totalCents, pickupAt: order.pickupAt.toISOString() };
+    if (order.status !== "pending_payment") return { orderToken: token, order: orderSummary, payment: null };
+
+    const provider = await getProvider();
+    const account = await paymentAccount(db, order);
+    let payment = await loadPayment(db, order.id);
+    if (!payment) {
+      const auth = await provider.createAuthorization({
+        orderId: order.id, restaurantId: restaurant.id, amountCents: order.totalCents, feeCents: order.feeCents,
+        connectedAccountId: account, description: `${restaurant.name} order #${order.number}`,
+      }).catch((error: unknown) => {
+        if (error instanceof HttpError) throw error;
+        throw new HttpError(502, "We could not start the payment. Please try again.");
+      });
+      [payment] = await db.insert(payments).values({
+        restaurantId: restaurant.id, orderId: order.id, provider: provider.name, providerPaymentId: auth.providerPaymentId,
+        clientSecret: auth.clientSecret, amountCents: order.totalCents, feeCents: order.feeCents,
+      }).returning();
+    }
+    if (payment.provider !== provider.name) throw new HttpError(503, "This order's payment provider is unavailable");
+    return {
+      orderToken: token, order: orderSummary,
+      payment: { provider: provider.name, clientSecret: payment.clientSecret, ...provider.publicConfig(account) },
+    };
+  });
 }
 
 /** What the customer's private status page may show. */
@@ -195,12 +194,15 @@ export async function getOrderByToken(token: string) {
   if (!row) throw new HttpError(404, "Order not found");
   return withTenant(row.restaurant_id, async (db) => {
     const [order] = await db.select().from(orders).where(eq(orders.id, row.order_id));
+    if (!order) throw new HttpError(404, "Order not found");
     const items = await db.select().from(orderItems).where(eq(orderItems.orderId, order.id));
+    const payment = await loadPayment(db, order.id);
     const [r] = await db.select({ name: restaurants.name, timezone: restaurants.timezone }).from(restaurants);
     return {
       restaurant: r,
       number: order.number,
       status: order.status,
+      refundStatus: payment?.refundStatus ?? null,
       customerName: order.customerName,
       pickupAt: order.pickupAt.toISOString(),
       pickupType: order.pickupType,
@@ -214,12 +216,30 @@ export async function getOrderByToken(token: string) {
   });
 }
 
-/**
- * Applies a provider event. Runs in one transaction with the de-duplication record, so a failure can be retried
- * by the provider and a repeat is ignored.
- */
+async function recordRefund(
+  db: Tx, order: OrderRow, payment: NonNullable<Awaited<ReturnType<typeof loadPayment>>>,
+  refund: Refund, attempt: number, at: Date,
+) {
+  if (payment.refundedAt || attempt < payment.refundAttempt) return;
+  if (attempt === payment.refundAttempt && payment.refundStatus === "failed" && refund.status === "pending") return;
+  const succeeded = refund.status === "succeeded";
+  await db.update(payments).set({
+    status: succeeded ? "refunded" : "captured",
+    refundId: refund.id, refundAttempt: attempt, refundStatus: refund.status, refundCheckedAt: new Date(),
+    refundedAt: succeeded ? at : null,
+  }).where(eq(payments.id, payment.id));
+
+  if (refund.status !== "failed") {
+    await db.update(orders).set({ status: "cancelled", cancelledAt: order.cancelledAt ?? at }).where(eq(orders.id, order.id));
+  } else if (order.status === "cancelled" && payment.refundStatus === "pending") {
+    await db.update(orders).set({ status: order.readyAt ? "ready" : "accepted", cancelledAt: null }).where(eq(orders.id, order.id));
+  }
+}
+
+/** Records a provider event and applies it in the same transaction. */
 export async function applyPaymentEvent(event: PaymentEvent): Promise<"applied" | "duplicate" | "ignored"> {
   if (!event.restaurantId || !event.orderId) return "ignored";
+  const orderId = event.orderId;
   const provider = await getProvider();
   return withTenant(event.restaurantId, async (db) => {
     const seen = await db.execute(
@@ -227,31 +247,36 @@ export async function applyPaymentEvent(event: PaymentEvent): Promise<"applied" 
     );
     if (seen.rows.length === 0) return "duplicate";
 
-    const [r] = await db.select({ account: restaurants.stripeAccountId }).from(restaurants);
-    if (provider.name === "stripe" && event.account !== r?.account) return "ignored";
+    const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).for("update");
+    if (!order || (provider.name === "stripe" && event.account !== await paymentAccount(db, order))) return "ignored";
+    const payment = await loadPayment(db, order.id);
+    if (!payment) throw new HttpError(503, "The payment is still being registered. Retry this event.");
+    if (payment.provider !== provider.name || payment.providerPaymentId !== event.providerPaymentId) return "ignored";
 
-    const [order] = await db.select().from(orders).where(eq(orders.id, event.orderId!)).for("update");
-    const payment = order ? await loadPayment(db, order.id) : null;
-    if (!order || !payment || payment.providerPaymentId !== event.providerPaymentId) return "ignored";
-
-    const paymentStatus = { authorized: "authorized", captured: "captured", canceled: "canceled", failed: "failed" } as const;
-    // Never move a payment backwards once it has been captured.
-    if (!(payment.status === "captured" && event.type !== "captured")) {
-      await db.update(payments).set({ status: paymentStatus[event.type] }).where(eq(payments.id, payment.id));
-    }
-
-    if (event.type === "authorized" && order.status === "pending_payment") {
-      await db
-        .update(orders)
-        .set({ status: "awaiting_acceptance", acceptDeadline: new Date(Date.now() + ACCEPT_WINDOW_MINUTES * 60_000) })
-        .where(eq(orders.id, order.id));
-    } else if (event.type === "failed" && order.status === "pending_payment") {
+    const at = event.occurredAt ?? new Date();
+    if (event.type === "refund" && event.refund) {
+      if (!payment.capturedAt) throw new HttpError(503, "The capture is still being registered. Retry this event.");
+      await recordRefund(db, order, payment, event.refund, event.refund.attempt, at);
+    } else if (event.type === "captured") {
+      if (!payment.capturedAt && !payment.refundedAt && payment.status !== "refunded") {
+        await db.update(payments).set({ status: "captured", capturedAt: at, clientSecret: null }).where(eq(payments.id, payment.id));
+        if (["pending_payment", "awaiting_acceptance", "payment_failed"].includes(order.status)) {
+          await db.update(orders).set({ status: "accepted", decidedAt: at }).where(eq(orders.id, order.id));
+        }
+      }
+    } else if (payment.capturedAt || ["canceled", "refunded"].includes(payment.status)) {
+      return "ignored";
+    } else if (event.type === "authorized" && order.status === "pending_payment") {
+      await db.update(payments).set({ status: "authorized", clientSecret: null }).where(eq(payments.id, payment.id));
+      await db.update(orders).set({
+        status: "awaiting_acceptance", acceptDeadline: new Date(Date.now() + ACCEPT_WINDOW_MINUTES * 60_000),
+      }).where(eq(orders.id, order.id));
+    } else if (event.type === "failed" && !event.retryable && order.status === "pending_payment") {
+      await db.update(payments).set({ status: "failed", clientSecret: null }).where(eq(payments.id, payment.id));
       await db.update(orders).set({ status: "payment_failed" }).where(eq(orders.id, order.id));
-    } else if (event.type === "canceled" && ["pending_payment", "awaiting_acceptance"].includes(order.status)) {
-      await db.update(orders).set({ status: "cancelled", decidedAt: new Date() }).where(eq(orders.id, order.id));
-    } else if (event.type === "captured" && order.status === "awaiting_acceptance") {
-      // Recovers the case where we captured but crashed before saving the acceptance.
-      await db.update(orders).set({ status: "accepted", decidedAt: new Date() }).where(eq(orders.id, order.id));
+    } else if (event.type === "canceled" && ["pending_payment", "awaiting_acceptance", "payment_failed"].includes(order.status)) {
+      await db.update(payments).set({ status: "canceled", clientSecret: null }).where(eq(payments.id, payment.id));
+      await db.update(orders).set({ status: "cancelled", decidedAt: at }).where(eq(orders.id, order.id));
     }
     return "applied";
   });
@@ -260,7 +285,7 @@ export async function applyPaymentEvent(event: PaymentEvent): Promise<"applied" 
 export type Decision = "accept" | "decline" | "expire";
 
 /** Kitchen decision on an order that is waiting. Accept captures the money; decline and expiry release the hold. */
-export async function decideOrder(restaurantId: string, orderId: string, decision: Decision, now = new Date(), prepMinutes?: number) {
+export async function decideOrder(restaurantId: string, orderId: string, decision: Decision, requestedAt?: Date, prepMinutes?: number) {
   const provider = await getProvider();
   return withTenant(restaurantId, async (db) => {
     const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).for("update");
@@ -268,25 +293,30 @@ export async function decideOrder(restaurantId: string, orderId: string, decisio
     if (order.status !== "awaiting_acceptance") throw new HttpError(409, `This order is already ${order.status.replaceAll("_", " ")}`);
     const payment = await loadPayment(db, order.id);
     if (!payment) throw new HttpError(409, "This order has no payment");
-    const [r] = await db.select({ account: restaurants.stripeAccountId }).from(restaurants);
+    const account = await paymentAccount(db, order);
 
-    const lapsed = order.acceptDeadline !== null && order.acceptDeadline.getTime() < now.getTime();
-    const effective: Decision = decision === "accept" && lapsed ? "expire" : decision;
+    const now = requestedAt ?? new Date();
+    const lapsed = order.acceptDeadline !== null && order.acceptDeadline.getTime() <= now.getTime();
+    const effective: Decision = lapsed ? "expire" : decision;
+    if (effective === "expire" && !lapsed) throw new HttpError(409, "The acceptance deadline has not passed");
 
     if (effective === "accept") {
       try {
-        await provider.capture(payment.providerPaymentId, r?.account ?? null);
+        await provider.capture(payment.providerPaymentId, account);
       } catch {
         throw new HttpError(502, "The payment could not be captured. Try again.");
       }
-      await db.update(payments).set({ status: "captured" }).where(eq(payments.id, payment.id));
-      await db.update(orders).set({ status: "accepted", decidedAt: now, prepMinutes: prepMinutes ?? null }).where(eq(orders.id, order.id));
+      const capturedAt = new Date();
+      const readyAt = prepMinutes === undefined ? order.pickupAt : new Date(capturedAt.getTime() + prepMinutes * 60_000);
+      const pickupAt = order.pickupType === "scheduled" && order.pickupAt > readyAt ? order.pickupAt : readyAt;
+      await db.update(payments).set({ status: "captured", capturedAt, clientSecret: null }).where(eq(payments.id, payment.id));
+      await db.update(orders).set({ status: "accepted", decidedAt: capturedAt, prepMinutes: prepMinutes ?? null, pickupAt }).where(eq(orders.id, order.id));
       return { status: "accepted" as const };
     }
 
-    await provider.cancel(payment.providerPaymentId, r?.account ?? null);
+    await provider.cancel(payment.providerPaymentId, account);
     const status = effective === "decline" ? ("declined" as const) : ("expired" as const);
-    await db.update(payments).set({ status: "canceled" }).where(eq(payments.id, payment.id));
+    await db.update(payments).set({ status: "canceled", clientSecret: null }).where(eq(payments.id, payment.id));
     await db.update(orders).set({ status, decidedAt: now }).where(eq(orders.id, order.id));
     return { status };
   });
@@ -316,15 +346,14 @@ export async function cancelAcceptedOrder(restaurantId: string, orderId: string,
     if (!["accepted", "ready"].includes(order.status)) throw new HttpError(409, `This order is ${order.status.replaceAll("_", " ")}`);
     const payment = await loadPayment(db, order.id);
     if (!payment || payment.status !== "captured") throw new HttpError(409, "There is no captured payment to refund");
-    const [r] = await db.select({ account: restaurants.stripeAccountId }).from(restaurants);
-    try {
-      await provider.refund(payment.providerPaymentId, r?.account ?? null);
-    } catch {
-      throw new HttpError(502, "The refund could not be made. Try again.");
-    }
-    await db.update(payments).set({ status: "refunded" }).where(eq(payments.id, payment.id));
-    await db.update(orders).set({ status: "cancelled", cancelledAt: now }).where(eq(orders.id, order.id));
-    return { status: "cancelled" as const };
+    const attempt = payment.refundAttempt + 1;
+    const refund = await provider.refund({
+      orderId: order.id, restaurantId,
+      providerPaymentId: payment.providerPaymentId, connectedAccountId: await paymentAccount(db, order),
+      feeCents: payment.feeCents, attempt,
+    }).catch(() => { throw new HttpError(502, "The refund could not be started. Try again."); });
+    await recordRefund(db, order, payment, refund, attempt, now);
+    return { status: refund.status === "failed" ? order.status : "cancelled", refundStatus: refund.status };
   });
 }
 
@@ -332,26 +361,70 @@ export async function cancelAcceptedOrder(restaurantId: string, orderId: string,
 export async function expireStaleOrders(limit = 50): Promise<number> {
   const due = await pool.query("select * from orders_past_deadline($1)", [limit]);
   let expired = 0;
-  for (const row of due.rows) {
-    try {
-      await decideOrder(row.restaurant_id, row.order_id, "expire");
-      expired++;
-    } catch {
-      // Another process got there first, or the provider is down; the next sweep tries again.
-    }
+  for (let index = 0; index < due.rows.length; index += 4) {
+    await Promise.all(due.rows.slice(index, index + 4).map(async (row) => {
+      try {
+        await decideOrder(row.restaurant_id, row.order_id, "expire");
+        expired++;
+      } catch (error) {
+        if (error instanceof HttpError && [404, 409].includes(error.status)) return;
+        console.error("Order expiry failed", { orderId: row.order_id, restaurantId: row.restaurant_id });
+        try {
+          await withTenant(row.restaurant_id, (db) => db.update(orders)
+            .set({ expiryRetryAt: new Date(Date.now() + 2 * 60_000) })
+            .where(and(eq(orders.id, row.order_id), eq(orders.status, "awaiting_acceptance"))));
+        } catch {
+          console.error("Could not schedule expiry retry", { orderId: row.order_id });
+        }
+      }
+    }));
   }
   return expired;
 }
 
-export async function listActiveOrders(db: Tx) {
+/** Checks pending Stripe refunds even if a refund webhook was delayed or missed. */
+export async function reconcilePendingRefunds(limit = 12): Promise<number> {
+  const due = await pool.query("select * from stripe_refunds_due($1)", [limit]);
+  if (due.rows.length === 0) return 0;
+  const provider = await getProvider();
+  const retrieve = provider.retrieveRefund?.bind(provider);
+  if (!retrieve) return 0;
+
+  let reconciled = 0;
+  for (let index = 0; index < due.rows.length; index += 4) {
+    await Promise.all(due.rows.slice(index, index + 4).map(async (row) => {
+      await withTenant(row.restaurant_id, async (db) => {
+        const [order] = await db.select().from(orders).where(eq(orders.id, row.order_id)).for("update");
+        if (!order) return;
+        const payment = await loadPayment(db, order.id);
+        if (!payment?.refundId || payment.refundStatus !== "pending" || payment.provider !== provider.name) return;
+        if (payment.refundCheckedAt && Date.now() - payment.refundCheckedAt.getTime() < 2 * 60_000) return;
+        try {
+          const refund = await retrieve(payment.refundId, await paymentAccount(db, order));
+          await recordRefund(db, order, payment, refund, payment.refundAttempt, new Date());
+          if (refund.status !== "pending") reconciled++;
+        } catch {
+          console.error("Could not reconcile pending refund", { orderId: order.id });
+          await db.update(payments).set({ refundCheckedAt: new Date() }).where(eq(payments.id, payment.id));
+        }
+      });
+    }));
+  }
+
+  return reconciled;
+}
+
+export async function listActiveOrders(db: Tx, offset = 0, limit = 100) {
   const rows = await db
     .select()
     .from(orders)
     .where(inArray(orders.status, ["awaiting_acceptance", "accepted", "ready"]))
-    .orderBy(desc(orders.createdAt))
-    .limit(100);
-  const items = rows.length ? await db.select().from(orderItems).where(inArray(orderItems.orderId, rows.map((o) => o.id))) : [];
-  return rows.map((o) => ({
+    .orderBy(sql`(${orders.status} = 'awaiting_acceptance') desc`, sql`${orders.acceptDeadline} asc nulls last`, desc(orders.createdAt), orders.id)
+    .limit(limit + 1)
+    .offset(offset);
+  const page = rows.slice(0, limit);
+  const items = page.length ? await db.select().from(orderItems).where(inArray(orderItems.orderId, page.map((o) => o.id))) : [];
+  return { hasMore: rows.length > limit, orders: page.map((o) => ({
     id: o.id,
     number: o.number,
     status: o.status,
@@ -364,5 +437,5 @@ export async function listActiveOrders(db: Tx) {
     createdAt: o.createdAt.toISOString(),
     tipCents: o.tipCents,
     items: items.filter((i) => i.orderId === o.id).map((i) => ({ name: i.name, quantity: i.quantity, options: i.options, note: i.note })),
-  }));
+  })) };
 }

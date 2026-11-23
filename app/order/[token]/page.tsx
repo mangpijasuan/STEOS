@@ -6,6 +6,7 @@ type Order = {
   restaurant: { name: string; timezone: string };
   number: number;
   status: string;
+  refundStatus: "pending" | "succeeded" | "failed" | null;
   customerName: string;
   pickupAt: string;
   subtotalCents: number;
@@ -53,6 +54,9 @@ export default function OrderPage({ params }: { params: Promise<{ token: string 
   if (missing) return <main><p role="alert">We could not find this order.</p></main>;
   if (!order) return <main><p>Loading your order…</p></main>;
 
+  const refundMessage = order.refundStatus === "pending"
+    ? "Your refund is processing."
+    : order.refundStatus === "succeeded" ? "Your payment was refunded in full." : null;
   const msg = MESSAGES[order.status] ?? { title: order.status, body: "" };
   const pickup = new Intl.DateTimeFormat(undefined, { timeZone: order.restaurant.timezone, weekday: "short", hour: "numeric", minute: "2-digit" }).format(new Date(order.pickupAt));
   return (
@@ -61,7 +65,7 @@ export default function OrderPage({ params }: { params: Promise<{ token: string 
       <p style={{ marginTop: 0, color: "#555" }}>Order #{order.number} for {order.customerName}</p>
       <section style={{ border: "1px solid #ddd", borderRadius: 12, padding: 14, background: "#fff" }} aria-live="polite">
         <h2 style={{ marginTop: 0 }}>{msg.title}</h2>
-        <p>{msg.body}</p>
+        <p>{refundMessage ?? msg.body}</p>
         <p>Pickup: <strong>{pickup}</strong></p>
       </section>
       <section style={{ marginTop: 16 }}>

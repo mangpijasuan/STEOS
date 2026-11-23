@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
-import { menuCategories, menuItems, restaurants, staffUsers } from "../db/schema";
+import { menuCategories, menuItems, restaurants } from "../db/schema";
 import { pool, withTenant } from "../lib/db";
 import { createFixture, deleteFixture, type Fixture } from "./helpers";
 
@@ -22,12 +22,10 @@ describe("tenant isolation (row-level security)", () => {
   it("shows a restaurant only its own rows", async () => {
     const result = await withTenant(a.restaurantId, async (db) => ({
       restaurants: await db.select().from(restaurants),
-      staff: await db.select().from(staffUsers),
       categories: await db.select().from(menuCategories),
       items: await db.select().from(menuItems),
     }));
     expect(result.restaurants.map((r) => r.id)).toEqual([a.restaurantId]);
-    expect(result.staff.every((s) => s.restaurantId === a.restaurantId)).toBe(true);
     expect(result.categories.map((c) => c.id)).toEqual([a.categoryId]);
     expect(result.items.map((i) => i.id)).toEqual([a.itemId]);
   });

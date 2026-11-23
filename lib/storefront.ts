@@ -74,10 +74,15 @@ export function pickupSlots(store: Store, now = new Date()): Date[] {
   });
 }
 
+export function asapPickup(store: Store, now = new Date()): Date | null {
+  const periods = store.periods.filter((period) => isOpenNow(now, store.restaurant.timezone, [period]));
+  return pickupSlots({ ...store, periods, restaurant: { ...store.restaurant, maxAdvanceDays: 0 } }, now)[0] ?? null;
+}
+
 /** What the public storefront may see. No internal ids, timestamps or soft-deleted rows. */
 export function toPublicStore(store: Store, now = new Date()) {
   const { restaurant, menu, periods } = store;
-  const slots = pickupSlots(store, now);
+  const asap = asapPickup(store, now);
   const open = isOpenNow(now, restaurant.timezone, periods);
   return {
     restaurant: {
@@ -89,7 +94,7 @@ export function toPublicStore(store: Store, now = new Date()) {
       openNow: open,
       minPrepMinutes: restaurant.minPrepMinutes,
       // The earliest pickup right now, or null if nothing can be ordered.
-      asap: open && slots[0] ? slots[0].toISOString() : null,
+      asap: asap?.toISOString() ?? null,
     },
     categories: menu
       .filter((c) => c.items.length > 0)

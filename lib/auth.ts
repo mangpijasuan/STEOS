@@ -1,7 +1,5 @@
 import crypto from "node:crypto";
-import { eq } from "drizzle-orm";
-import { staffUsers } from "../db/schema";
-import { pool, withTenant } from "./db";
+import { pool } from "./db";
 import { HttpError } from "./http";
 import { sendLoginEmail } from "./mailer";
 
@@ -18,65 +16,37 @@ const appUrl = () => process.env.APP_URL ?? "http://localhost:3000";
 
 /** Emails a one-time login link. Unknown addresses do nothing, so callers cannot probe for accounts. */
 export async function requestLogin(email: string): Promise<void> {
-  const found = await pool.query("select id, restaurant_id from auth_find_staff($1)", [email]);
-  const staff = found.rows[0];
-  if (!staff) return;
   const token = newToken();
-  await pool.query(
-    "insert into login_tokens (token_hash, staff_user_id, restaurant_id, expires_at) values ($1, $2, $3, $4)",
-    [hashToken(token), staff.id, staff.restaurant_id, new Date(Date.now() + LOGIN_TTL_MS)],
-  );
-  await sendLoginEmail(email, `${appUrl()}/api/auth/verify?token=${token}`);
+  const url = new URL("/api/auth/verify", appUrl());
+  if (process.env.NODE_ENV === "production" && (!process.env.APP_URL || url.protocol !== "https:")) {
+    throw new Error("Production sign-in requires an HTTPS APP_URL");
+  }
+  const { rows } = await pool.query("select auth_issue_login($1, $2, $3) as issued", [
+    email, hashToken(token), new Date(Date.now() + LOGIN_TTL_MS),
+  ]);
+  if (!rows[0].issued) return;
+  url.searchParams.set("token", token);
+  await sendLoginEmail(email, url.toString());
 }
 
-/** Spends a login token (single use) and opens a session. Returns null if the token is bad, used or expired. */
+/** Exchanges a single-use login token and creates a session atomically. */
 export async function consumeLoginToken(token: string): Promise<{ sessionToken: string; expiresAt: Date } | null> {
-  const spent = await pool.query(
-    "update login_tokens set used_at = now() where token_hash = $1 and used_at is null and expires_at > now() returning staff_user_id, restaurant_id",
-    [hashToken(token)],
-  );
-  const row = spent.rows[0];
-  if (!row) return null;
-
-  const staff = await withTenant(row.restaurant_id, (db) =>
-    db.select({ active: staffUsers.active }).from(staffUsers).where(eq(staffUsers.id, row.staff_user_id)),
-  );
-  if (!staff[0]?.active) return null;
-
   const sessionToken = newToken();
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
-  await pool.query("insert into sessions (token_hash, staff_user_id, restaurant_id, expires_at) values ($1, $2, $3, $4)", [
-    hashToken(sessionToken),
-    row.staff_user_id,
-    row.restaurant_id,
-    expiresAt,
+  const { rows } = await pool.query("select auth_exchange_login($1, $2, $3) as issued", [
+    hashToken(token), hashToken(sessionToken), expiresAt,
   ]);
-  return { sessionToken, expiresAt };
+  return rows[0].issued ? { sessionToken, expiresAt } : null;
 }
 
 export async function staffFromSessionToken(token: string): Promise<StaffContext | null> {
-  const session = await pool.query(
-    "select staff_user_id, restaurant_id from sessions where token_hash = $1 and expires_at > now()",
-    [hashToken(token)],
-  );
-  const row = session.rows[0];
-  if (!row) return null;
-  const staff = await withTenant(row.restaurant_id, (db) =>
-    db.select().from(staffUsers).where(eq(staffUsers.id, row.staff_user_id)),
-  );
-  const user = staff[0];
-  if (!user || !user.active) return null;
-  return {
-    staffUserId: user.id,
-    restaurantId: user.restaurantId,
-    role: user.role as Role,
-    email: user.email,
-    name: user.name,
-  };
+  const { rows: [staff] } = await pool.query("select * from auth_session_staff($1)", [hashToken(token)]);
+  if (!staff) return null;
+  return { staffUserId: staff.staff_user_id, restaurantId: staff.restaurant_id, role: staff.role, email: staff.email, name: staff.name };
 }
 
 export async function destroySession(token: string): Promise<void> {
-  await pool.query("delete from sessions where token_hash = $1", [hashToken(token)]);
+  await pool.query("select auth_end_session($1)", [hashToken(token)]);
 }
 
 export function readCookie(req: Request, name: string): string | null {
@@ -84,7 +54,9 @@ export function readCookie(req: Request, name: string): string | null {
   if (!header) return null;
   for (const part of header.split(";")) {
     const [key, ...rest] = part.trim().split("=");
-    if (key === name) return decodeURIComponent(rest.join("="));
+    if (key === name) {
+      try { return decodeURIComponent(rest.join("=")); } catch { return null; }
+    }
   }
   return null;
 }

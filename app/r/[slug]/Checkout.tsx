@@ -1,7 +1,7 @@
 "use client";
 
 import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
-import { loadStripe } from "@stripe/stripe-js";
+import { loadStripe } from "@stripe/stripe-js/pure";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 export type CheckoutLine = { itemId: string; quantity: number; optionIds: string[]; note: string };
@@ -32,10 +32,10 @@ export default function Checkout(props: {
   const [started, setStarted] = useState<Started | null>(null);
 
   // One key per attempt. Any change to the order starts a new attempt, so a changed cart is never mistaken for a retry.
-  const key = useRef<string | null>(null);
-  const signature = JSON.stringify([lines, pickup, tipCents]);
+  const attempt = useRef<{ signature: string; key: string; proof: string } | null>(null);
+  const signature = JSON.stringify([slug, lines, pickup, tipCents, name.trim(), phone.trim()]);
   useEffect(() => {
-    key.current = null;
+    attempt.current = null;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setStarted(null);
   }, [signature]);
@@ -44,10 +44,17 @@ export default function Checkout(props: {
     setError(null);
     setBusy(true);
     try {
-      key.current ??= crypto.randomUUID();
+      if (attempt.current?.signature !== signature) {
+        attempt.current = { signature, key: crypto.randomUUID(), proof: crypto.randomUUID() };
+      }
+      const requestAttempt = attempt.current;
       const res = await fetch(`/api/r/${slug}/checkout`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Idempotency-Key": key.current },
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": requestAttempt.key,
+          "Checkout-Session": requestAttempt.proof,
+        },
         body: JSON.stringify({
           items: lines.map((l) => ({ itemId: l.itemId, quantity: l.quantity, optionIds: l.optionIds, note: l.note || undefined })),
           tipCents,
@@ -56,11 +63,18 @@ export default function Checkout(props: {
         }),
       });
       const data = await res.json().catch(() => ({}));
+      if (attempt.current !== requestAttempt) return;
       if (!res.ok) {
         setError(data.issues?.[0]?.message ?? (data.issues?.[0]?.path ? "Please check your name and phone number." : data.error) ?? "Something went wrong.");
         return;
       }
+      if (!data.payment) {
+        window.location.assign(`/order/${data.orderToken}`);
+        return;
+      }
       setStarted(data);
+    } catch {
+      setError("Could not reach checkout. Check your connection and try again.");
     } finally {
       setBusy(false);
     }
@@ -77,10 +91,6 @@ export default function Checkout(props: {
         )}
       </div>
     );
-  }
-  if (started && !started.payment) {
-    window.location.href = `/order/${started.orderToken}`;
-    return null;
   }
 
   const ready = name.trim().length > 0 && phone.trim().length >= 7 && canOrder && !busy;
@@ -144,14 +154,23 @@ function StripeForm({ token, onDone }: { token: string; onDone: () => void }) {
     if (!stripe || !elements) return;
     setBusy(true);
     setError(null);
-    const result = await stripe.confirmPayment({ elements, confirmParams: { return_url: `${window.location.origin}/order/${token}` }, redirect: "if_required" });
-    if (result.error) {
-      setError(result.error.message ?? "Your card was not accepted.");
+    try {
+      const result = await stripe.confirmPayment({
+        elements,
+        confirmParams: { return_url: `${window.location.origin}/order/${token}` },
+        redirect: "if_required",
+      });
+      if (result.error) {
+        setError(result.error.message ?? "Your card was not accepted.");
+        return;
+      }
+      onDone();
+      window.location.assign(`/order/${token}`);
+    } catch {
+      setError("Could not confirm the payment. Check your connection and try again.");
+    } finally {
       setBusy(false);
-      return;
     }
-    onDone();
-    window.location.href = `/order/${token}`;
   }
 
   return (

@@ -1,7 +1,9 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { SESSION_COOKIE, consumeLoginToken, requestLogin } from "../lib/auth";
 import { pool } from "../lib/db";
-import { outbox } from "../lib/mailer";
+import { allow } from "../lib/ratelimit";
+import { GET as openLogin, POST as confirmLogin } from "../app/api/auth/verify/route";
+import { outbox, sendLoginEmail } from "../lib/mailer";
 import { GET as getMenu } from "../app/api/staff/menu/route";
 import { POST as createItem } from "../app/api/staff/menu/items/route";
 import { PATCH as setAvailability } from "../app/api/staff/menu/items/[id]/availability/route";
@@ -70,6 +72,31 @@ describe("login", () => {
     expect(await consumeLoginToken(token)).toBeNull();
   });
 
+  it("only spends the sign-in token when the confirmation form is submitted", async () => {
+    outbox.length = 0;
+    await requestLogin(f.ownerEmail);
+    const url = new URL(outbox[0].url);
+    const token = url.searchParams.get("token")!;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const visit = await openLogin(new Request(url), {});
+      expect(visit.status).toBe(200);
+      expect(visit.headers.get("Set-Cookie")).toBeNull();
+    }
+    const submit = () => confirmLogin(new Request(url.origin + url.pathname, {
+      method: "POST", headers: { origin: url.origin }, body: new URLSearchParams({ token }),
+    }), {});
+    const first = await submit();
+    expect(first.headers.get("Location")).toBe("/dashboard");
+    expect(first.headers.get("Set-Cookie")).toContain(SESSION_COOKIE);
+    expect((await submit()).headers.get("Location")).toBe("/login?error=expired");
+  });
+
+  it("prevents the runtime role from reading or mutating authentication tables", async () => {
+    for (const table of ["sessions", "login_tokens", "staff_users", "_migrations"]) {
+      await expect(pool.query(`select 1 from ${table}`)).rejects.toMatchObject({ code: "42501" });
+    }
+  });
+
   it("rejects an expired link", async () => {
     outbox.length = 0;
     await requestLogin(f.ownerEmail);
@@ -78,8 +105,31 @@ describe("login", () => {
     expect(await consumeLoginToken(token)).toBeNull();
   });
 
+  it("sends production sign-in mail via the configured sender", async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", fetch);
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("RESEND_API_KEY", "resend-test-placeholder");
+    vi.stubEnv("LOGIN_FROM_EMAIL", "login@example.com");
+    try {
+      await sendLoginEmail(f.ownerEmail, "https://example.com/confirm");
+      const [url, request] = fetch.mock.calls[0];
+      expect(url).toBe("https://api.resend.com/emails");
+      expect(JSON.parse(request.body)).toMatchObject({ from: "login@example.com", to: [f.ownerEmail] });
+    } finally {
+      vi.unstubAllGlobals();
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("enforces a shared rate limit when requests arrive concurrently", async () => {
+    const subject = `budget-test:${crypto.randomUUID()}`;
+    const results = await Promise.all(Array.from({ length: 8 }, () => allow(subject, 3, 60_000)));
+    expect(results.filter(Boolean)).toHaveLength(3);
+  });
+
   it("does not store raw tokens", async () => {
-    const { rows } = await pool.query("select token_hash from sessions limit 1");
+    const { rows } = await asOwner((client) => client.query("select token_hash from sessions limit 1"));
     expect(rows[0].token_hash).toMatch(/^[0-9a-f]{64}$/);
   });
 });

@@ -86,17 +86,31 @@ export function computeSlots({ now, timeZone, periods, minPrepMinutes, maxAdvanc
     const m = day.getUTCMonth() + 1;
     const d = day.getUTCDate();
     const weekday = day.getUTCDay();
+    const offsets = new Set([-24, 0, 24].map((hour) => {
+      const sample = new Date(Date.UTC(y, m - 1, d, hour));
+      const local = zonedParts(sample, timeZone);
+      return Date.UTC(local.year, local.month - 1, local.day, local.hour, local.minute) - sample.getTime();
+    }));
+    const daySlots = new Set<number>();
 
     const todays = periods.filter((p) => p.weekday === weekday).sort((a, b) => toMinutes(a.opens) - toMinutes(b.opens));
     for (const period of todays) {
       const open = toMinutes(period.opens);
       const close = toMinutes(period.closes);
       for (let minute = open; minute <= close - SLOT_MINUTES; minute += SLOT_MINUTES) {
-        const slot = zonedTimeToUtc(y, m, d, Math.floor(minute / 60), minute % 60, timeZone);
-        if (slot.getTime() >= earliest) slots.push(slot);
-        if (slots.length >= MAX_SLOTS) return slots;
+        const wallTime = Date.UTC(y, m - 1, d, 0, minute);
+        for (const offset of offsets) {
+          const candidate = wallTime - offset;
+          if (candidate < earliest) continue;
+          const local = zonedParts(new Date(candidate), timeZone);
+          if (Date.UTC(local.year, local.month - 1, local.day, local.hour, local.minute) === wallTime) {
+            daySlots.add(candidate);
+          }
+        }
       }
     }
+    slots.push(...[...daySlots].sort((a, b) => a - b).map((slot) => new Date(slot)));
+    if (slots.length >= MAX_SLOTS) return slots.slice(0, MAX_SLOTS);
   }
   return slots;
 }

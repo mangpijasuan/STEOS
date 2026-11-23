@@ -24,12 +24,17 @@ const big = { padding: "14px 18px", borderRadius: 12, border: "none", fontSize: 
 const POLL_MS = 4000;
 const REPEAT_BEEP_MS = 8000;
 
-function time(iso: string) {
-  return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+function time(iso: string, timeZone?: string) {
+  return new Intl.DateTimeFormat(undefined, { timeZone, weekday: "short", hour: "numeric", minute: "2-digit" }).format(new Date(iso));
 }
 
 export default function Kitchen() {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [timezone, setTimezone] = useState<string>();
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
   const [role, setRole] = useState<string | null>(null);
   const [accepting, setAccepting] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -39,8 +44,9 @@ export default function Kitchen() {
   const audio = useRef<AudioContext | null>(null);
   const lastBeep = useRef(0);
 
-  const refresh = useCallback(async () => {
-    const res = await fetch("/api/staff/orders").catch(() => null);
+  const refresh = useCallback(async (signal?: AbortSignal) => {
+    const res = await fetch(`/api/staff/orders?offset=${offset}`, { signal }).catch(() => null);
+    if (signal?.aborted) return;
     if (!res) return setError("Connection lost. Retrying…");
     if (res.status === 401) {
       window.location.href = "/login";
@@ -48,8 +54,12 @@ export default function Kitchen() {
     }
     if (!res.ok) return setError("Could not load orders");
     setError(null);
-    setOrders((await res.json()).orders);
-  }, []);
+    const page = await res.json();
+    if (signal?.aborted) return;
+    setOrders(page.orders);
+    setHasMore(page.hasMore);
+    if (offset > 0 && page.orders.length === 0) setOffset(Math.max(0, offset - 100));
+  }, [offset]);
 
   useEffect(() => {
     void (async () => {
@@ -60,16 +70,22 @@ export default function Kitchen() {
       }
       setRole((await me.json()).role);
       const s = await fetch("/api/staff/settings");
-      if (s.ok) setAccepting(((await s.json()) as Settings).acceptingOrders);
-    })();
+      if (s.ok) {
+        const settings: Settings = await s.json();
+        setAccepting(settings.acceptingOrders);
+        setTimezone(settings.timezone);
+      }
+    })().catch(() => setError("Could not load kitchen settings."));
   }, []);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    void refresh();
-    const poll = setInterval(refresh, POLL_MS);
+    const controller = new AbortController();
+    void refresh(controller.signal);
+    const poll = setInterval(() => void refresh(controller.signal), POLL_MS);
     const tick = setInterval(() => setNow(Date.now()), 1000);
     return () => {
+      controller.abort();
       clearInterval(poll);
       clearInterval(tick);
     };
@@ -105,24 +121,33 @@ export default function Kitchen() {
   }
 
   async function act(order: Order, action: "accept" | "decline" | "ready" | "complete" | "cancel") {
-    setError(null);
-    const res = await fetch(`/api/staff/orders/${order.id}/${action}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: action === "accept" ? JSON.stringify({ prepMinutes: prep[order.id] ?? 15 }) : undefined,
-    });
-    if (!res.ok) setError((await res.json().catch(() => ({}))).error ?? "That did not work");
-    await refresh();
+    setActionError(null);
+    setBusy(order.id);
+    try {
+      const res = await fetch(`/api/staff/orders/${order.id}/${action}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: action === "accept" ? JSON.stringify({ prepMinutes: prep[order.id] ?? 15 }) : undefined,
+      });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok || result.refundStatus === "failed") setActionError(result.error ?? "The refund failed. Try again.");
+      await refresh();
+    } catch {
+      setActionError("The order action could not be confirmed. Check the order before trying again.");
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function togglePause() {
+    setActionError(null);
     const res = await fetch("/api/staff/settings", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ acceptingOrders: !accepting }),
-    });
-    if (res.ok) setAccepting(!accepting);
-    else setError("Could not change online ordering");
+    }).catch(() => null);
+    if (res?.ok) setAccepting(!accepting);
+    else setActionError("Could not change online ordering");
   }
 
   const secondsLeft = (o: Order) => (o.acceptDeadline ? Math.max(0, Math.round((new Date(o.acceptDeadline).getTime() - now) / 1000)) : null);
@@ -142,13 +167,20 @@ export default function Kitchen() {
       </header>
       {accepting === false && <p role="status" style={{ background: "#fef3c7", padding: 10, borderRadius: 8 }}>Online ordering is paused. Customers cannot place new orders.</p>}
       {error && <p role="alert" style={{ color: "#a00" }}>{error}</p>}
+      {actionError && <p role="alert" style={{ color: "#a00" }}>{actionError}</p>}
+      {(offset > 0 || hasMore) && (
+        <nav aria-label="Order pages">
+          <button disabled={offset === 0} onClick={() => setOffset(offset - 100)}>Previous orders</button>{" "}
+          <button disabled={!hasMore} onClick={() => setOffset(offset + 100)}>More orders</button>
+        </nav>
+      )}
 
       <h2>New orders {waiting.length > 0 && `(${waiting.length})`}</h2>
       {waiting.length === 0 && <p style={{ color: "#666" }}>No orders waiting.</p>}
       {waiting.map((o) => {
         const left = secondsLeft(o);
         return (
-          <OrderCard key={o.id} order={o} accent="#c2410c">
+          <OrderCard key={o.id} order={o} timezone={timezone} accent="#c2410c">
             <p style={{ margin: "8px 0", fontWeight: 700, color: left !== null && left < 60 ? "#b91c1c" : "#111" }}>
               {left !== null ? `Respond within ${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}` : "Respond now"}
             </p>
@@ -161,8 +193,8 @@ export default function Kitchen() {
               </select>
             </label>
             <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-              <button style={{ ...big, background: "#15803d", flex: 1 }} onClick={() => act(o, "accept")}>Accept</button>
-              <button style={{ ...big, background: "#6b7280" }} onClick={() => act(o, "decline")}>Decline</button>
+              <button style={{ ...big, background: "#15803d", flex: 1 }} disabled={busy !== null} onClick={() => act(o, "accept")}>Accept</button>
+              <button style={{ ...big, background: "#6b7280" }} disabled={busy !== null} onClick={() => act(o, "decline")}>Decline</button>
             </div>
           </OrderCard>
         );
@@ -171,12 +203,13 @@ export default function Kitchen() {
       <h2>In the kitchen {cooking.length > 0 && `(${cooking.length})`}</h2>
       {cooking.length === 0 && <p style={{ color: "#666" }}>Nothing cooking.</p>}
       {cooking.map((o) => (
-        <OrderCard key={o.id} order={o} accent="#1d4ed8">
+        <OrderCard key={o.id} order={o} timezone={timezone} accent="#1d4ed8">
           <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-            <button style={{ ...big, background: "#15803d", flex: 1 }} onClick={() => act(o, "ready")}>Mark ready</button>
+            <button style={{ ...big, background: "#15803d", flex: 1 }} disabled={busy !== null} onClick={() => act(o, "ready")}>Mark ready</button>
             {role === "owner" && (
               <button
                 style={{ ...big, background: "#b91c1c" }}
+                disabled={busy !== null}
                 onClick={() => window.confirm(`Cancel order #${o.number} and refund ${money(o.totalCents)}?`) && act(o, "cancel")}
               >
                 Cancel and refund
@@ -189,12 +222,13 @@ export default function Kitchen() {
       <h2>Ready for pickup {ready.length > 0 && `(${ready.length})`}</h2>
       {ready.length === 0 && <p style={{ color: "#666" }}>Nothing waiting for pickup.</p>}
       {ready.map((o) => (
-        <OrderCard key={o.id} order={o} accent="#15803d">
+        <OrderCard key={o.id} order={o} timezone={timezone} accent="#15803d">
           <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-            <button style={{ ...big, background: "#15803d", flex: 1 }} onClick={() => act(o, "complete")}>Picked up</button>
+            <button style={{ ...big, background: "#15803d", flex: 1 }} disabled={busy !== null} onClick={() => act(o, "complete")}>Picked up</button>
             {role === "owner" && (
               <button
                 style={{ ...big, background: "#b91c1c" }}
+                disabled={busy !== null}
                 onClick={() => window.confirm(`Cancel order #${o.number} and refund ${money(o.totalCents)}?`) && act(o, "cancel")}
               >
                 Cancel and refund
@@ -207,15 +241,15 @@ export default function Kitchen() {
   );
 }
 
-function OrderCard({ order, accent, children }: { order: Order; accent: string; children: React.ReactNode }) {
+function OrderCard({ order, timezone, accent, children }: { order: Order; timezone?: string; accent: string; children: React.ReactNode }) {
   return (
     <section style={{ border: `3px solid ${accent}`, borderRadius: 14, padding: 14, marginBottom: 12, background: "#fff" }}>
       <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap" }}>
         <strong style={{ fontSize: 22 }}>#{order.number} · {order.customerName}</strong>
-        <span>Pickup {time(order.pickupAt)}{order.prepMinutes ? ` · promised ${order.prepMinutes} min` : ""}</span>
+        <span>Pickup {time(order.pickupAt, timezone)}{order.prepMinutes ? ` · promised ${order.prepMinutes} min` : ""}</span>
       </div>
       <div style={{ color: "#555", fontSize: 14 }}>
-        <a href={`tel:${order.customerPhone}`}>{order.customerPhone}</a> · {money(order.totalCents)} paid online
+        <a href={`tel:${order.customerPhone}`}>{order.customerPhone}</a> · {money(order.totalCents)} {order.status === "awaiting_acceptance" ? "on hold" : "paid online"}
       </div>
       <ul style={{ listStyle: "none", padding: 0, margin: "10px 0 0", fontSize: 18 }}>
         {order.items.map((l, i) => (

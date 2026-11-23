@@ -9,6 +9,7 @@ export async function getSettings(db: Tx) {
     .select({
       name: restaurants.name,
       slug: restaurants.slug,
+      timezone: restaurants.timezone,
       status: restaurants.status,
       taxRateBps: restaurants.taxRateBps,
       minPrepMinutes: restaurants.minPrepMinutes,
@@ -31,8 +32,9 @@ export async function updateSettings(
   return getSettings(db);
 }
 
-async function defaultLocationId(db: Tx): Promise<string> {
-  const rows = await db.select({ id: locations.id }).from(locations).where(eq(locations.isDefault, true));
+async function defaultLocationId(db: Tx, lock = false): Promise<string> {
+  const query = db.select({ id: locations.id }).from(locations).where(eq(locations.isDefault, true));
+  const rows = await (lock ? query.for("update") : query);
   if (!rows[0]) throw new HttpError(404, "No default location");
   return rows[0].id;
 }
@@ -57,7 +59,7 @@ export async function replaceHours(db: Tx, restaurantId: string, periods: HoursP
       if (sorted[i].opens < sorted[i - 1].closes) throw new HttpError(400, "Opening periods on the same day overlap");
     }
   }
-  const locationId = await defaultLocationId(db);
+  const locationId = await defaultLocationId(db, true);
   await db.delete(businessHours).where(and(eq(businessHours.locationId, locationId)));
   if (periods.length) {
     await db.insert(businessHours).values(periods.map((p) => ({ restaurantId, locationId, weekday: p.weekday, opens: p.opens, closes: p.closes })));

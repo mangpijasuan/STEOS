@@ -38,7 +38,7 @@ async function order(opts: { pay?: boolean; accept?: boolean } = {}) {
   const res = await checkout(
     req("POST", null, { items: [{ itemId: a.itemId, quantity: 2 }], customer: { name: "Mai", phone: "9185550100" } }, "http://localhost/test", {
       "idempotency-key": `pr-${Date.now()}-${counter++}`,
-      "x-forwarded-for": `10.1.${counter % 250}.${Math.floor(Math.random() * 1e6)}`,
+      "x-forwarded-for": `10.1.${counter % 250}.1`,
     }),
     { params: Promise.resolve({ slug: slugA }) },
   );
@@ -115,7 +115,7 @@ describe("choosing a plan", () => {
 });
 
 describe("sales report", () => {
-  it("adds up paid orders, taxes and fees, and leaves out refunds and unpaid orders", async () => {
+  it("reports gross captures and refunds independently and leaves out unpaid orders", async () => {
     await asOwner((c) => c.query("delete from orders where restaurant_id = $1", [a.restaurantId]));
     await order(); // paid
     await order(); // paid
@@ -126,16 +126,29 @@ describe("sales report", () => {
     const res = await getReport(req("GET", ownerToken, undefined, "http://localhost/t?days=7"), ctx);
     expect(res.status).toBe(200);
     const r = await res.json();
-    expect(r.paidOrders).toBe(2);
-    expect(r.subtotalCents).toBe(4000); // 2 x $20.00
-    expect(r.taxCents).toBe(400); // 10%
-    expect(r.grossCents).toBe(4400);
-    expect(r.platformFeeCents).toBe(2 * (await snapshot(await lastPaid())).fee_cents);
+    expect(r.paidOrders).toBe(3);
+    expect(r.subtotalCents).toBe(6000);
+    expect(r.taxCents).toBe(600);
+    expect(r.grossCents).toBe(6600);
+    expect(r.netChargedCents).toBe(4400);
+    expect(r.netSalesCents).toBe(4000);
+    const fee = (await snapshot(await lastPaid())).fee_cents;
+    expect(r.platformFeeCents).toBe(3 * fee);
     expect(r.refunds).toEqual({ count: 1, totalCents: 2200 });
     expect(r.averageOrderCents).toBe(2200);
-    expect(r.topItems[0]).toMatchObject({ name: "Test dish", quantity: 4, salesCents: 4000 });
-    expect(r.days.reduce((s: number, d: { orders: number }) => s + d.orders, 0)).toBe(2);
-    expect(r.netEstimateCents).toBe(r.grossCents - r.taxCents - r.platformFeeCents - r.processingEstimateCents);
+    expect(r.topItems[0]).toMatchObject({ name: "Test dish", quantity: 6, salesCents: 6000 });
+    expect(r.days.reduce((s: number, d: { orders: number }) => s + d.orders, 0)).toBe(3);
+    expect(r.netEstimateCents).toBe(r.grossCents - r.taxCents - r.platformFeeCents - r.processingEstimateCents - (2200 - 200 - fee));
+  });
+
+  it("attributes a later refund to its own period without removing the original capture", async () => {
+    const id = await order();
+    await cancelOrder(req("POST", ownerToken), idCtx(id));
+    await asOwner((c) => c.query("update payments set captured_at = now() - interval '2 days' where order_id = $1", [id]));
+    const narrow = await (await getReport(req("GET", ownerToken, undefined, "http://localhost/t?days=1"), ctx)).json();
+    const wide = await (await getReport(req("GET", ownerToken, undefined, "http://localhost/t?days=7"), ctx)).json();
+    expect(wide.grossCents - narrow.grossCents).toBe(2200);
+    expect(wide.refunds).toEqual(narrow.refunds);
   });
 
   it("is owner-only and validates the period", async () => {
