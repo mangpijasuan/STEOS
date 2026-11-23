@@ -42,8 +42,9 @@ export function handle(fn: Handler): Handler {
       if (error instanceof ZodError) return json({ error: "Invalid input", issues: error.issues }, 400);
       if (error instanceof SyntaxError) return json({ error: "Request body must be valid JSON" }, 400);
       const requestId = randomUUID();
-      await alert("unexpected-route-error", "An unexpected server error occurred", {
-        requestId, method: req.method, path: safePath(new URL(req.url).pathname), error,
+      const path = safePath(new URL(req.url).pathname);
+      await alert(`unexpected-route-error:${req.method}:${path}`, "An unexpected server error occurred", {
+        requestId, method: req.method, path, error,
       });
       return json({ error: "Server error", requestId }, 500);
     }

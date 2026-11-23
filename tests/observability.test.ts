@@ -65,6 +65,26 @@ describe("operational alerts", () => {
     for (const value of [fields.email, fields.token, fields.error.message]) expect(text).not.toContain(value);
   });
 
+  it("throttles unexpected errors by method and route without exposing restaurant slugs", async () => {
+    vi.stubEnv("ALERT_WEBHOOK_URL", "https://alerts.example.test");
+    const send = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", send);
+    const route = handle(async () => { throw new Error("private fixture"); });
+    const suffix = crypto.randomUUID().slice(0, 8);
+    const hit = async (method: string, slug: string, action: string) => {
+      const response = await route(new Request(`http://localhost/api/r/${slug}/${action}-${suffix}`, { method }), {});
+      expect(response.status).toBe(500);
+    };
+    await hit("POST", "first-shop", "quote");
+    await hit("POST", "next-shop", "quote");
+    await hit("POST", "first-shop", "checkout");
+    await hit("GET", "first-shop", "quote");
+    expect(send).toHaveBeenCalledTimes(3);
+    const notifications = send.mock.calls.map(([, request]) => String(request?.body));
+    expect(notifications[0]).toContain(`/api/r/:id/quote-${suffix}`);
+    expect(notifications.join(" ")).not.toMatch(/first-shop|next-shop/);
+  });
+
   it("keeps public error handling intact if alert delivery fails", async () => {
     vi.stubEnv("ALERT_WEBHOOK_URL", "https://alerts.example.test");
     vi.stubGlobal("fetch", vi.fn<typeof fetch>().mockRejectedValue(new Error("alert provider unavailable")));

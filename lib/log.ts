@@ -34,9 +34,13 @@ function clean(value: unknown, depth = 0): unknown {
 /** Same redaction the log lines get, for text that leaves the server (alerts). */
 export const redact = (fields: Fields): Fields => clean(fields) as Fields;
 
-/** Replaces long ids and tokens in a path with ":id", so paths are safe to log and group together. */
+/** Groups API paths by route while removing request-specific identifiers. */
 export function safePath(pathname: string): string {
-  return pathname.replace(/\/[^/]{20,}(?=\/|$)/g, "/:id");
+  return pathname
+    .replace(/^(\/api\/(?:r|orders|staff\/menu\/(?:categories|items|modifier-groups|modifier-options)))\/[^/]+(?=\/|$)/, "$1/:id")
+    .replace(/^(\/api\/staff\/orders)\/[^/]+(?=\/)/, "$1/:id")
+    .replace(/\/[^/]{20,}(?=\/|$)/g, "/:id")
+    .replace(/\/$/, "");
 }
 
 function write(level: Level, event: string, fields: Fields = {}) {
