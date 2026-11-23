@@ -144,6 +144,7 @@ export const orders = pgTable("orders", {
   servedAt: timestamp("served_at", { withTimezone: true }),
   discountCents: integer("discount_cents").notNull().default(0),
   promoCode: text("promo_code"),
+  promoId: uuid("promo_id"),
   createdBy: uuid("created_by"),
   ...timestamps,
 });
