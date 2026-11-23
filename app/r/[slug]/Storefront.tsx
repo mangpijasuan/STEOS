@@ -223,8 +223,9 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
   const { restaurant } = store;
   // Seated guests do not need pickup times or opening hours; they only need the kitchen to be taking orders.
   const canOrder = restaurant.orderingOpen && (!!table || !!pickup);
-  // When any dish has a photo the menu switches to photo cards; dishes without one get a neutral tile.
-  const hasPhotos = store.categories.some((c) => c.items.some((i) => i.imageUrl));
+  // A section shows big photo cards only when most of its dishes have a photo. Otherwise it is a clean list, with a small
+  // photo on the dishes that have one, so a menu that is still gaining photos never fills up with empty grey tiles.
+  const photoRich = (items: { imageUrl?: string | null }[]) => items.some((i) => i.imageUrl) && items.filter((i) => i.imageUrl).length * 2 >= items.length;
   const tipCents = quote ? Math.round((quote.subtotalCents * tipPct) / 100) : 0;
   const itemCount = cart.reduce((n, l) => n + l.quantity, 0);
   const totalCents = quote ? quote.totalCents + tipCents : null;
@@ -293,17 +294,19 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
               <p>The menu is being updated. Please check back soon.</p>
             </div>
           )}
-          {store.categories.map((category) => (
+          {store.categories.map((category) => {
+            const hasPhotos = photoRich(category.items);
+            return (
             <section key={category.id} id={`cat-${category.id}`} data-category={category.id} className="menu-section" aria-labelledby={`h-${category.id}`}>
-              <h2 id={`h-${category.id}`} style={{ marginBottom: 12 }}>{category.name}</h2>
-              <div className={`menu-grid ${hasPhotos ? "photos" : ""}`}>
+              <h2 id={`h-${category.id}`} className="menu-heading">{category.name}<span className="menu-count">{category.items.length}</span></h2>
+              <div className={`menu-grid ${hasPhotos ? "photos" : "rows"}`}>
                 {category.items.map((item) => {
                   const inCart = countByItem.get(item.id) ?? 0;
                   const orderable = item.available && restaurant.orderingOpen;
                   const quickAdd = item.modifierGroups.every((g) => g.minChoices === 0);
                   return (
                     <div key={item.id} style={{ position: "relative" }}>
-                      <button className={`item-card ${hasPhotos ? "has-photo" : ""}`} disabled={!orderable} onClick={() => setPicking(item)} aria-label={`${item.name}, ${money(item.priceCents)}${item.available ? "" : ", sold out"}`}>
+                      <button className={`item-card ${hasPhotos ? "has-photo" : `row${item.imageUrl ? " with-thumb" : ""}`}`} disabled={!orderable} onClick={() => setPicking(item)} aria-label={`${item.name}, ${money(item.priceCents)}${item.available ? "" : ", sold out"}`}>
                         {hasPhotos &&
                           (item.imageUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
@@ -339,7 +342,8 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
                 })}
               </div>
             </section>
-          ))}
+            );
+          })}
         </main>
 
         <div className={`cart-backdrop ${cartOpen ? "open" : ""}`} onClick={() => setCartOpen(false)} aria-hidden="true" />
