@@ -384,6 +384,8 @@ describe("rules and limits", () => {
       return rows[0];
     });
     expect(await refundState()).toEqual({ status: "accepted", payment_status: "captured", refunded_at: null });
+    const guestView = async () => (await (await orderStatus(new Request("http://localhost/x", { headers: { "x-forwarded-for": ip() } }), tokenCtx(body.orderToken))).json());
+    expect(await guestView()).toMatchObject({ status: "accepted", paid: true, paymentState: "paid" });
 
     const res = await cancel(staffReq("POST", ownerToken, confirmation), idCtx(id));
     expect(res.status).toBe(200);
@@ -392,6 +394,19 @@ describe("rules and limits", () => {
     expect(recorded).toEqual({ status: "cancelled", payment_status: "refunded", refunded_at: expect.any(Date) });
     expect((await cancel(staffReq("POST", ownerToken, confirmation), idCtx(id))).status).toBe(200);
     expect(await refundState()).toEqual(recorded);
+    // The guest is never told a cancelled, refunded order was paid. The capture time stays on the order for reports.
+    expect(await guestView()).toMatchObject({ status: "cancelled", paid: false, paymentState: "refunded", refundStatus: null });
+    expect((await asOwner((c) => c.query("select paid_at from orders where id = $1", [id]))).rows[0].paid_at).not.toBeNull();
+  });
+
+  it("shows a cancelled pay-later order that was never paid as unpaid, not as money owed", async () => {
+    await asOwner((c) => c.query("delete from request_rate_windows"));
+    const { body } = await dineIn(qr, { items: [{ itemId: a.itemId, quantity: 1 }], payLater: true });
+    const id = await orderIdFor(body.order.number, a.restaurantId);
+    await accept(staffReq("POST", staffToken, {}), idCtx(id));
+    expect((await cancel(staffReq("POST", ownerToken), idCtx(id))).status).toBe(200);
+    const view = await (await orderStatus(new Request("http://localhost/x", { headers: { "x-forwarded-for": ip() } }), tokenCtx(body.orderToken))).json();
+    expect(view).toMatchObject({ status: "cancelled", paid: false, paymentState: "unpaid" });
   });
 });
 
