@@ -1,3 +1,4 @@
-/* Screens that have not moved to the design system (see ds.css) keep their original page frame. */
+/* Every screen is on the design system now (see ds.css), which sets its own page frame. This file only gives the
+   page body a zero margin, and frames anything rendered outside the design system, such as Next's built-in 404 page. */
 body { margin: 0; font-family: system-ui, sans-serif; }
 body:not(:has(.ds)) { padding: 1rem; max-width: 720px; }

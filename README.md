@@ -198,8 +198,16 @@ Owners set up floors and tables at `/tables` (**Set up tables**), print a QR car
 
 ## Dashboard and navigation
 
-- **Navigation:** staff screens on the design system share a side menu: full width on large screens, a slim icon rail on tablets (collapsible, remembered per device), and a compact top bar on phones. Owners also see Hours & settings, Promos, Reports and Plan. Kitchen, Hours & settings, Reports and Plan are still the original screens and open without the side menu.
+- **Navigation:** staff screens on the design system share a side menu: full width on large screens, a slim icon rail on tablets (collapsible, remembered per device), and a compact top bar on phones. Owners also see Hours & settings, Promos, Reports and Plan. Every staff screen now has it, except the sign-in confirmation page.
 - **Dashboard** (`/dashboard`): live counts (waiting for the kitchen, cooking, ready, tables needing attention), recent orders, and, for owners, performance over 7, 30 or 90 days: sales, orders, average order and what the restaurant keeps, each compared with the period just before, plus sales by day, by menu category and by order type.
 - **Sales are after refunds.** The headline and the chart use the money charged less refunds confirmed in the period, the same "net charged" figure as the sales report, and the comparison uses the same figure for the earlier period. A day with more refunded than sold shows as zero on the chart.
 - **Orders** (`/orders`): all recent orders with filters, search by order number or name, and receipts.
+
+## Design system
+
+All screens use the design system in `app/ds.css`: the staff screens, the kitchen (always dark, for a tablet on the pass), the customer storefront, checkout and order status, the table ordering page, sign-in and the home page. Customer screens follow the device's light or dark setting. The styles are scoped to a `.ds` wrapper, which each route's `layout.tsx` provides, and the brand color is the `--brand*` variables at the top of the file.
+
+The one exception is the sign-in confirmation page (`/api/auth/verify`). It is rendered by the server with a strict content policy that forbids external styles, so it carries its own small inline stylesheet.
+
+Behavior added during the audit is kept on these screens: the kitchen pages past 100 orders, aborts a stale refresh and reports a failed refund; the storefront derives the pickup time from what is offered and ties each quote to the cart it priced; checkout keeps one idempotency key and retry proof per attempt; the order page keeps checking until a pending refund settles; reports show refunds and net sales; and the hours editor is owner-only and shows the server's validation messages.
 
