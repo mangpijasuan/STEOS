@@ -22,7 +22,7 @@ type Report = {
   days: { date: string; orders: number; grossCents: number; refundCents: number }[];
   previous?: { paidOrders: number; grossCents: number; netChargedCents: number; averageOrderCents: number; netEstimateCents: number };
 };
-type Active = { status: string }[];
+type Active = { awaiting_acceptance: number; accepted: number; ready: number };
 
 const PERIODS = [7, 30, 90].map((d) => ({ value: d, label: `${d} days` }));
 const SLICE_COLORS = ["var(--c1)", "var(--c2)", "var(--c3)", "var(--c4)"];
@@ -52,8 +52,8 @@ export default function Dashboard() {
   const [timezone, setTimezone] = useState<string | undefined>();
 
   const loadLive = useCallback(async () => {
-    const [a, t, h] = await Promise.all([api<{ orders: Active }>("/api/staff/orders"), api<Board>("/api/staff/tables"), api<{ orders: RecentOrder[] }>("/api/staff/orders/history?limit=8")]);
-    if (a.ok) setActive(a.data.orders);
+    const [a, t, h] = await Promise.all([api<{ counts: Active }>("/api/staff/orders"), api<Board>("/api/staff/tables"), api<{ orders: RecentOrder[] }>("/api/staff/orders/history?limit=8")]);
+    if (a.ok) setActive(a.data.counts);
     if (t.ok) setBoard(t.data);
     if (h.ok) setRecent(h.data.orders);
   }, []);
@@ -84,9 +84,9 @@ export default function Dashboard() {
   }, [days, isOwner]);
 
   const counts = {
-    waiting: active?.filter((o) => o.status === "awaiting_acceptance").length ?? 0,
-    cooking: active?.filter((o) => o.status === "accepted").length ?? 0,
-    ready: active?.filter((o) => o.status === "ready").length ?? 0,
+    waiting: active?.awaiting_acceptance ?? 0,
+    cooking: active?.accepted ?? 0,
+    ready: active?.ready ?? 0,
     attention: board?.tables.filter((t) => t.active && t.priority).length ?? 0,
   };
   const hour = new Date().getHours();
@@ -100,12 +100,12 @@ export default function Dashboard() {
     return Array.from({ length: days }, (_, i) => {
       const date = new Intl.DateTimeFormat("en-CA", { timeZone: report.timezone }).format(new Date(Date.now() - (days - 1 - i) * 86_400_000));
       const d = byDate.get(date);
-      // Sales after refunds made that day. The chart cannot draw below zero, so a day with more refunded than sold shows 0.
+      // Sales after the refunds made that day. A day that refunded more than it sold is negative, and is drawn that way.
       const refunded = d?.refundCents ?? 0;
       return {
         key: date,
         label: new Date(`${date}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-        value: Math.max(0, (d?.grossCents ?? 0) - refunded),
+        value: (d?.grossCents ?? 0) - refunded,
         detail: plural(d?.orders ?? 0, "order") + (refunded > 0 ? ` · ${money(refunded)} refunded` : ""),
       };
     });
@@ -200,8 +200,8 @@ export default function Dashboard() {
                   <h2 id="trend">Sales by day</h2>
                   {report && bestDay.value > 0 && <span className="subtle">Best day {bestDay.label} · {money(bestDay.value)}</span>}
                 </div>
-                {!report ? <Skeleton height={230} /> : report.paidOrders === 0 ? (
-                  <div className="empty"><Icon name="chart" size={32} /><p>No paid orders in this period yet.</p></div>
+                {!report ? <Skeleton height={230} /> : report.days.length === 0 ? (
+                  <div className="empty"><Icon name="chart" size={32} /><p>No sales or refunds in this period yet.</p></div>
                 ) : (
                   <>
                     <AreaChart data={series} format={(v) => money(Math.round(v))} summary={`Sales after refunds for each of the last ${days} days. Total ${money(report.netChargedCents)}. Best day ${bestDay.label}, ${money(bestDay.value)}.`} />

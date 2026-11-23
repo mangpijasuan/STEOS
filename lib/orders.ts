@@ -177,6 +177,7 @@ export async function createCheckout(
       subtotalCents: cart.subtotalCents,
       discountCents: cart.discountCents,
       promoCode: promo?.code ?? null,
+      promoId: promo?.id ?? null,
       taxCents: cart.taxCents,
       tipCents: cart.tipCents,
       totalCents: cart.totalCents,
@@ -319,7 +320,7 @@ export async function applyPaymentEvent(event: PaymentEvent): Promise<"applied" 
         await db.update(payments).set({ status: "captured", capturedAt: at, clientSecret: null }).where(eq(payments.id, payment.id));
         if (["pending_payment", "awaiting_acceptance", "payment_failed"].includes(order.status)) {
           // A failed payment gave its promo use back; the order is going ahead after all, so take it again.
-          if (order.status === "payment_failed") await retakePromoUse(db, order.promoCode);
+          if (order.status === "payment_failed") await retakePromoUse(db, order.promoId);
           await db.update(orders).set({ status: "accepted", decidedAt: at, paidAt: at }).where(eq(orders.id, order.id));
         }
       }
@@ -333,11 +334,11 @@ export async function applyPaymentEvent(event: PaymentEvent): Promise<"applied" 
     } else if (event.type === "failed" && !event.retryable && order.status === "pending_payment") {
       await db.update(payments).set({ status: "failed", clientSecret: null }).where(eq(payments.id, payment.id));
       await db.update(orders).set({ status: "payment_failed" }).where(eq(orders.id, order.id));
-      await returnPromoUse(db, order.promoCode);
+      await returnPromoUse(db, order.promoId);
     } else if (event.type === "canceled" && ["pending_payment", "awaiting_acceptance", "payment_failed"].includes(order.status)) {
       await db.update(payments).set({ status: "canceled", clientSecret: null }).where(eq(payments.id, payment.id));
       await db.update(orders).set({ status: "cancelled", decidedAt: at }).where(eq(orders.id, order.id));
-      if (order.status !== "payment_failed") await returnPromoUse(db, order.promoCode);
+      if (order.status !== "payment_failed") await returnPromoUse(db, order.promoId);
     }
     return "applied";
   });
@@ -412,7 +413,7 @@ export async function decideOrder(
       await db.update(payments).set({ status: "refunded", refundStatus: "succeeded", refundedAt: now }).where(eq(payments.id, manual.id));
     }
     await db.update(orders).set({ status, decidedAt: now }).where(eq(orders.id, order.id));
-    await returnPromoUse(db, order.promoCode);
+    await returnPromoUse(db, order.promoId);
     return { status, refundInPerson };
   });
 }
@@ -544,8 +545,12 @@ export async function listActiveOrders(db: Tx, offset = 0, limit = 100) {
   const rows = joined.map((j) => j.o);
   const labels = new Map(joined.map((j) => [j.o.id, j.tableLabel]));
   const page = rows.slice(0, limit);
+  // Whole-restaurant totals, so a busy night's tiles are right even when the list below is paged.
+  const tally = await db.select({ status: orders.status, n: sql<number>`count(*)::int` }).from(orders).where(inArray(orders.status, ["awaiting_acceptance", "accepted", "ready"])).groupBy(orders.status);
+  const counts = { awaiting_acceptance: 0, accepted: 0, ready: 0 };
+  for (const t of tally) counts[t.status as keyof typeof counts] = t.n;
   const items = page.length ? await db.select().from(orderItems).where(inArray(orderItems.orderId, page.map((o) => o.id))) : [];
-  return { hasMore: rows.length > limit, orders: page.map((o) => ({
+  return { hasMore: rows.length > limit, counts, orders: page.map((o) => ({
     id: o.id,
     number: o.number,
     status: o.status,
