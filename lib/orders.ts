@@ -199,7 +199,7 @@ export async function getOrderByToken(token: string) {
   return withTenant(row.restaurant_id, async (db) => {
     const [order] = await db.select().from(orders).where(eq(orders.id, row.order_id));
     const items = await db.select().from(orderItems).where(eq(orderItems.orderId, order.id));
-    const [r] = await db.select({ name: restaurants.name, timezone: restaurants.timezone }).from(restaurants);
+    const [r] = await db.select({ name: restaurants.name, slug: restaurants.slug, timezone: restaurants.timezone }).from(restaurants);
     return {
       restaurant: r,
       number: order.number,

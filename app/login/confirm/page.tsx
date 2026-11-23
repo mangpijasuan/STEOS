@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Icon } from "../../icons";
 
 // The emailed sign-in link opens this page. Opening it does nothing; only pressing the button
 // signs in. Email security scanners often open links before the person does, and with a plain
@@ -11,29 +12,30 @@ export default async function ConfirmSignIn({ searchParams }: { searchParams: Pr
   const { token } = await searchParams;
   const value = typeof token === "string" ? token : "";
 
-  if (!value) {
-    return (
-      <main>
-        <h1>Staff sign in</h1>
-        <p>This sign-in link is incomplete. Copy the whole link from the email, or request a new one.</p>
-        <p>
-          <a href="/login">Request a new link</a>
-        </p>
-      </main>
-    );
-  }
-
   return (
-    <main>
-      <h1>Staff sign in</h1>
-      <p>Press the button to finish signing in on this device.</p>
-      <form method="post" action="/api/auth/verify">
-        <input type="hidden" name="token" value={value} />
-        <button type="submit" style={{ padding: "8px 16px" }}>
-          Sign in
-        </button>
-      </form>
-      <p style={{ color: "#666", fontSize: 14 }}>The link works once and expires 15 minutes after it was sent.</p>
+    <main className="auth-wrap">
+      <div className="auth-card card stack" style={{ textAlign: "center", "--gap": "14px" } as React.CSSProperties}>
+        <span className="logo" style={{ margin: "0 auto" }}>S</span>
+        {value ? (
+          <>
+            <h1 style={{ fontSize: "1.6rem" }}>Finish signing in</h1>
+            <p className="muted">Press the button to sign in on this device.</p>
+            <form method="post" action="/api/auth/verify" className="stack">
+              <input type="hidden" name="token" value={value} />
+              <button type="submit" className="btn btn-primary btn-lg btn-block">
+                <Icon name="check" size={20} /> Sign in
+              </button>
+            </form>
+            <p className="subtle">The link works once and expires 15 minutes after it was sent.</p>
+          </>
+        ) : (
+          <>
+            <h1 style={{ fontSize: "1.6rem" }}>This link is incomplete</h1>
+            <p className="muted">Copy the whole link from the email, or request a new one.</p>
+            <a className="btn btn-primary btn-lg btn-block" href="/login">Request a new link</a>
+          </>
+        )}
+      </div>
     </main>
   );
 }

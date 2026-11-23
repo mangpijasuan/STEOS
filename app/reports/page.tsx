@@ -1,6 +1,9 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { Icon } from "../icons";
+import { Alert, Button, Segmented, Skeleton, StaffTopbar, api, useMe } from "../ui";
+import { money, plural } from "@/lib/format";
 
 type Report = {
   paidOrders: number;
@@ -18,64 +21,154 @@ type Report = {
   topItems: { name: string; quantity: number; salesCents: number }[];
 };
 
-const money = (cents: number) => `$${(cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const PERIODS = [7, 30, 90, 365].map((d) => ({ value: d, label: d === 365 ? "1 year" : `${d} days` }));
+const dayLabel = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
 export default function Reports() {
+  const me = useMe();
   const [days, setDays] = useState(30);
   const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
+    let live = true;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setReport(null);
     void (async () => {
-      const res = await fetch(`/api/staff/reports/summary?days=${days}`);
-      if (res.status === 401) return void (window.location.href = "/login");
-      if (res.status === 403) return setError("Only the restaurant owner can see reports.");
-      if (!res.ok) return setError("Could not load the report");
-      setError(null);
-      setReport(await res.json());
+      const r = await api<Report>(`/api/staff/reports/summary?days=${days}`);
+      if (!live) return;
+      if (r.ok) {
+        setError(null);
+        setReport(r.data);
+      } else setError(r.status === 403 ? "Only the restaurant owner can see reports." : r.error);
     })();
-  }, [days]);
+    return () => {
+      live = false;
+    };
+  }, [days, tick]);
 
-  const row = (label: string, value: string, bold = false) => (
-    <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", fontWeight: bold ? 700 : 400 }}>
-      <span>{label}</span>
-      <span>{value}</span>
-    </div>
-  );
+  const chronological = report ? [...report.days].sort((a, b) => a.date.localeCompare(b.date)) : [];
+  const maxDay = Math.max(1, ...chronological.map((d) => d.grossCents));
+  const maxItem = Math.max(1, ...(report?.topItems.map((i) => i.salesCents) ?? [1]));
+  const stopped = report ? report.notCompleted.declined + report.notCompleted.expired + report.notCompleted.paymentFailed : 0;
 
   return (
-    <main style={{ maxWidth: 800 }}>
-      <p><a href="/dashboard">← Dashboard</a></p>
-      <h1>Sales report</h1>
-      <label>Period{" "}
-        <select value={days} onChange={(e) => setDays(Number(e.target.value))} style={{ fontSize: 16, padding: 6 }}>
-          {[7, 30, 90, 365].map((d) => <option key={d} value={d}>Last {d} days</option>)}
-        </select>
-      </label>
-      {error && <p role="alert" style={{ color: "#a00" }}>{error}</p>}
-      {report && (
-        <>
-          <section style={{ border: "1px solid #ddd", borderRadius: 12, padding: 14, margin: "12px 0", background: "#fff" }}>
-            {row("Paid orders", String(report.paidOrders))}
-            {row("Food and drink sales", money(report.subtotalCents))}
-            {row("Sales tax collected", money(report.taxCents))}
-            {row("Tips", money(report.tipCents))}
-            {row("Total charged to customers", money(report.grossCents), true)}
-            <hr />
-            {row("SROS fee", `− ${money(report.platformFeeCents)}`)}
-            {row("Card fees (estimated)", `− ${money(report.processingEstimateCents)}`)}
-            {row("Sales tax owed to the state", `− ${money(report.taxCents)}`)}
-            {row("What you keep (estimated, tips included)", money(report.netEstimateCents), true)}
-          </section>
-          <p>Average order {money(report.averageOrderCents)} · Refunded {report.refunds.count} ({money(report.refunds.totalCents)}) · Declined {report.notCompleted.declined} · Timed out {report.notCompleted.expired} · Card failed {report.notCompleted.paymentFailed}</p>
-          <h2>Top items</h2>
-          {report.topItems.length === 0 && <p style={{ color: "#666" }}>No sales yet.</p>}
-          {report.topItems.map((i, n) => <Fragment key={n}>{row(`${i.quantity} × ${i.name}`, money(i.salesCents))}</Fragment>)}
-          <h2>By day</h2>
-          {report.days.map((d) => <Fragment key={d.date}>{row(`${d.date} · ${d.orders} ${d.orders === 1 ? "order" : "orders"}`, money(d.grossCents))}</Fragment>)}
-          <p style={{ color: "#666", fontSize: 14 }}>Card fees are estimated at 2.9% + 30¢. Your Stripe dashboard has the exact amounts. This report is not tax advice.</p>
-        </>
-      )}
-    </main>
+    <>
+      <StaffTopbar current="/reports" me={me} />
+      <main className="container container-md page stack" style={{ "--gap": "16px" } as React.CSSProperties}>
+        <div className="row-between wrap">
+          <h1>Sales report</h1>
+          <div style={{ minWidth: 280 }}>
+            <Segmented label="Period" value={days} onChange={setDays} options={PERIODS} />
+          </div>
+        </div>
+
+        {error && <Alert tone="danger" action={error.startsWith("Only") ? undefined : <Button size="sm" onClick={() => setTick((t) => t + 1)}>Retry</Button>}>{error}</Alert>}
+        {!report && !error && (
+          <div className="stats">
+            {Array.from({ length: 4 }).map((_, i) => <div key={i} className="stat"><Skeleton height={14} width="50%" /><Skeleton height={32} width="70%" style={{ marginTop: 10 }} /></div>)}
+          </div>
+        )}
+
+        {report && (
+          <>
+            <div className="stats">
+              <div className="stat stat-hero">
+                <div className="stat-label">What you keep (estimated)</div>
+                <div className="stat-value">{money(report.netEstimateCents)}</div>
+                <div className="stat-note">tips included</div>
+              </div>
+              <div className="stat">
+                <div className="stat-label">Food and drink sales</div>
+                <div className="stat-value">{money(report.subtotalCents)}</div>
+                <div className="stat-note">{plural(report.paidOrders, "paid order")}</div>
+              </div>
+              <div className="stat">
+                <div className="stat-label">Average order</div>
+                <div className="stat-value">{money(report.averageOrderCents)}</div>
+                <div className="stat-note">{money(report.tipCents)} in tips</div>
+              </div>
+            </div>
+
+            {report.paidOrders === 0 ? (
+              <div className="empty">
+                <Icon name="chart" size={36} />
+                <p className="strong" style={{ color: "var(--text)" }}>No paid orders in this period yet.</p>
+                <p className="small">Share your storefront link to get your first one.</p>
+              </div>
+            ) : (
+              <>
+                <section className="card" aria-labelledby="daily">
+                  <div className="section-title">
+                    <h2 id="daily">Sales by day</h2>
+                    <span className="subtle">Total charged to customers</span>
+                  </div>
+                  <div className="bars" role="img" aria-label={`Daily sales over the last ${days} days. ${plural(chronological.length, "day")} with orders. Best day ${money(maxDay)}.`}>
+                    {chronological.map((d) => (
+                      <div key={d.date} className="bar-col" tabIndex={0} aria-label={`${dayLabel(d.date)}: ${money(d.grossCents)}, ${plural(d.orders, "order")}`}>
+                        <div className="bar" style={{ height: `${Math.max(2, (d.grossCents / maxDay) * 100)}%` }} />
+                        <span className="bar-tip">{dayLabel(d.date)} · {money(d.grossCents)} · {plural(d.orders, "order")}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="axis" aria-hidden="true">
+                    <span>{dayLabel(chronological[0].date)}</span>
+                    <span>Best day {money(maxDay)}</span>
+                    {chronological.length > 1 && <span>{dayLabel(chronological[chronological.length - 1].date)}</span>}
+                  </div>
+                </section>
+
+                <div className="grid-2">
+                  <section className="card" aria-labelledby="breakdown">
+                    <h2 id="breakdown" style={{ marginBottom: 6 }}>Where the money goes</h2>
+                    <div className="kv"><span>Food and drink sales</span><span>{money(report.subtotalCents)}</span></div>
+                    <div className="kv"><span>Sales tax collected</span><span>{money(report.taxCents)}</span></div>
+                    <div className="kv"><span>Tips</span><span>{money(report.tipCents)}</span></div>
+                    <div className="kv total"><span>Charged to customers</span><span>{money(report.grossCents)}</span></div>
+                    <div className="kv muted"><span>SROS fee</span><span>− {money(report.platformFeeCents)}</span></div>
+                    <div className="kv muted"><span>Card fees (estimated)</span><span>− {money(report.processingEstimateCents)}</span></div>
+                    <div className="kv muted"><span>Sales tax owed to the state</span><span>− {money(report.taxCents)}</span></div>
+                    <div className="kv total"><span>What you keep</span><span>{money(report.netEstimateCents)}</span></div>
+                    <p className="hint" style={{ marginTop: 8 }}>Card fees are estimated at 2.9% + 30¢. Your Stripe dashboard has the exact amounts. This report is not tax advice.</p>
+                  </section>
+
+                  <div className="stack">
+                    <section className="card" aria-labelledby="top">
+                      <h2 id="top" style={{ marginBottom: 4 }}>Top items</h2>
+                      {report.topItems.map((i) => (
+                        <div key={i.name} className="rank">
+                          <span>{i.name} <span className="subtle">× {i.quantity}</span></span>
+                          <span className="num strong">{money(i.salesCents)}</span>
+                          <div className="rank-track"><div className="rank-fill" style={{ width: `${(i.salesCents / maxItem) * 100}%` }} /></div>
+                        </div>
+                      ))}
+                    </section>
+                    {(report.refunds.count > 0 || stopped > 0) && (
+                      <section className="card" aria-labelledby="problems">
+                        <h2 id="problems" style={{ marginBottom: 6 }}>Orders that didn't complete</h2>
+                        <div className="kv"><span>Refunded</span><span>{report.refunds.count} · {money(report.refunds.totalCents)}</span></div>
+                        <div className="kv"><span>Declined</span><span>{report.notCompleted.declined}</span></div>
+                        <div className="kv"><span>Timed out</span><span>{report.notCompleted.expired}</span></div>
+                        <div className="kv"><span>Card failed</span><span>{report.notCompleted.paymentFailed}</span></div>
+                      </section>
+                    )}
+                  </div>
+                </div>
+
+                <details className="card card-tight">
+                  <summary className="strong" style={{ cursor: "pointer" }}>Daily table</summary>
+                  <div className="list" style={{ marginTop: 10 }}>
+                    {[...chronological].reverse().map((d) => (
+                      <div key={d.date} className="kv"><span>{dayLabel(d.date)} · {plural(d.orders, "order")}</span><span>{money(d.grossCents)}</span></div>
+                    ))}
+                  </div>
+                </details>
+              </>
+            )}
+          </>
+        )}
+      </main>
+    </>
   );
 }

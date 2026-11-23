@@ -155,6 +155,10 @@ Still to do: backups, and the first run against the Stripe sandbox.
 
 **Uptime monitor.** Alerts cannot fire if the app itself is down, so point an outside monitor (UptimeRobot, Better Stack and similar, many free) at `GET /api/health` every minute and alert on anything but 200. It returns 503 when the database is unreachable or when an order has waited more than 5 minutes past its deadline, which means the every-minute expiry job is not running.
 
+### Interface
+
+All screens share one design system: `app/globals.css` (colors, spacing, components, light and dark themes), `app/ui.tsx` (buttons, sheets, toasts, staff top bar) and `app/icons.tsx`. Change the brand color in the `--brand*` variables at the top of `globals.css`. The kitchen screen always uses the dark theme. Customer screens follow the device's light or dark setting. Prices are always calculated on the server, never in the browser.
+
 ### Login emails
 
 1. Create a Resend account, add your sending domain and add the DNS records it shows (SPF and DKIM) until Resend marks the domain verified.
