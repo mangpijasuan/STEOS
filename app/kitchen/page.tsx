@@ -271,17 +271,23 @@ export default function Kitchen() {
                   </div>
                 </div>
                 <div className="ticket-actions">
-                  <Button variant="success" size="xl" className="grow" loading={busy[o.id] === "accept"} disabled={!!busy[o.id]} onClick={() => act(o, "accept")}>
-                    Accept · {choice} min
-                  </Button>
                   {needsInPersonRefund(o) && confirmRefund === `${o.id}:decline` ? (
-                    <Button variant="danger" size="xl" loading={busy[o.id] === "decline"} disabled={!!busy[o.id]} onClick={() => act(o, "decline")}>
-                      I handed back {money(o.totalCents)}
-                    </Button>
+                    // Declining an order paid in person: the money must be handed back first, so only that is offered.
+                    <>
+                      <Button variant="danger" size="xl" className="grow" loading={busy[o.id] === "decline"} disabled={!!busy[o.id]} onClick={() => act(o, "decline")}>
+                        I handed back {money(o.totalCents)}
+                      </Button>
+                      <Button size="xl" disabled={!!busy[o.id]} onClick={() => setConfirmRefund(null)}>Back</Button>
+                    </>
                   ) : (
-                    <Button size="xl" loading={busy[o.id] === "decline"} disabled={!!busy[o.id]} onClick={() => (needsInPersonRefund(o) ? setConfirmRefund(`${o.id}:decline`) : act(o, "decline"))}>
-                      Decline
-                    </Button>
+                    <>
+                      <Button variant="success" size="xl" className="grow" loading={busy[o.id] === "accept"} disabled={!!busy[o.id]} onClick={() => act(o, "accept")}>
+                        Accept · {choice} min
+                      </Button>
+                      <Button size="xl" loading={busy[o.id] === "decline"} disabled={!!busy[o.id]} onClick={() => (needsInPersonRefund(o) ? setConfirmRefund(`${o.id}:decline`) : act(o, "decline"))}>
+                        Decline
+                      </Button>
+                    </>
                   )}
                 </div>
               </Ticket>
