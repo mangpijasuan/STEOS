@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { pool } from "@/lib/db";
 import { HttpError, handle, json } from "@/lib/http";
+import { pruneOrphanImages } from "@/lib/images";
 import { expireStaleOrders, reconcilePendingRefunds } from "@/lib/orders";
 
 export const POST = handle(async (req) => {
@@ -14,6 +15,7 @@ export const POST = handle(async (req) => {
   await pool.query("select purge_expired_runtime_data()");
   const expired = await expireStaleOrders();
   const refundsReconciled = await reconcilePendingRefunds();
+  const imagesPruned = await pruneOrphanImages();
   await pool.query("select record_order_worker_run()");
-  return json({ expired, refundsReconciled });
+  return json({ expired, refundsReconciled, imagesPruned });
 });
