@@ -1,11 +1,12 @@
 import crypto from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { SESSION_COOKIE, consumeLoginToken, requestLogin } from "../lib/auth";
 import { pool } from "../lib/db";
 import { outbox } from "../lib/mailer";
 import { deriveTableState } from "../lib/tables";
 import { buildReport } from "../lib/reports";
 import { expireStaleOrders, reconcilePendingRefunds } from "../lib/orders";
+import { resetProviderForTests } from "../lib/payments/provider";
 import { staffDirectory } from "../lib/tables";
 import { withTenant } from "../lib/db";
 import { GET as board, POST as addTables } from "../app/api/staff/tables/route";
@@ -16,6 +17,7 @@ import { POST as addFloor } from "../app/api/staff/floors/route";
 import { POST as resolveRequest } from "../app/api/staff/table-requests/[id]/resolve/route";
 import { POST as payOrder } from "../app/api/staff/orders/[id]/pay/route";
 import { POST as accept } from "../app/api/staff/orders/[id]/accept/route";
+import { POST as decline } from "../app/api/staff/orders/[id]/decline/route";
 import { POST as ready } from "../app/api/staff/orders/[id]/ready/route";
 import { POST as complete } from "../app/api/staff/orders/[id]/complete/route";
 import { POST as cancel } from "../app/api/staff/orders/[id]/cancel/route";
@@ -360,7 +362,7 @@ describe("rules and limits", () => {
     expect((await deleteTable(staffReq("DELETE", ownerToken), idCtx(fresh.id))).status).toBe(200);
   });
 
-  it("cancelling a paid pay-later order tells staff to refund in person", async () => {
+  it("requires the owner to confirm that a paid pay-later refund was returned before cancelling", async () => {
     await patchSettings(staffReq("PATCH", ownerToken, { dineInEnabled: true }), {});
     await asOwner((c) => c.query("update dining_tables set active = true where id = $1", [tableId]));
     await asOwner((c) => c.query("delete from request_rate_windows"));
@@ -368,18 +370,88 @@ describe("rules and limits", () => {
     const id = await orderIdFor(body.order.number, a.restaurantId);
     await accept(staffReq("POST", staffToken, {}), idCtx(id));
     await payOrder(staffReq("POST", staffToken, { method: "cash" }), idCtx(id));
-    const res = await cancel(staffReq("POST", ownerToken), idCtx(id));
+    const confirmation = { inPersonRefundReturned: true };
+    const unconfirmed = await cancel(staffReq("POST", ownerToken), idCtx(id));
+    expect(unconfirmed.status).toBe(409);
+    expect((await unconfirmed.json()).error).toMatch(/confirm the refund/);
+    expect((await cancel(staffReq("POST", staffToken, confirmation), idCtx(id))).status).toBe(403);
+    expect((await cancel(staffReq("POST", otherOwnerToken, confirmation), idCtx(id))).status).toBe(404);
+    const refundState = () => asOwner(async (client) => {
+      const { rows } = await client.query(
+        "select o.status, p.status as payment_status, p.refunded_at from orders o join payments p on p.order_id = o.id where o.id = $1",
+        [id],
+      );
+      return rows[0];
+    });
+    expect(await refundState()).toEqual({ status: "accepted", payment_status: "captured", refunded_at: null });
+
+    const res = await cancel(staffReq("POST", ownerToken, confirmation), idCtx(id));
+    expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ status: "cancelled", refundInPerson: true });
-    expect((await asOwner((c) => c.query("select status from payments where order_id = $1", [id]))).rows[0].status).toBe("refunded");
+    const recorded = await refundState();
+    expect(recorded).toEqual({ status: "cancelled", payment_status: "refunded", refunded_at: expect.any(Date) });
+    expect((await cancel(staffReq("POST", ownerToken, confirmation), idCtx(id))).status).toBe(200);
+    expect(await refundState()).toEqual(recorded);
   });
 });
 
 // ----------------------------------------------------------------------------------------------------------
 // Pay-later orders have no card payment, so card-only machinery must never touch them, while card orders must
 // keep going through it.
+describe("requests with an empty body", () => {
+  // A browser's POST with no body carries an empty stream, not a null body. A Request built here with no body at all
+  // would hide that, so these use an explicit empty string, like the kitchen's fetch.
+  const emptyPost = (token: string) =>
+    new Request("http://localhost/x", { method: "POST", headers: { "content-type": "application/json", ...cookie(token) } as Record<string, string>, body: "" });
+
+  it("cancels an accepted order, as the kitchen sends it", async () => {
+    await asOwner((c) => c.query("delete from request_rate_windows"));
+    const { res, body: out } = await dineIn(qr, { items: [{ itemId: a.itemId, quantity: 1 }], payLater: true });
+    expect(res.status).toBe(201);
+    const id = await orderIdFor(out.order.number, a.restaurantId);
+    await accept(staffReq("POST", staffToken, {}), idCtx(id));
+    const cancelled = await cancel(emptyPost(ownerToken), idCtx(id));
+    expect(cancelled.status).toBe(200);
+    expect(await cancelled.json()).toMatchObject({ status: "cancelled", refundInPerson: false });
+  });
+
+  it("still refuses a body that is present but not valid JSON", async () => {
+    const res = await cancel(new Request("http://localhost/x", { method: "POST", headers: { "content-type": "application/json", ...cookie(ownerToken) } as Record<string, string>, body: "{not json" }), idCtx(crypto.randomUUID()));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/valid JSON/);
+  });
+});
+
 describe("pay-later orders stay out of card expiry and refunds", () => {
   const body = (payLater: boolean) => ({ items: [{ itemId: a.itemId, quantity: 1 }], payLater });
   const reset = () => asOwner((c) => c.query("delete from request_rate_windows"));
+
+  it("places, accepts, declines and cancels pay-later orders with Stripe unconfigured", async () => {
+    await reset();
+    vi.stubEnv("PAYMENTS_PROVIDER", "stripe");
+    vi.stubEnv("STRIPE_SECRET_KEY", undefined);
+    resetProviderForTests();
+    try {
+      const first = await dineIn(qr, body(true));
+      expect(first.res.status).toBe(201);
+      expect(first.body.payment).toBeNull();
+      const accepted = await orderIdFor(first.body.order.number, a.restaurantId);
+      expect((await accept(staffReq("POST", staffToken, {}), idCtx(accepted))).status).toBe(200);
+      expect((await cancel(staffReq("POST", ownerToken), idCtx(accepted))).status).toBe(200);
+
+      const second = await dineIn(qr, body(true));
+      expect(second.res.status).toBe(201);
+      const waiting = await orderIdFor(second.body.order.number, a.restaurantId);
+      expect((await decline(staffReq("POST", staffToken), idCtx(waiting))).status).toBe(200);
+
+      const card = await dineIn(qr, body(false));
+      expect(card.res.status).toBe(503);
+      expect(card.body.error).toBe("Payments are not set up yet");
+    } finally {
+      vi.unstubAllEnvs();
+      resetProviderForTests();
+    }
+  });
 
   async function cardOrderWaiting(): Promise<string> {
     await reset();

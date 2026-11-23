@@ -182,7 +182,8 @@ Owners set up floors and tables at `/tables` (**Set up tables**), print a QR car
 
 - Pay-later orders go straight to the kitchen. There is no card, no acceptance timer and no refund. Staff record cash or card-machine payment from the table sheet; that payment is stored with a capture time so reports include it. SROS's fee on these orders is **invoiced** rather than taken from a card payment, and the card-fee estimate in reports covers online card payments only.
 - Pay-now orders use the normal card flow: held, then charged when the kitchen accepts, and expired if it does not respond in time.
-- The database refuses a pay-later order with an acceptance deadline, so the expiry sweep and refund reconciliation can never act on one.
+- The database refuses a pay-later order with an acceptance deadline, so the expiry sweep and refund reconciliation can never act on one. Pay-later checkout and kitchen decisions can run without Stripe configuration.
+- To cancel a paid pay-later order, the owner returns the payment in person, then confirms the refund in the kitchen screen. The app records the refund and cancellation together.
 - A table's QR code is private to it. Replace it from the table's settings if it leaks. Guests' requests ("call a waiter", the bill) show on the board and are settled when the bill is paid.
 - The table board needs staff names, but the runtime role cannot read `staff_users`. The board reads them through `tenant_staff_directory()`, which returns only display names for the current restaurant.
 - Like the menu editor, `/tables` uses the scoped design system. The guest page reuses the existing storefront and checkout, so it looks like the pickup page.
