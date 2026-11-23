@@ -111,13 +111,13 @@ sequenceDiagram
 
 A pay-later order goes straight to the kitchen. There is no card to hold, no countdown and no refund through Stripe, so the expiry sweep (which looks only at orders with a deadline) and refund reconciliation (which looks only at Stripe payments) can never reach it. It also needs no payment provider at all, so these orders work even when Stripe is not configured; only paying by card does. Money taken in person is handed back by staff, not by the provider, so cancelling an accepted order, or declining one paid at the till, records the refund only after staff confirm they have already returned the money. Nothing is recorded as refunded before that, and repeating the confirmation after a lost response is safe. Cancelling is owner-only; declining is a kitchen action, so any staff member can do it. SROS's fee on these orders is recorded as invoiced, not taken from a card payment; billing it is not part of the application yet.
 
-The table board derives each table's state (available, browsing, pending, preparing, ready, served, bill, service request, paid) from its orders since the table was last cleared and from open guest requests. A table cannot be cleared while an order is in progress or unpaid.
+The table board derives each table's state (available, browsing, pending, preparing, ready, served, bill, service request, paid) from its orders since the table was last cleared and from open guest requests. A table cannot be cleared while an order is in progress or unpaid. The guest's status page reports payment separately from the order: paid, refunded (money taken in person and handed back, which keeps its original capture time for reports) or unpaid. A cancelled, declined or expired pay-later order says nothing was charged or that the payment was handed back, never mentioning a card hold or card refund, and an ended order never asks the guest to pay.
 
 ### The till and promotions
 
 Staff enter an order for a table or a walk-in at the till, and either take payment now or send it to the kitchen to pay later. Till requests use a keyed fingerprint, so a reused request key with a different order is refused and the same request replays safely. Each till order records the staff member who entered it.
 
-A promo code or a custom discount comes off the food first. Tax is charged on what is left, tips are never taxed, and a total cannot go negative. The SROS fee is calculated on the food at its full price, so a discount is the restaurant's cost, and the fee is capped at the amount charged. Looking up a code, redeeming it and creating the order happen in one locked transaction, so the last use of a limited code cannot be taken twice. A use is given back when an order never completes (declined, expired, or its payment failed or was cancelled) and taken again if a failed payment is later captured. The code is part of the request fingerprint only when one is used, so orders placed without a code keep matching their stored fingerprints.
+A promo code or a custom discount comes off the food first. Tax is charged on what is left, tips are never taxed, and a total cannot go negative. The SROS fee is calculated on the food at its full price, so a discount is the restaurant's cost, and the fee is capped at the amount charged. A till request that already succeeded is answered from the order it created before the menu or promo is read again, so a retry still works after a price change or after the code's last use was taken. Looking up a code, redeeming it and creating the order happen in one locked transaction, so the last use of a limited code cannot be taken twice. Each order records which promotion it used by identity, apart from the code text it shows on receipts, so renaming a code still returns the use to the same promotion and a new code that reuses a deleted code's text is never touched. A use is given back when an order never completes (declined, expired, or its payment failed or was cancelled) and taken again if a failed payment is later captured. The code is part of the request fingerprint only when one is used, so orders placed without a code keep matching their stored fingerprints.
 
 ## Photos
 
@@ -127,13 +127,13 @@ Photos are stored in PostgreSQL, not on disk, so they are covered by the same ro
 
 Reports date money by when it moved: a sale counts on the day its payment was captured and a refund on the day it was confirmed, not on the day the order was placed. In-person payments carry a capture time, so they are counted the same way. A report shows sales, discounts, tax, tips, refunds, the restaurant's estimated net, and breakdowns by payment method, order type and menu category. Card fees are estimated for online card payments only.
 
-The dashboard headlines sales after refunds and compares them with the period just before. Order history is a separate, paged and searchable read that never lists an order still waiting on a card.
+The dashboard headlines sales after refunds and compares them with the period just before. Its daily chart reaches below zero when a day refunded more than it sold, so it adds up to the headline figure, and its live order counts come from the server for the whole restaurant, not from the first page of orders. Order history is a separate, paged and searchable read that never lists an order still waiting on a card.
 
 ## Front end
 
 - **Design system.** Every screen uses one stylesheet, [`app/ds.css`](../app/ds.css), scoped to a `.ds` wrapper that each route's layout provides. Customer screens follow the device's light or dark setting, and the kitchen is always dark. The sign-in confirmation page is the one exception, because its content policy forbids external styles.
 - **Navigation.** Staff screens share a side menu that is full width on large screens, a collapsible icon rail on tablets, and a compact top bar on phones.
-- **Live screens poll.** The kitchen and the table board refresh every four seconds, the dashboard's live counts every eight, and the customer order page every five (and continues past a cancellation until a pending refund settles). A table page sends a "browsing" signal about once a minute. A customer's cart is kept in the browser's local storage. Polling keeps the browser flows simple and adds database read traffic with each open screen.
+- **Live screens poll.** The kitchen and the table board refresh every four seconds, the dashboard's live counts every eight, and the customer order page every five (and continues past a cancellation until a pending refund settles, and while a served pay-later bill is still unpaid). A table page sends a "browsing" signal about once a minute. A customer's cart is kept in the browser's local storage. Polling keeps the browser flows simple and adds database read traffic with each open screen.
 - **Behavior that must hold on these screens** is listed in the integration notes: the kitchen's paging, aborted refreshes and failure messages; the storefront's derived pickup time and per-cart quote; checkout's per-attempt key and retry proof; and the hours editor's server-validated saves.
 
 ## Operations and scaling
@@ -157,10 +157,10 @@ The dashboard headlines sales after refunds and compares them with the period ju
 | `0011` | Order worker heartbeat for the health check |
 | `0012` | Photos, and the cleanup that keeps a photo until its last dish stops using it |
 | `0013` | Floors, tables, guest requests, pay-later orders and manual payments, and the tenant staff directory |
-| `0014` | Promo codes, order discounts, and the staff member who entered a till order |
+| `0014` | Promo codes, order discounts, the promotion each order used, and the staff member who entered a till order |
 
 ## Known limits
 
-- Real Stripe has been exercised only in test mode, and payment confirmation, partial refunds and refunds made directly in Stripe still need checking against a Stripe sandbox. Partial and externally issued refunds need reconciling in Stripe.
+- Card payments have been exercised in this project only through the built-in fake provider (a simulated card panel that refuses to start in production) and through simulated payment events in tests. That checks the application's own logic. It is not a run against Stripe, so authorization, capture, webhook delivery and refunds still need a real Stripe sandbox run before live use. Partial refunds and refunds made directly in Stripe also need reconciling in Stripe.
 - Billing SROS's fee on pay-later orders is recorded and reported but not automated.
 - Photos live in the database (see above), and there is no light theme for the kitchen.
