@@ -58,7 +58,7 @@ Run `db:migrate` again after any deploy that adds a migration. The importer is o
 
 ## 4. Order worker
 
-Add a second application from the same repository and image, with start command `npm run worker:orders`, the same `APP_URL` and `CRON_SECRET`, and no domain. If the web app is on the same Docker network, set `ORDER_WORKER_URL` to its internal address (HTTP is accepted only for loopback addresses, so use the HTTPS `APP_URL` otherwise). Alternatively use a Coolify scheduled task that calls `POST /api/internal/expire-orders` every minute with `Authorization: Bearer <CRON_SECRET>`.
+Add a second application from the same repository and image, with start command `npm run worker:orders`, the same `APP_URL` and `CRON_SECRET`, and no domain. Leave `ORDER_WORKER_URL` unset so the worker calls the HTTPS `APP_URL`; the worker refuses plain HTTP unless the address is loopback, so an internal Docker address will not work. Alternatively use a Coolify scheduled task that calls `POST /api/internal/expire-orders` every minute with `Authorization: Bearer <CRON_SECRET>`.
 
 Stop the worker once on purpose and confirm `/api/health` reports it after about five minutes.
 
