@@ -19,8 +19,17 @@ SROS is the ordering system a restaurant runs for itself: its own storefront, it
 2. **Learn from Zogam, then add 3 to 5 Tulsa restaurants.** Fix what the first week shows. Add per-restaurant branding as data instead of code, a timezone setting, and billing for the platform fee on till and pay-later orders. Done when a new restaurant can be set up in an afternoon without a code change.
 3. **Bring customers back.** Loyalty and repeat-order tools on the restaurant's own page (order again, simple points or stamps, opt-in messages). This is the feature most likely to make a restaurant stay, because it grows their own customer list.
 
+## Payments: what we take from Olo Pay, built on Stripe
+
+Olo Pay's pitch is faster, safer checkout and one place to see the money. We get most of that from Stripe Connect, which we already use, so we add to it instead of building a processor. Card details already go straight to Stripe and never touch our servers.
+
+- **At launch:** in the Stripe sandbox, check that Apple Pay and Google Pay appear at checkout on a real phone (Apple Pay needs the domain verified), and review Stripe's fraud-screening settings. Direct-ordering sites attract card testing, and we have per-client request limits but no card-specific screening of our own yet.
+- **Bet 2:** handle disputes and chargebacks. Today we track captures and refunds but do not listen for dispute events, so a chargeback would only show up in Stripe. Add the events, an alert and a line in reports, and one view that reconciles captures, refunds, disputes and fees against Stripe payouts.
+- **Bet 3:** one-click checkout for returning customers. Try Stripe's own saved-card options (such as Link, which works across Stripe merchants) before building anything. Check how they behave with direct charges on each restaurant's account before promising it.
+
 ## What we will not build now
 
+- Our own payment processor or a card vault shared across restaurants (Olo Pay's "borderless" checkout). It depends on a large network, and it brings licensing and compliance work that is not worth it at this size.
 - A consumer marketplace or restaurant discovery. That makes us a competitor to the restaurants we want to serve.
 - A driver network. If delivery comes, it starts with a restaurant's own drivers or a partner's driver service, in that order.
 - Eight named product modules, enterprise integrations for large chains, or AI forecasting. Revisit after bet 2.
