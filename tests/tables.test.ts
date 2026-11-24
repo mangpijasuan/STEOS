@@ -72,7 +72,7 @@ beforeAll(async () => {
   ownerToken = await signIn(a.ownerEmail);
   staffToken = await signIn(a.staffEmail);
   otherOwnerToken = await signIn(b.ownerEmail);
-  // "3% + card fees": the SROS fee is a plain 3% of the food, so the invoiced fee is easy to see in tests.
+  // "3% + card fees": the STOS fee is a plain 3% of the food, so the invoiced fee is easy to see in tests.
   await asOwner((c) => c.query("update restaurants set dine_in_enabled = true, fee_model = 'platform_plus_processing', platform_fee_bps = 300 where id = $1", [a.restaurantId]));
   const created = await addTables(staffReq("POST", ownerToken, { labels: ["05", "07"], seats: 4 }), {});
   expect(created.status).toBe(201);
@@ -259,7 +259,7 @@ describe("a dine-in order paid later", () => {
     expect((await payOrder(staffReq("POST", staffToken, { method: "cash" }), idCtx(orderId))).status).toBe(409);
   });
 
-  it("counts toward sales without card fees, with the SROS fee invoiced", async () => {
+  it("counts toward sales without card fees, with the STOS fee invoiced", async () => {
     const report = await withTenant(a.restaurantId, (db) => buildReport(db, new Date(Date.now() - 86_400_000), new Date(Date.now() + 86_400_000)));
     expect(report.paidOrders).toBeGreaterThanOrEqual(1);
     expect(report.processingEstimateCents).toBe(0);

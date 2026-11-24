@@ -19,7 +19,7 @@ export async function sendLoginEmail(to: string, url: string): Promise<void> {
     body: JSON.stringify({
       from,
       to: [to],
-      subject: "Sign in to Siamsil Restaurant",
+      subject: "Sign in to STOS",
       text: `Open this link and confirm to sign in. It expires in 15 minutes.\n\n${url}`,
     }),
     signal: AbortSignal.timeout(5000),

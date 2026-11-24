@@ -3,7 +3,7 @@ import { HttpError } from "../http";
 import type { Authorization, AuthorizationInput, PaymentEvent, PaymentProvider, Refund, RefundInput } from "./provider";
 
 /**
- * Stripe Connect direct charges: the payment lives on the restaurant's own connected account and SROS
+ * Stripe Connect direct charges: the payment lives on the restaurant's own connected account and STOS
  * takes an application fee. Cards are authorized with manual capture, then captured when the kitchen accepts.
  */
 function refundStatus(status: Stripe.Refund["status"]): Refund["status"] {

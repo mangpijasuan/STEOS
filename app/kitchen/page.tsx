@@ -110,7 +110,7 @@ export default function Kitchen() {
 
   // Sound: a double beep right away for a new order, repeated until every waiting order is answered.
   useEffect(() => {
-    document.title = waiting.length ? `(${waiting.length}) New order · Kitchen` : "Kitchen · SROS";
+    document.title = waiting.length ? `(${waiting.length}) New order · Kitchen` : "Kitchen · STOS";
     if (!soundOn || !audio.current || waiting.length === 0) return;
     if (Date.now() - lastBeep.current < REPEAT_BEEP_MS) return;
     lastBeep.current = Date.now();

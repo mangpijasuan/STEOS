@@ -1,6 +1,6 @@
-# Siamsil-SROS architecture
+# STOS architecture
 
-Siamsil-SROS is a multi-tenant restaurant ordering platform. Customers order for pickup from a restaurant's storefront or from their seat by scanning a table's QR code, paying by card or at the table. Staff run the kitchen, the table board and a till, and owners manage the menu, photos, hours, promotions, pricing and reports. Everything runs in a single Next.js application. TypeScript modules provide shared pricing, scheduling, order and payment logic. PostgreSQL is the system of record for orders, payment history and photos, and Stripe Connect processes card payments on each restaurant's connected account.
+STOS (formerly SROS) is a multi-tenant platform that today runs restaurant ordering. Customers order for pickup from a restaurant's storefront or from their seat by scanning a table's QR code, paying by card or at the table. Staff run the kitchen, the table board and a till, and owners manage the menu, photos, hours, promotions, pricing and reports. Everything runs in a single Next.js application. TypeScript modules provide shared pricing, scheduling, order and payment logic. PostgreSQL is the system of record for orders, payment history and photos, and Stripe Connect processes card payments on each restaurant's connected account.
 
 This guide describes the application with every integration step in place: the audited payment and sign-in work, photos and the menu editor, tables and dine-in, the till and promotions, the dashboard, and the design system. [`docs/PHASE_4_INTEGRATION.md`](PHASE_4_INTEGRATION.md) records how and in what order those arrived.
 
@@ -109,7 +109,7 @@ sequenceDiagram
     Waiter->>App: Serve the order and clear the table
 ```
 
-A pay-later order goes straight to the kitchen. There is no card to hold, no countdown and no refund through Stripe, so the expiry sweep (which looks only at orders with a deadline) and refund reconciliation (which looks only at Stripe payments) can never reach it. It also needs no payment provider at all, so these orders work even when Stripe is not configured; only paying by card does. Money taken in person is handed back by staff, not by the provider, so cancelling an accepted order, or declining one paid at the till, records the refund only after staff confirm they have already returned the money. Nothing is recorded as refunded before that, and repeating the confirmation after a lost response is safe. Cancelling is owner-only; declining is a kitchen action, so any staff member can do it. SROS's fee on these orders is recorded as invoiced, not taken from a card payment; billing it is not part of the application yet.
+A pay-later order goes straight to the kitchen. There is no card to hold, no countdown and no refund through Stripe, so the expiry sweep (which looks only at orders with a deadline) and refund reconciliation (which looks only at Stripe payments) can never reach it. It also needs no payment provider at all, so these orders work even when Stripe is not configured; only paying by card does. Money taken in person is handed back by staff, not by the provider, so cancelling an accepted order, or declining one paid at the till, records the refund only after staff confirm they have already returned the money. Nothing is recorded as refunded before that, and repeating the confirmation after a lost response is safe. Cancelling is owner-only; declining is a kitchen action, so any staff member can do it. STOS's fee on these orders is recorded as invoiced, not taken from a card payment; billing it is not part of the application yet.
 
 The table board derives each table's state (available, browsing, pending, preparing, ready, served, bill, service request, paid) from its orders since the table was last cleared and from open guest requests. A table cannot be cleared while an order is in progress or unpaid. The guest's status page reports payment separately from the order: paid, refunded (money taken in person and handed back, which keeps its original capture time for reports) or unpaid. A cancelled, declined or expired pay-later order says nothing was charged or that the payment was handed back, never mentioning a card hold or card refund, and an ended order never asks the guest to pay.
 
@@ -117,7 +117,7 @@ The table board derives each table's state (available, browsing, pending, prepar
 
 Staff enter an order for a table or a walk-in at the till, and either take payment now or send it to the kitchen to pay later. Till requests use a keyed fingerprint, so a reused request key with a different order is refused and the same request replays safely. Each till order records the staff member who entered it.
 
-A promo code or a custom discount comes off the food first. Tax is charged on what is left, tips are never taxed, and a total cannot go negative. The SROS fee is calculated on the food at its full price, so a discount is the restaurant's cost, and the fee is capped at the amount charged. A till request that already succeeded is answered from the order it created before the menu or promo is read again, so a retry still works after a price change or after the code's last use was taken. Looking up a code, redeeming it and creating the order happen in one locked transaction, so the last use of a limited code cannot be taken twice. Each order records which promotion it used by identity, apart from the code text it shows on receipts, so renaming a code still returns the use to the same promotion and a new code that reuses a deleted code's text is never touched. A use is given back when an order never completes (declined, expired, or its payment failed or was cancelled) and taken again if a failed payment is later captured. The code is part of the request fingerprint only when one is used, so orders placed without a code keep matching their stored fingerprints.
+A promo code or a custom discount comes off the food first. Tax is charged on what is left, tips are never taxed, and a total cannot go negative. The STOS fee is calculated on the food at its full price, so a discount is the restaurant's cost, and the fee is capped at the amount charged. A till request that already succeeded is answered from the order it created before the menu or promo is read again, so a retry still works after a price change or after the code's last use was taken. Looking up a code, redeeming it and creating the order happen in one locked transaction, so the last use of a limited code cannot be taken twice. Each order records which promotion it used by identity, apart from the code text it shows on receipts, so renaming a code still returns the use to the same promotion and a new code that reuses a deleted code's text is never touched. A use is given back when an order never completes (declined, expired, or its payment failed or was cancelled) and taken again if a failed payment is later captured. The code is part of the request fingerprint only when one is used, so orders placed without a code keep matching their stored fingerprints.
 
 ## Photos
 
@@ -162,5 +162,20 @@ The dashboard headlines sales after refunds and compares them with the period ju
 ## Known limits
 
 - Card payments have been exercised in this project only through the built-in fake provider (a simulated card panel that refuses to start in production) and through simulated payment events in tests. That checks the application's own logic. It is not a run against Stripe, so authorization, capture, webhook delivery and refunds still need a real Stripe sandbox run before live use. Partial refunds and refunds made directly in Stripe also need reconciling in Stripe.
-- Billing SROS's fee on pay-later orders is recorded and reported but not automated.
+- Billing STOS's fee on pay-later orders is recorded and reported but not automated.
 - Photos live in the database (see above), and there is no light theme for the kitchen.
+
+## Where the modules live
+
+STOS is one modular monolith. The module names in [PRODUCT_VISION.md](PRODUCT_VISION.md) are boundaries inside it, not separate services. Today's code maps to them like this, so new work goes in the right place:
+
+| Module | Code |
+| --- | --- |
+| Core | `db/`, `lib/db.ts`, `lib/auth.ts`, `lib/settings.ts`, `lib/ratelimit.ts`, `lib/log.ts`, `lib/alerts.ts`, `app/login`, `app/manage` |
+| Commerce | `lib/cart.ts`, `lib/hours.ts`, `lib/storefront.ts`, `lib/orders.ts`, `lib/menu.ts`, `lib/images.ts`, `app/r`, `app/order`, `app/menu`, `app/api/r` |
+| POS | `lib/pos.ts`, `lib/promos.ts`, `app/pos`, receipts under `app/orders` |
+| Kitchen | `app/kitchen`, `lib/tables.ts` and `app/tables` (dine-in and table service), `app/t` |
+| Payments | `lib/payments/`, `lib/fees.ts`, `lib/pricing.ts`, `app/api/webhooks` |
+| Reporting | `lib/reports.ts`, `app/dashboard`, `app/reports` |
+
+A new module gets its own `lib/<module>/` code and `app/<module>/` screens, its own tables (each with a tenant id and a row-level policy), and its own tests. It shares the Core pieces and the design system, and it does not reach into another module's tables directly.

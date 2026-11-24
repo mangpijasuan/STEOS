@@ -20,7 +20,7 @@ export const PLANS: Record<PlanKey, Plan> = {
   model_a: {
     key: "model_a",
     label: "Simple: 3% + card fees",
-    summary: "SROS charges 3% of the food subtotal. You pay Stripe's card fees yourself.",
+    summary: "STOS charges 3% of the food subtotal. You pay Stripe's card fees yourself.",
     feeBps: 300,
     model: "platform_plus_processing",
     monthlyFeeCents: 0,
@@ -62,9 +62,9 @@ export type Estimate = {
   platformFeeCents: number;
   processingCents: number;
   monthlyFeeCents: number;
-  /** What the restaurant pays in total each month: SROS fee, card fees and any subscription. */
+  /** What the restaurant pays in total each month: STOS fee, card fees and any subscription. */
   restaurantCostCents: number;
-  /** What SROS keeps: its fee plus any subscription. Card fees go to Stripe. */
+  /** What STOS keeps: its fee plus any subscription. Card fees go to Stripe. */
   srosRevenueCents: number;
   /** Restaurant cost as a share of sales, in basis points. */
   effectiveRateBps: number;

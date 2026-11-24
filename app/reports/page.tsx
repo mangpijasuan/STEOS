@@ -136,9 +136,9 @@ export default function Reports() {
                     <div className="kv"><span>Confirmed refunds</span><span>− {money(report.refunds.totalCents)}</span></div>
                     <div className="kv total"><span>Net charged to customers</span><span>{money(report.netChargedCents)}</span></div>
                     <div className="kv"><span>Net food and drink sales</span><span>{money(report.netSalesCents)}</span></div>
-                    <div className="kv muted"><span>SROS fee (from card payments)</span><span>− {money(report.platformFeeCents - report.platformFeeInvoicedCents)}</span></div>
+                    <div className="kv muted"><span>STOS fee (from card payments)</span><span>− {money(report.platformFeeCents - report.platformFeeInvoicedCents)}</span></div>
                     {report.platformFeeInvoicedCents > 0 && (
-                      <div className="kv muted"><span>SROS fee (invoiced, pay-at-table)</span><span>− {money(report.platformFeeInvoicedCents)}</span></div>
+                      <div className="kv muted"><span>STOS fee (invoiced, pay-at-table)</span><span>− {money(report.platformFeeInvoicedCents)}</span></div>
                     )}
                     <div className="kv muted"><span>Card fees (estimated)</span><span>− {money(report.processingEstimateCents)}</span></div>
                     <div className="kv muted"><span>Sales tax on captured orders</span><span>− {money(report.taxCents)}</span></div>

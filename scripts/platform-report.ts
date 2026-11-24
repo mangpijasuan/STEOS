@@ -25,7 +25,7 @@ async function main() {
        group by r.id order by net_fee desc`,
       [days],
     );
-    console.log(`SROS revenue, last ${days} days (captured fees less confirmed refunds)\n`);
+    console.log(`STOS revenue, last ${days} days (captured fees less confirmed refunds)\n`);
     let fees = 0;
     for (const row of rows) {
       fees += Number(row.net_fee);
