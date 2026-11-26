@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon } from "../icons";
 import { Alert, Button, StaffTopbar, useMe } from "../ui";
+import { branding, pageTitle } from "@/lib/branding";
 import { clockTime, money } from "@/lib/format";
 
 type Line = { name: string; quantity: number; options: { name: string }[]; note: string | null };
@@ -110,7 +111,7 @@ export default function Kitchen() {
 
   // Sound: a double beep right away for a new order, repeated until every waiting order is answered.
   useEffect(() => {
-    document.title = waiting.length ? `(${waiting.length}) New order · Kitchen` : "Kitchen · STEOS";
+    document.title = waiting.length ? `(${waiting.length}) New order · Kitchen` : pageTitle("Kitchen");
     if (!soundOn || !audio.current || waiting.length === 0) return;
     if (Date.now() - lastBeep.current < REPEAT_BEEP_MS) return;
     lastBeep.current = Date.now();

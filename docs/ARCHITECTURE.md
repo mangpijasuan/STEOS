@@ -171,7 +171,7 @@ STEOS is one modular monolith. The module names in [PRODUCT_VISION.md](PRODUCT_V
 
 | Module | Code |
 | --- | --- |
-| Core | `db/`, `lib/db.ts`, `lib/auth.ts`, `lib/settings.ts`, `lib/ratelimit.ts`, `lib/log.ts`, `lib/alerts.ts`, `app/login`, `app/manage` |
+| Core | `db/`, `lib/db.ts`, `lib/branding.ts` (the platform's identity), `lib/auth.ts`, `lib/settings.ts`, `lib/ratelimit.ts`, `lib/log.ts`, `lib/alerts.ts`, `app/login`, `app/manage` |
 | Commerce | `lib/cart.ts`, `lib/hours.ts`, `lib/storefront.ts`, `lib/orders.ts`, `lib/menu.ts`, `lib/images.ts`, `app/r`, `app/order`, `app/menu`, `app/api/r` |
 | POS | `lib/pos.ts`, `lib/promos.ts`, `app/pos`, receipts under `app/orders` |
 | Kitchen | `app/kitchen`, `lib/tables.ts` and `app/tables` (dine-in and table service), `app/t` |

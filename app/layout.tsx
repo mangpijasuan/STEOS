@@ -1,9 +1,10 @@
 import type { ReactNode } from "react";
 import "./legacy.css";
+import { branding, metaDescription } from "@/lib/branding";
 
 export const metadata = {
-  title: "STEOS",
-  description: "STEOS by Siamsil Technologies: sell, manage, automate and grow your business.",
+  title: branding.name,
+  description: metaDescription,
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

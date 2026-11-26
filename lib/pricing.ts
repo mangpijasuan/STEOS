@@ -1,3 +1,4 @@
+import { branding } from "./branding";
 import { STRIPE_FIXED_CENTS, STRIPE_PERCENT_BPS, type FeeModel } from "./fees";
 
 // Every number here is an experiment (see the master plan). Changing a plan never changes past orders,
@@ -20,7 +21,7 @@ export const PLANS: Record<PlanKey, Plan> = {
   model_a: {
     key: "model_a",
     label: "Simple: 3% + card fees",
-    summary: "STEOS charges 3% of the food subtotal. You pay Stripe's card fees yourself.",
+    summary: `${branding.name} charges 3% of the food subtotal. You pay Stripe's card fees yourself.`,
     feeBps: 300,
     model: "platform_plus_processing",
     monthlyFeeCents: 0,

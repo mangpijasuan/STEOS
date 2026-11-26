@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../icons";
 import { Alert, Button, Skeleton, StaffTopbar, api, useMe, useToasts } from "../ui";
+import { pageTitle } from "@/lib/branding";
 import { plural } from "@/lib/format";
 import { SetupSheet } from "./SetupSheet";
 import { TableSheet } from "./TableSheet";
@@ -68,7 +69,7 @@ export default function Tables() {
 
   // A short beep when a table newly needs attention, if the waiter turned sound on.
   useEffect(() => {
-    document.title = priorityCount ? `(${priorityCount}) Tables · STEOS` : "Tables · STEOS";
+    document.title = priorityCount ? `(${priorityCount}) ${pageTitle("Tables")}` : pageTitle("Tables");
     if (soundOn && audio.current && priorityCount > lastPriority.current) {
       const ctx = audio.current;
       const osc = ctx.createOscillator();

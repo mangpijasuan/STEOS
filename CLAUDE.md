@@ -2,7 +2,8 @@
 
 ## Product identity
 
-- The product is **STEOS**. Tagline: *The Operating System for Business.* Secondary: *Sell. Manage. Automate. Grow.*
+- The product is **STEOS** (full name: **Siamsil Technologies Enterprise Operating System**). Tagline: *One Platform. Every Business.*
+- **The platform's name, tagline, company, footer, page titles, email subject and fee label live in one file, `lib/branding.ts`.** Import from it; never type the product name into a screen, email or library string. `tests/branding.test.ts` fails if you do. A restaurant's storefront keeps its own brand and does not use it.
 - STEOS is a product of **Siamsil Technologies** (the parent company), not a separate legal entity.
 - **SROS is the historical project name.** Use STEOS in anything a person reads: UI text, emails, docs, comments, test names, pull requests. Do not reintroduce SROS, except in the places listed as intentionally unchanged in [docs/REBRANDING_MIGRATION.md](docs/REBRANDING_MIGRATION.md).
 - Footer for STEOS's own pages (home, sign-in): "© 2026 Siamsil Technologies, Inc. All rights reserved." and "STEOS is a product of Siamsil Technologies." Restaurant storefronts carry the restaurant's brand, not STEOS's.

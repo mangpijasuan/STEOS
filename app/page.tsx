@@ -1,3 +1,4 @@
+import { branding } from "@/lib/branding";
 import { Icon } from "./icons";
 import { PlatformFooter } from "./ui";
 import "./ds.css";
@@ -8,7 +9,7 @@ export default function Home() {
       <header className="topbar">
         <div className="container topbar-inner">
           <span className="brandmark">
-            <span className="logo">S</span> STEOS
+            <span className="logo">{branding.name.charAt(0)}</span> {branding.name}
           </span>
           <span className="grow" />
           <a className="btn btn-sm" href="/login">Staff sign in</a>

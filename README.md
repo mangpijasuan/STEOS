@@ -1,6 +1,6 @@
 # STEOS
 
-**STEOS** is a multi-tenant business platform by Siamsil Technologies. *The Operating System for Business. Sell. Manage. Automate. Grow.*
+**STEOS** (Siamsil Technologies Enterprise Operating System) is a multi-tenant business platform by Siamsil Technologies. *One Platform. Every Business.*
 
 Today it runs restaurant ordering: a storefront, a staff kitchen queue, QR dine-in, a till, Stripe Connect payments, and owner controls for menus, hours, pricing and reports. Other business types are planned as modules of the same platform; see [docs/PRODUCT_VISION.md](docs/PRODUCT_VISION.md) and [docs/STEOS_MASTER_PLAN.md](docs/STEOS_MASTER_PLAN.md). STEOS was previously named SROS; see [docs/REBRANDING_MIGRATION.md](docs/REBRANDING_MIGRATION.md).
 

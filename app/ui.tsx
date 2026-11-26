@@ -4,6 +4,7 @@
 // (loading states, focus handling, keyboard support) so every screen gets it for free.
 
 import { useCallback, useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
+import { branding, footerLines } from "@/lib/branding";
 import { Icon, type IconName } from "./icons";
 
 type Variant = "primary" | "secondary" | "success" | "danger" | "soft-danger" | "ghost";
@@ -42,8 +43,7 @@ export function Button({
 export function PlatformFooter() {
   return (
     <footer className="platform-footer">
-      <p>© 2026 Siamsil Technologies, Inc. All rights reserved.</p>
-      <p>STEOS is a product of Siamsil Technologies.</p>
+      {footerLines.map((line) => <p key={line}>{line}</p>)}
     </footer>
   );
 }
@@ -295,7 +295,7 @@ export function StaffTopbar({ current, me }: { current: string; me: Me | null })
         <div className="side-head">
           <a className="brandmark" href="/dashboard" title="Dashboard">
             <span className="logo">S</span>
-            <span className="nav-text side-name">{me?.restaurantName || "STEOS"}</span>
+            <span className="nav-text side-name">{me?.restaurantName || branding.name}</span>
           </a>
         </div>
         <nav className="side-nav" aria-label="Staff">
@@ -333,7 +333,7 @@ export function StaffTopbar({ current, me }: { current: string; me: Me | null })
         <div className="container topbar-inner">
           <a className="brandmark" href="/dashboard" aria-label="Dashboard">
             <span className="logo">S</span>
-            <span className="sr-only">STEOS</span>
+            <span className="sr-only">{branding.name}</span>
           </a>
           <nav className="nav grow" aria-label="Staff">
             {flat.map((l) => (

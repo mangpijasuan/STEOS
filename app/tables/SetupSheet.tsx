@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Icon } from "../icons";
 import { Alert, Button, Sheet, api } from "../ui";
+import { branding } from "@/lib/branding";
 import { parseTableLabels } from "@/lib/tableLabels";
 import type { Board } from "./types";
 
@@ -88,7 +89,7 @@ export function SetupSheet({ board, onClose, onChanged, toast }: { board: Board;
             <span className="switch"><input type="checkbox" role="switch" disabled={!settings} checked={settings?.dineInEnabled ?? false} onChange={(e) => setSetting({ dineInEnabled: e.target.checked })} /><span /></span>
           </label>
           <label className="row-between option" style={{ cursor: "pointer" }}>
-            <span><span className="strong">Allow “pay later at the table”</span><span className="subtle" style={{ display: "block" }}>Guests order first and pay a waiter. STEOS’s fee on these orders is invoiced.</span></span>
+            <span><span className="strong">Allow “pay later at the table”</span><span className="subtle" style={{ display: "block" }}>Guests order first and pay a waiter. {branding.name}’s fee on these orders is invoiced.</span></span>
             <span className="switch"><input type="checkbox" role="switch" disabled={!settings} checked={settings?.payLaterEnabled ?? true} onChange={(e) => setSetting({ payLaterEnabled: e.target.checked })} /><span /></span>
           </label>
         </section>
