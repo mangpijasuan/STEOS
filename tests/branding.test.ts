@@ -33,8 +33,8 @@ describe("the platform's identity", () => {
     expect(signInSubject).toBe("Sign in to STEOS");
     expect(metaDescription).toBe("STEOS by Siamsil Technologies: One Platform. Every Business.");
     expect(copyrightYear).toBe(2026);
-    expect(legalName).toBe("Siamsil Technologies, Inc.");
-    expect(footerLines).toEqual(["© 2026 Siamsil Technologies, Inc. All rights reserved.", "STEOS is a product of Siamsil Technologies."]);
+    expect(legalName).toBe("Siamsil Technologies");
+    expect(footerLines).toEqual(["© 2026 Siamsil Technologies All rights reserved.", "STEOS is a product of Siamsil Technologies."]);
   });
 
   it("is not applied to a restaurant's storefront, which keeps its own brand", () => {
