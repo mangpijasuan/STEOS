@@ -15,9 +15,9 @@ export type Report = {
   taxCents: number;
   tipCents: number;
   grossCents: number;
-  /** Fees SROS earned on these orders, whether taken from the card payment or invoiced. */
+  /** Fees STEOS earned on these orders, whether taken from the card payment or invoiced. */
   platformFeeCents: number;
-  /** The part of the SROS fee on orders the restaurant collected itself (cash, own card machine). Billed separately. */
+  /** The part of the STEOS fee on orders the restaurant collected itself (cash, own card machine). Billed separately. */
   platformFeeInvoicedCents: number;
   /** Card fees on online payments, estimated at the standard rate. Stripe's own reports have the exact figure. */
   processingEstimateCents: number;
@@ -25,7 +25,7 @@ export type Report = {
   byMethod: Record<"card_online" | "cash" | "card_terminal" | "other", { orders: number; grossCents: number }>;
   /** Paid orders by where they came from. */
   byType: Record<"pickup" | "dine_in" | "counter", { orders: number; grossCents: number }>;
-  /** What the restaurant keeps from card payments: gross minus SROS fee and estimated card fees. Tax is not income. */
+  /** What the restaurant keeps from card payments: gross minus STEOS fee and estimated card fees. Tax is not income. */
   netEstimateCents: number;
   netSalesCents: number;
   netChargedCents: number;

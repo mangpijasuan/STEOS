@@ -1,10 +1,24 @@
-# Launch checklist
+# STEOS production launch checklist
 
 What has to be true before the first real customer pays for a real order, starting with Zogam Cafe. Work top to bottom. A box is ticked only when someone has seen the result, not when the step was merely done.
 
 **Owner key.** **Founder** decides or holds the account. **Codex** reviews and verifies independently. **Claude** builds and runs the code-side steps. Where an owner is the founder, the others can prepare the commands but not the account access.
 
 **Release authority.** The founder gives the final go. Pricing, fees and live payment settings change only with the founder's approval.
+
+## Mandatory release gates
+
+Record evidence, date, verifier and release commit for each gate. All five must pass before public commercial launch. Critical security, tenant isolation, payment integrity, legal authorization and backup/restore failures cannot be waived. Noncritical exceptions require written founder acceptance, mitigation, owner and due date.
+
+| Gate | Evidence required | Checklist sections |
+| --- | --- | --- |
+| 1. Code release | Clean main CI, Docker build, health endpoint tests, no critical defects | 0 |
+| 2. Staging infrastructure | Isolated HTTPS staging, database restore, secrets, email and worker checks | 1–5 |
+| 3. Payment certification | Stripe sandbox scenarios, reconciliation, dispute handling | 6 |
+| 4. Restaurant acceptance | Owner-approved menu and workflows on physical devices | 7–8 |
+| 5. Commercial launch | Entity, agreements, policies, live account approval, controlled live test and monitoring | 9–10 |
+
+Use [PRODUCT_ROADMAP.md](PRODUCT_ROADMAP.md) for sequencing and [DEPLOY_COOLIFY.md](DEPLOY_COOLIFY.md) for deployment. Pickup is the first commercial scope; QR/till are enabled only after their acceptance checks. Delivery and loyalty are deferred.
 
 ## 0. Code is merged and checked
 
@@ -14,18 +28,20 @@ What has to be true before the first real customer pays for a real order, starti
 - [ ] `main` builds from a clean checkout: `npm ci && npm run typecheck && npm test && npm run build`. *Claude*
 - [ ] No open review comment marked P1. *Codex*
 
+- [ ] Docker build passes; pin the supported Node image to a verified digest and document updates. Verify liveness, readiness success/failure, bounded database probe behavior and degraded operational health with dedicated tests.
+
 ## 1. Hosting and network
 
 Plan on record: Contabo server, Coolify to deploy, Cloudflare in front. Adjust if that changes.
 
 - [ ] A server is running Node 22 and PostgreSQL 16 (or a managed PostgreSQL 16). *Founder*
-- [ ] The app is deployed from `main` and reachable over HTTPS on its real domain. *Founder, Claude*
+- [ ] The approved release is deployed to an isolated staging domain over HTTPS before live deployment. Staging uses a separate database, secrets, Stripe test account and webhook configuration. *Founder, Claude*
 - [ ] The origin refuses direct public traffic; only Cloudflare and the proxy can reach the app. *Founder*
 - [ ] `APP_URL` is the HTTPS public address. *Founder*
 - [ ] `TRUSTED_CLIENT_IP_HEADER` is set to a single-IP header that the ingress overwrites on every request, and only after the item above is confirmed. Without it, public rate limits share one anonymous bucket. *Founder, Codex to verify*
 - [ ] Access logs redact the bearer tokens that appear in sign-in and order paths. *Founder*
 - [ ] `GET /api/health` returns healthy in production, and is not reported as degraded for the client-IP setting. *Claude*
-- [ ] An uptime monitor watches `/api/health`. *Founder*
+- [ ] An uptime monitor watches `/api/health`; `/api/live` is process liveness and `/api/ready` is database readiness. Confirm database failure does not trigger a liveness restart loop. *Founder*
 - [ ] `ALERT_WEBHOOK_URL` points at a channel someone reads, and a deliberate test alert arrived. *Founder*
 
 ## 2. Database
@@ -44,7 +60,7 @@ Generate each secret independently, for example `openssl rand -base64 48`. Never
 - [ ] `ORDER_TOKEN_SECRET`: at least 32 random characters. It must stay stable, because it derives customers' private order links and keeps retries working. *Founder*
 - [ ] `CRON_SECRET`: at least 32 random characters, different from the one above. *Founder*
 - [ ] `PAYMENTS_PROVIDER=stripe` in production. The fake provider refuses to start there, which is the intended safeguard. *Founder*
-- [ ] No test or sandbox keys in the production environment, and no live keys in any other environment. *Founder, Codex to review settings*
+- [ ] Staging uses Stripe test keys even when `NODE_ENV=production`; live commercial environment uses live keys only after approval. Verify mode, account and webhook secret match; never use live keys in staging. *Founder, Codex to review settings*
 - [ ] Secrets are stored in the host's secret settings, not in the repository or in chat. *Founder*
 
 ## 4. Sign-in email (Resend)
@@ -57,7 +73,7 @@ Generate each secret independently, for example `openssl rand -base64 48`. Never
 
 - [ ] `npm run worker:orders` runs under a process supervisor and restarts after a crash, or a scheduler calls `POST /api/internal/expire-orders` every minute with `Authorization: Bearer $CRON_SECRET`. *Founder, Claude*
 - [ ] `/api/health` reports a recent worker heartbeat, and goes degraded when the worker is stopped for more than five minutes (stop it on purpose and confirm). *Claude*
-- [ ] The worker shares the app's `ORDER_TOKEN_SECRET`/`CRON_SECRET` settings and uses HTTPS or a loopback address. *Claude*
+- [ ] The worker uses the app's `CRON_SECRET` and HTTPS or loopback; disable the inherited HTTP container healthcheck for the worker and monitor heartbeat. Neither web nor worker receives `DATABASE_OWNER_URL`. *Claude*
 
 ## 6. Payments: real Stripe sandbox run
 
@@ -81,13 +97,14 @@ Scenarios. For each, record what was done and what happened:
 - [ ] **Promo code on a card order:** the discount, tax and fee match the receipt; a declined order returns the code's use.
 - [ ] **Reports match Stripe:** sales and refunds for the test period agree with the Stripe dashboard.
 
-Known limits to keep in mind: partial refunds and refunds issued directly in Stripe are not reconciled by the app and must be checked in Stripe.
+- [ ] Reconcile actual processing and application fees, captures, refunds and payouts. Test partial/external refunds and dispute notifications; implement reconciliation or a documented, tested manual control with named owner and daily review. Unresolved material discrepancies block launch.
+- [ ] Verify fraud controls and mobile wallet compatibility; do not advertise unverified wallet support.
 
 Owner: *Founder runs or watches; Codex verifies independently; Claude fixes what breaks.*
 
 ## 7. In-person flows (dine-in and till)
 
-These involve no card, so test them on the real deployment with real hardware.
+Test cash/external-terminal flows on staging with real hardware and QR pay-now with Stripe test cards. Do not collect real money during staging.
 
 - [ ] Print the table QR codes, scan one with a real phone, place a pay-later order, and see it in the kitchen with the table number. *Founder*
 - [ ] Staff mark the order paid at the table (cash or terminal) and the table clears only after that. *Founder*
@@ -100,14 +117,16 @@ These involve no card, so test them on the real deployment with real hardware.
 - [ ] The founder has confirmed prices for the six items flagged in `docs/zogam-cafe.md`: Yum Beef, Chicken or Seafood; Singapore Fried Noodle; Nasi Lemak; Red Snapper; Lemon Fish; and whether Pepper Steak has other choices.
 - [ ] The owner's email address is decided and can receive mail.
 - [ ] Photos are ready as JPEGs named for the dishes, each under 1.5 MB (optional; they can be added later in `/menu`).
-- [ ] The importer ran once on production: `ZOGAM_OWNER_EMAIL=... npm run db:seed:zogam`. It creates the restaurant with ordering paused. *Claude, founder watching*
+- [ ] The importer ran once per intended environment, first staging and later live before enabling ordering, in a one-off migration/seed job: `ZOGAM_OWNER_EMAIL=... npm run db:seed:zogam`. It creates the restaurant with ordering paused. *Claude, founder watching*
 - [ ] The owner signed in and checked every dish, price and choice group in `/menu`.
 - [ ] In `/manage`: the tax rate (it starts at 0%), weekly hours and preparation time are set.
 - [ ] The timezone is right. New restaurants default to America/Chicago, which is correct for a Central-time restaurant such as one with a 918 area code. The app has no timezone setting yet (found in the browser smoke test), so a restaurant in another zone needs the value changed in the database by whoever holds the owner connection, or a field added to `/manage` first. *Founder to confirm Zogam's timezone*
 - [ ] Stripe is connected for the live restaurant account, and the pricing plan is chosen by the founder.
-- [ ] Ordering is switched on only after a full real test order, placed, accepted, and refunded, with live-mode cards in the founder's hands.
+- [ ] Owner approves the sandbox acceptance results. Keep public ordering paused until the controlled live test in section 10; use a restricted test window and re-pause on failure.
 
 ## 9. Legal and policy
+
+- [ ] Confirm registered entity, business bank account, Stripe Connect live onboarding, trademark clearance or approved alternative brand, merchant agreement, tax and payment responsibilities with qualified advisers.
 
 - [ ] Terms, privacy policy and refund policy are written and linked from the storefront. *Founder*
 - [ ] Sales tax is set correctly for the restaurant's location, and the owner knows reports are not tax filings. *Founder, restaurant's accountant*
@@ -115,10 +134,10 @@ These involve no card, so test them on the real deployment with real hardware.
 
 ## 10. Go-live day
 
-- [ ] All sections above are ticked, or each exception has been accepted in writing by the founder.
+- [ ] All mandatory gates pass (gate 5 completes after the controlled live test). Only noncritical exceptions may be accepted in writing as described above.
 - [ ] Someone is available to watch logs, alerts and `/api/health` for the first service.
 - [ ] A rollback plan exists: the previous deploy can be restored, and the database can be restored from backup. Migrations are one-way, so changes that cannot be rolled back are listed.
-- [ ] Switch live Stripe keys on, place one real small order and refund it, then enable ordering for customers.
+- [ ] After explicit founder authorization, configure live keys in the live environment only, restrict access for one small real order and refund, reconcile it, then enable public pickup ordering. Stop and re-pause on any failure.
 - [ ] After the first day: compare the day's orders and payments against the Stripe dashboard, and read every alert that fired.
 
 ## Not built yet (decide whether any block launch)
