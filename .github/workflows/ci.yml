@@ -65,3 +65,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t steos:ci .
+
+      - name: Container startup and database recovery smoke test
+        run: bash scripts/ci-container-smoke.sh
