@@ -68,7 +68,7 @@ export default function Tables() {
 
   // A short beep when a table newly needs attention, if the waiter turned sound on.
   useEffect(() => {
-    document.title = priorityCount ? `(${priorityCount}) Tables · STOS` : "Tables · STOS";
+    document.title = priorityCount ? `(${priorityCount}) Tables · STEOS` : "Tables · STEOS";
     if (soundOn && audio.current && priorityCount > lastPriority.current) {
       const ctx = audio.current;
       const osc = ctx.createOscillator();

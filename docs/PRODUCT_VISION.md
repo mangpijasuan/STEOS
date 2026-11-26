@@ -1,6 +1,6 @@
-# STOS product vision
+# STEOS product vision
 
-STOS is an all-in-one business operating system, sold as multi-tenant software. A business signs up, says what kind of business it is, and gets the modules it needs on one platform with one login, one customer list and one set of reports. The target market is the United States first, then worldwide.
+STEOS is an all-in-one business operating system, sold as multi-tenant software. A business signs up, says what kind of business it is, and gets the modules it needs on one platform with one login, one customer list and one set of reports. The target market is the United States first, then worldwide.
 
 ## Who it is for
 
@@ -12,22 +12,22 @@ All of these are modules of one platform, not separate products. Status is hones
 
 | Module | Responsibility | Status |
 | --- | --- | --- |
-| STOS Core | Platform foundation, tenants, staff accounts, roles | Built |
-| STOS Commerce | Online ordering and e-commerce | Built for restaurants (storefront, pickup, QR dine-in, checkout) |
-| STOS POS | In-person sales | Built for restaurants (till, receipts, discounts, manual payments) |
-| STOS Kitchen | Restaurant kitchen operations | Built |
-| STOS Payments | Payment processing and reconciliation | Built on Stripe Connect; sandbox testing and dispute handling pending |
-| STOS Customers | CRM and loyalty | Not built (promo codes only) |
-| STOS Inventory | Products, stock and inventory | Not built (menu items only) |
-| STOS Supply | Suppliers and procurement | Not built |
-| STOS Finance | Accounting and bookkeeping | Not built (reports only) |
-| STOS Workforce | Employees and scheduling | Not built (staff accounts only) |
-| STOS Website | Merchant websites | Not built (branded storefront only) |
-| STOS Logistics | Delivery and fulfillment | Not built; decided not to start now |
-| STOS Learning | Employee training | Not built |
-| STOS Safety | Safety and compliance | Not built |
-| STOS Enterprise | ERP and multi-location management | Not built (one default location per tenant) |
-| STOS Intelligence | AI and business automation | Not built |
+| STEOS Core | Platform foundation, tenants, staff accounts, roles | Built |
+| STEOS Commerce | Online ordering and e-commerce | Built for restaurants (storefront, pickup, QR dine-in, checkout) |
+| STEOS POS | In-person sales | Built for restaurants (till, receipts, discounts, manual payments) |
+| STEOS Kitchen | Restaurant kitchen operations | Built |
+| STEOS Payments | Payment processing and reconciliation | Built on Stripe Connect; sandbox testing and dispute handling pending |
+| STEOS Customers | CRM and loyalty | Not built (promo codes only) |
+| STEOS Inventory | Products, stock and inventory | Not built (menu items only) |
+| STEOS Supply | Suppliers and procurement | Not built |
+| STEOS Finance | Accounting and bookkeeping | Not built (reports only) |
+| STEOS Workforce | Employees and scheduling | Not built (staff accounts only) |
+| STEOS Website | Merchant websites | Not built (branded storefront only) |
+| STEOS Logistics | Delivery and fulfillment | Not built; decided not to start now |
+| STEOS Learning | Employee training | Not built |
+| STEOS Safety | Safety and compliance | Not built |
+| STEOS Enterprise | ERP and multi-location management | Not built (one default location per tenant) |
+| STEOS Intelligence | AI and business automation | Not built |
 
 ## How a business is configured
 

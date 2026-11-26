@@ -1,4 +1,4 @@
-# STOS product roadmap
+# STEOS product roadmap
 
 A working plan, not a promise. Status words are literal: "built" means merged and tested, "not started" means no code.
 
@@ -24,16 +24,16 @@ We do not build our own processor or a card vault shared across businesses. We a
 - **At launch:** confirm Apple Pay and Google Pay appear at checkout on a real phone (Apple Pay needs the domain verified) and review Stripe's fraud-screening settings. Direct-ordering sites attract card testing; we have per-client request limits but no card-specific screening of our own.
 - **Soon after:** handle disputes and chargebacks. The webhook handler does not listen for dispute events today, so a chargeback would only show in Stripe. Add the events, an alert, a line in reports, and one view that reconciles captures, refunds, disputes and fees against Stripe payouts.
 - **Later:** one-click checkout for returning customers. Try Stripe's saved-card options (such as Link) first, and check how they behave with direct charges on a business's own account before promising it.
-- **Billing STOS itself:** a Stripe subscription for the platform fee, tied to a tenant so paying switches the plan on. Decide plans and prices first; that is the founder's call.
+- **Billing STEOS itself:** a Stripe subscription for the platform fee, tied to a tenant so paying switches the plan on. Decide plans and prices first; that is the founder's call.
 
 ## Phases after the first 90 days
 
-1. **STOS Commerce:** finish Zogam Cafe, launch restaurant subscriptions.
-2. **STOS POS and retail:** barcodes, universal catalog, convenience-store pilot.
-3. **STOS Inventory and Supply:** stock, suppliers, purchasing.
-4. **STOS Finance:** accounting and bookkeeping.
-5. **STOS Enterprise:** ERP, training, safety, workforce and multi-location management.
-6. **STOS Intelligence:** AI and business automation.
+1. **STEOS Commerce:** finish Zogam Cafe, launch restaurant subscriptions.
+2. **STEOS POS and retail:** barcodes, universal catalog, convenience-store pilot.
+3. **STEOS Inventory and Supply:** stock, suppliers, purchasing.
+4. **STEOS Finance:** accounting and bookkeeping.
+5. **STEOS Enterprise:** ERP, training, safety, workforce and multi-location management.
+6. **STEOS Intelligence:** AI and business automation.
 
 Deferred until the first commercial platform is stable: full ERP, advanced accounting, fuel integration, payroll, manufacturing.
 

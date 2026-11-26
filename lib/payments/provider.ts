@@ -40,7 +40,7 @@ export interface PaymentProvider {
   createAuthorization(input: AuthorizationInput): Promise<Authorization>;
   capture(providerPaymentId: string, connectedAccountId: string | null): Promise<void>;
   cancel(providerPaymentId: string, connectedAccountId: string | null): Promise<void>;
-  /** Returns the whole payment to the customer, including STOS's application fee. */
+  /** Returns the whole payment to the customer, including STEOS's application fee. */
   refund(input: RefundInput): Promise<Refund>;
   retrieveRefund?(id: string, connectedAccountId: string | null): Promise<Refund>;
   /** Checks the signature and translates the event. Returns null for events we do not use. */

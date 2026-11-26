@@ -8,7 +8,7 @@ export default function Home() {
       <header className="topbar">
         <div className="container topbar-inner">
           <span className="brandmark">
-            <span className="logo">S</span> STOS
+            <span className="logo">S</span> STEOS
           </span>
           <span className="grow" />
           <a className="btn btn-sm" href="/login">Staff sign in</a>

@@ -1,6 +1,6 @@
-# STOS master plan
+# STEOS master plan
 
-**STOS** is the Siamsil Technologies Operating System: one multi-tenant platform with configurable business modules. *The Operating System for Business. Sell. Manage. Automate. Grow.* It is a product of Siamsil Technologies and was previously named SROS.
+**STEOS** is the Siamsil Technologies platform: one multi-tenant platform with configurable business modules. *The Operating System for Business. Sell. Manage. Automate. Grow.* It is a product of Siamsil Technologies and was previously named SROS.
 
 This page is the short version of the plan. The detail is in [PRODUCT_VISION.md](PRODUCT_VISION.md), [PRODUCT_ROADMAP.md](PRODUCT_ROADMAP.md) and [ARCHITECTURE.md](ARCHITECTURE.md).
 

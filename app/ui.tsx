@@ -38,12 +38,12 @@ export function Button({
   );
 }
 
-/** The platform footer for pages that are STOS's own (home, sign-in). Restaurant storefronts carry the restaurant's brand instead. */
+/** The platform footer for pages that are STEOS's own (home, sign-in). Restaurant storefronts carry the restaurant's brand instead. */
 export function PlatformFooter() {
   return (
     <footer className="platform-footer">
       <p>© 2026 Siamsil Technologies, Inc. All rights reserved.</p>
-      <p>STOS is a product of Siamsil Technologies.</p>
+      <p>STEOS is a product of Siamsil Technologies.</p>
     </footer>
   );
 }
@@ -295,7 +295,7 @@ export function StaffTopbar({ current, me }: { current: string; me: Me | null })
         <div className="side-head">
           <a className="brandmark" href="/dashboard" title="Dashboard">
             <span className="logo">S</span>
-            <span className="nav-text side-name">{me?.restaurantName || "STOS"}</span>
+            <span className="nav-text side-name">{me?.restaurantName || "STEOS"}</span>
           </a>
         </div>
         <nav className="side-nav" aria-label="Staff">
@@ -333,7 +333,7 @@ export function StaffTopbar({ current, me }: { current: string; me: Me | null })
         <div className="container topbar-inner">
           <a className="brandmark" href="/dashboard" aria-label="Dashboard">
             <span className="logo">S</span>
-            <span className="sr-only">STOS</span>
+            <span className="sr-only">STEOS</span>
           </a>
           <nav className="nav grow" aria-label="Staff">
             {flat.map((l) => (

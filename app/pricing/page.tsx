@@ -81,7 +81,7 @@ export default function Pricing() {
                 </div>
                 <p className="muted small">{p.summary}</p>
                 <p className="subtle num">
-                  STOS fee {money(p.estimate.platformFeeCents)} · card fees {money(p.estimate.processingCents)}
+                  STEOS fee {money(p.estimate.platformFeeCents)} · card fees {money(p.estimate.processingCents)}
                   {p.estimate.monthlyFeeCents > 0 && ` · subscription ${money(p.estimate.monthlyFeeCents)}`}
                 </p>
                 <div style={{ marginTop: "auto" }}>

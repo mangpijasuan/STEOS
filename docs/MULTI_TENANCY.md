@@ -1,6 +1,6 @@
 # Multi-tenancy
 
-STOS is multi-tenant: many businesses ("tenants", stored today as `restaurants`) share one application and one database. Isolation is enforced in the database, so a bug in a route cannot leak another tenant's rows.
+STEOS is multi-tenant: many businesses ("tenants", stored today as `restaurants`) share one application and one database. Isolation is enforced in the database, so a bug in a route cannot leak another tenant's rows.
 
 ## How it works today
 

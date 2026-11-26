@@ -1,8 +1,8 @@
-/* STOS design system, scoped.
+/* STEOS design system, scoped.
    Everything here applies only inside an element with class "ds" (see app/menu/layout.tsx), so screens that have
    not been moved to the design system keep their current look. To move a screen over, wrap it in .ds.
    Brand: change the --brand* variables in the first block. */
-/* STOS design system. Every screen uses these tokens and classes; no page carries its own colors.
+/* STEOS design system. Every screen uses these tokens and classes; no page carries its own colors.
    Change the brand by editing --brand* below. Light and dark themes are both defined; the kitchen
    screen always uses dark (data-theme="dark") because it runs all day on a tablet near the line. */
 .ds {

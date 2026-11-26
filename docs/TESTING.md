@@ -26,7 +26,7 @@ If the database already holds migrations from another branch, drop and recreate 
 
 Tenant isolation against a real database; pricing, tax, fees and plans; hours and pickup slots in the restaurant's time zone; checkout, idempotent retries and request fingerprints; payment events, captures, expiry and refunds (including reconciliation); the kitchen workflow; QR dine-in and pay-later orders; the till, discounts and promo codes (including the use being returned when an order never completes); reports; sign-in, sessions and roles; images; rate limiting, health and logging.
 
-Payments use a **fake provider and simulated events**. That checks STOS's own logic. It does not test Stripe.
+Payments use a **fake provider and simulated events**. That checks STEOS's own logic. It does not test Stripe.
 
 ## Not covered yet
 

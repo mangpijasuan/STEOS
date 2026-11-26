@@ -1,4 +1,4 @@
-# STOS security
+# STEOS security
 
 What is protected, how, and what is not done yet. If you find a vulnerability, tell the founder privately and do not open a public issue.
 
@@ -17,7 +17,7 @@ What is protected, how, and what is not done yet. If you find a vulnerability, t
 
 ## Payments
 
-- **No raw card data is stored or handled.** Card details go from the browser to Stripe (Stripe Elements). STOS stores Stripe identifiers and amounts.
+- **No raw card data is stored or handled.** Card details go from the browser to Stripe (Stripe Elements). STEOS stores Stripe identifiers and amounts.
 - Webhooks verify Stripe's signature; each event is recorded and applied in one database transaction, so repeats are ignored.
 - Checkout retries are protected by an idempotency key and a request fingerprint. A reused key with a different order is refused.
 - Money taken in person is refunded only after staff confirm they handed it back; nothing is recorded as refunded before that.

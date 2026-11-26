@@ -2,12 +2,12 @@
 
 ## Product identity
 
-- The product is **STOS**, the **Siamsil Technologies Operating System**. Tagline: *The Operating System for Business.* Secondary: *Sell. Manage. Automate. Grow.*
-- STOS is a product of **Siamsil Technologies** (the parent company), not a separate legal entity.
-- **SROS is the historical project name.** Use STOS in anything a person reads: UI text, emails, docs, comments, test names, pull requests. Do not reintroduce SROS, except in the places listed as intentionally unchanged in [docs/REBRANDING_MIGRATION.md](docs/REBRANDING_MIGRATION.md).
-- Footer for STOS's own pages (home, sign-in): "© 2026 Siamsil Technologies, Inc. All rights reserved." and "STOS is a product of Siamsil Technologies." Restaurant storefronts carry the restaurant's brand, not STOS's.
+- The product is **STEOS**. Tagline: *The Operating System for Business.* Secondary: *Sell. Manage. Automate. Grow.*
+- STEOS is a product of **Siamsil Technologies** (the parent company), not a separate legal entity.
+- **SROS is the historical project name.** Use STEOS in anything a person reads: UI text, emails, docs, comments, test names, pull requests. Do not reintroduce SROS, except in the places listed as intentionally unchanged in [docs/REBRANDING_MIGRATION.md](docs/REBRANDING_MIGRATION.md).
+- Footer for STEOS's own pages (home, sign-in): "© 2026 Siamsil Technologies, Inc. All rights reserved." and "STEOS is a product of Siamsil Technologies." Restaurant storefronts carry the restaurant's brand, not STEOS's.
 - Brand colors: French navy, white and gold, with optional red accents. The restaurant storefronts have their own per-restaurant branding (Zogam Cafe is forest green).
-- STOS is one multi-tenant platform with configurable modules, not a separate app per industry. Today only the restaurant modules are built. See [docs/PRODUCT_VISION.md](docs/PRODUCT_VISION.md) and [docs/STOS_MASTER_PLAN.md](docs/STOS_MASTER_PLAN.md).
+- STEOS is one multi-tenant platform with configurable modules, not a separate app per industry. Today only the restaurant modules are built. See [docs/PRODUCT_VISION.md](docs/PRODUCT_VISION.md) and [docs/STEOS_MASTER_PLAN.md](docs/STEOS_MASTER_PLAN.md).
 
 ## How we work
 
@@ -43,4 +43,4 @@ This is a newer Next.js than most training data covers. Read the relevant guide 
 
 ## Documentation map
 
-[docs/STOS_MASTER_PLAN.md](docs/STOS_MASTER_PLAN.md) · [docs/PRODUCT_VISION.md](docs/PRODUCT_VISION.md) · [docs/PRODUCT_ROADMAP.md](docs/PRODUCT_ROADMAP.md) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/MULTI_TENANCY.md](docs/MULTI_TENANCY.md) · [docs/SECURITY.md](docs/SECURITY.md) · [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) · [docs/TESTING.md](docs/TESTING.md) · [docs/REBRANDING_MIGRATION.md](docs/REBRANDING_MIGRATION.md)
+[docs/STEOS_MASTER_PLAN.md](docs/STEOS_MASTER_PLAN.md) · [docs/PRODUCT_VISION.md](docs/PRODUCT_VISION.md) · [docs/PRODUCT_ROADMAP.md](docs/PRODUCT_ROADMAP.md) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/MULTI_TENANCY.md](docs/MULTI_TENANCY.md) · [docs/SECURITY.md](docs/SECURITY.md) · [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) · [docs/TESTING.md](docs/TESTING.md) · [docs/REBRANDING_MIGRATION.md](docs/REBRANDING_MIGRATION.md)

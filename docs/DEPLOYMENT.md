@@ -1,6 +1,6 @@
 # Deployment
 
-How STOS runs in production. For a step-by-step launch, work through the launch checklist and the hosting guide when they are available in this repository.
+How STEOS runs in production. For a step-by-step launch, work through the launch checklist and the hosting guide when they are available in this repository.
 
 ## Parts
 

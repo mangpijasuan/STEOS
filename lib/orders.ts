@@ -150,7 +150,7 @@ export async function createCheckout(
       }
     }
     const fee = applicationFee({
-      // The fee base is the food at its full price. A discount is the restaurant's cost, not a reduction in STOS's fee.
+      // The fee base is the food at its full price. A discount is the restaurant's cost, not a reduction in STEOS's fee.
       // (The fee is capped at the amount charged, so a deep discount can never make it exceed the total.)
       subtotalCents: cart.subtotalCents, totalCents: cart.totalCents,
       feeBps: account.platformFeeBps, model: account.feeModel as FeeModel,

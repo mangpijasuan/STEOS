@@ -1,12 +1,12 @@
-# STOS
+# STEOS
 
-**STOS** (Siamsil Technologies Operating System) is a multi-tenant business platform by Siamsil Technologies. *The Operating System for Business. Sell. Manage. Automate. Grow.*
+**STEOS** is a multi-tenant business platform by Siamsil Technologies. *The Operating System for Business. Sell. Manage. Automate. Grow.*
 
-Today it runs restaurant ordering: a storefront, a staff kitchen queue, QR dine-in, a till, Stripe Connect payments, and owner controls for menus, hours, pricing and reports. Other business types are planned as modules of the same platform; see [docs/PRODUCT_VISION.md](docs/PRODUCT_VISION.md) and [docs/STOS_MASTER_PLAN.md](docs/STOS_MASTER_PLAN.md). STOS was previously named SROS; see [docs/REBRANDING_MIGRATION.md](docs/REBRANDING_MIGRATION.md).
+Today it runs restaurant ordering: a storefront, a staff kitchen queue, QR dine-in, a till, Stripe Connect payments, and owner controls for menus, hours, pricing and reports. Other business types are planned as modules of the same platform; see [docs/PRODUCT_VISION.md](docs/PRODUCT_VISION.md) and [docs/STEOS_MASTER_PLAN.md](docs/STEOS_MASTER_PLAN.md). STEOS was previously named SROS; see [docs/REBRANDING_MIGRATION.md](docs/REBRANDING_MIGRATION.md).
 
 ## Architecture
 
-STOS is a **modular monolith**. One Next.js application serves the customer storefront and table ordering, the kitchen, the table board and till, owner screens, and HTTP APIs. PostgreSQL holds order, payment and photo data and enforces restaurant-level isolation.
+STEOS is a **modular monolith**. One Next.js application serves the customer storefront and table ordering, the kitchen, the table board and till, owner screens, and HTTP APIs. PostgreSQL holds order, payment and photo data and enforces restaurant-level isolation.
 
 ```mermaid
 flowchart LR
@@ -101,7 +101,7 @@ In development the sign-in link is printed in the server console instead of bein
 | GET staff/orders?offset= | staff | Paginated waiting, accepted and ready orders |
 | POST staff/orders/id/accept, decline | staff | Accept (with optional `prepMinutes`) captures the money; decline releases the hold |
 | POST staff/orders/id/ready, complete | staff | Kitchen line: accepted, ready, picked up |
-| POST staff/orders/id/cancel | owner | Cancel an accepted order and refund in full, including the STOS fee |
+| POST staff/orders/id/cancel | owner | Cancel an accepted order and refund in full, including the STEOS fee |
 | GET staff/pricing?monthlySalesCents=&avgOrderCents= | owner | Plans, the active one, and each plan's monthly cost estimate |
 | PUT staff/pricing | owner | Choose a plan; applies to new orders only |
 | GET staff/reports/summary?days= | owner | Sales, tax, tips, fees, refunds, top items, by day |
@@ -134,7 +134,7 @@ In development the sign-in link is printed in the server console instead of bein
 
 ## Decisions made in Sprint 3
 
-- Stripe Connect direct charges: the payment lives on the restaurant's own account and STOS takes an application fee. Cards are authorized first and captured when the kitchen accepts.
+- Stripe Connect direct charges: the payment lives on the restaurant's own account and STEOS takes an application fee. Cards are authorized first and captured when the kitchen accepts.
 - Fee base is the food subtotal. With direct charges the restaurant's own account pays Stripe, so the "all-in" model takes the target percentage minus estimated processing (never below zero). The exact calculation is saved on every order.
 - The kitchen has 5 minutes to accept. After that the hold is released automatically.
 - Tips are optional, untaxed, and not part of the fee base.
@@ -163,10 +163,10 @@ Before taking live payments, verify card decline and retry, delayed webhook deli
 
 - Plans live in `lib/pricing.ts`: simple 3% + card fees, all-in 6%, founding 7% all-in, and a growth plan (5% + card fees + $79/month) that is listed but cannot be chosen until monthly billing exists. All rates are experiments.
 - Owners choose their own plan at `/pricing`, with a calculator for their monthly sales. The choice applies to new orders only. Each order stores a fee snapshot including the plan, so changing a plan or a rate never rewrites history.
-- `/reports` (owners only) shows sales, tax, tips, STOS fees, estimated card fees, refunds, top items and a daily breakdown. Card fees are estimated at 2.9% + 30 cents; Stripe has the exact figures.
-- `npm run report:platform -- 30` prints what STOS earned across all restaurants in the last 30 days. It uses the owner database connection, so run it only on your own machine or server.
+- `/reports` (owners only) shows sales, tax, tips, STEOS fees, estimated card fees, refunds, top items and a daily breakdown. Card fees are estimated at 2.9% + 30 cents; Stripe has the exact figures.
+- `npm run report:platform -- 30` prints what STEOS earned across all restaurants in the last 30 days. It uses the owner database connection, so run it only on your own machine or server.
 
-**Worth knowing about the all-in plans.** With Stripe direct charges the restaurant's own account pays the card fees, so on an all-in plan STOS keeps only the target percentage minus those fees, and nothing on very small orders. On a $20 order at 6% that is about $0.32. Plans with "+ card fees" earn more per order but cost the restaurant more. Compare them in the pilot before settling on a price.
+**Worth knowing about the all-in plans.** With Stripe direct charges the restaurant's own account pays the card fees, so on an all-in plan STEOS keeps only the target percentage minus those fees, and nothing on very small orders. On a $20 order at 6% that is about $0.32. Plans with "+ card fees" earn more per order but cost the restaurant more. Compare them in the pilot before settling on a price.
 
 See the [Phase 4 integration handoff](docs/PHASE_4_INTEGRATION.md) for the migration allocation and remaining feature ports.
 
@@ -182,7 +182,7 @@ Owners edit the menu at `/menu`: categories, dishes, add-on groups and options (
 
 Owners set up floors and tables at `/tables` (**Set up tables**), print a QR card per table at `/tables/qr`, and turn on **Guests can order by QR code** (also at `/manage`). A guest who scans a code lands on `/t/<code>`: the same menu, without a pickup time, with name and phone optional, and a choice of **pay at the table** or **pay now by card**.
 
-- Pay-later orders go straight to the kitchen. There is no card, no acceptance timer and no refund. Staff record cash or card-machine payment from the table sheet; that payment is stored with a capture time so reports include it. STOS's fee on these orders is **invoiced** rather than taken from a card payment, and the card-fee estimate in reports covers online card payments only.
+- Pay-later orders go straight to the kitchen. There is no card, no acceptance timer and no refund. Staff record cash or card-machine payment from the table sheet; that payment is stored with a capture time so reports include it. STEOS's fee on these orders is **invoiced** rather than taken from a card payment, and the card-fee estimate in reports covers online card payments only.
 - Pay-now orders use the normal card flow: held, then charged when the kitchen accepts, and expired if it does not respond in time.
 - The database refuses a pay-later order with an acceptance deadline, so the expiry sweep and refund reconciliation can never act on one. Pay-later checkout and kitchen decisions can run without Stripe configuration.
 - To cancel a paid pay-later order, the owner returns the payment in person, then confirms the refund in the kitchen screen. The app records the refund and cancellation together.
@@ -194,7 +194,7 @@ Owners set up floors and tables at `/tables` (**Set up tables**), print a QR car
 
 - **Till** (`/pos`, "New order"): staff enter an order for a table or a walk-in. They take payment now (cash, card machine, other) or send it to the kitchen to pay later. Orders go to the kitchen like any other. A table's sheet has an **Add order** link and a **Receipt** link per order (`/orders/<id>/receipt`, printable at 80 mm).
 - **Promo codes** (`/promos`, owner): percent or dollar codes with an optional minimum spend, expiry and use limit. Customers enter a code on the storefront and at the table; staff can apply one at the till, and the owner can also type a custom discount.
-- **How a discount prices:** it comes off the food first, tax is charged on what is left, tips are never taxed, and a total cannot go negative. The STOS fee is computed on the food at its full price, so a discount is the restaurant's cost and does not reduce STOS's fee (the fee is still capped at the amount charged). Reports show discounts and net sales after them.
+- **How a discount prices:** it comes off the food first, tax is charged on what is left, tips are never taxed, and a total cannot go negative. The STEOS fee is computed on the food at its full price, so a discount is the restaurant's cost and does not reduce STEOS's fee (the fee is still capped at the amount charged). Reports show discounts and net sales after them.
 - **Limited codes:** the last use cannot be taken twice. A use is given back when an order never completes (declined, expired, payment failed or cancelled), and taken again if a failed payment is later captured. Wrong guesses are rate limited per person.
 - **Till requests are idempotent:** reusing a request key with a different order is refused. Each till order records the staff member who entered it, and the database only allows staff of the same restaurant.
 

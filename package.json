@@ -2,7 +2,7 @@
   "name": "siamsil-restaurant",
   "version": "0.1.0",
   "private": true,
-  "description": "STOS (Siamsil Technologies Operating System), a multi-tenant business platform. Formerly SROS.",
+  "description": "STEOS by Siamsil Technologies, a multi-tenant business platform. Formerly SROS.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

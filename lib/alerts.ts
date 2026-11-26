@@ -36,7 +36,7 @@ export async function alert(key: string, message: string, fields: Fields = {}): 
       .filter(([, value]) => typeof value === "string" || typeof value === "number")
       .map(([name, value]) => `${name}: ${value}`)
       .join(", ");
-    const text = [`STOS: ${message}`, details, "See the logs for repeats."].filter(Boolean).join("\n");
+    const text = [`STEOS: ${message}`, details, "See the logs for repeats."].filter(Boolean).join("\n");
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
