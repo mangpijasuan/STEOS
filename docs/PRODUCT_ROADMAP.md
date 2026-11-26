@@ -1,46 +1,41 @@
 # STEOS product roadmap
 
-A working plan, not a promise. Status words are literal: "built" means merged and tested, "not started" means no code.
+Founder-approved 90-day strategy. Dates are targets, not promises; each phase depends on the preceding release gates. STEOS is the working product name pending commercial trademark clearance.
 
-## First 90 days: production readiness
+## Strategy
 
-| # | Priority | Status |
+One Platform. Every Business. Start with independent restaurants operating their own storefronts, customers and payments. Zogam Cafe in Tulsa is the first pilot, subject to owner approval. No consumer marketplace or proprietary driver network.
+
+## First 90 days
+
+| Window | Priority | Exit criteria |
 | --- | --- | --- |
-| 1 | Complete the restaurant ordering platform | Built; waiting on real-payment testing |
-| 2 | Launch Zogam Cafe as the first pilot, subject to the owner's approval | Menu imported in testing, storefront branded; needs prices for six dishes, hosting, a Stripe sandbox run and a live test order |
-| 3 | Multi-tenant merchant onboarding | Partly: tenants, roles and a one-time importer exist; no self-service sign-up, no business-type choice, no timezone setting |
-| 4 | Recurring SaaS subscription billing | Not started. Plans and fee estimates exist; nothing charges them or switches features on |
-| 5 | Merchant and kitchen dashboards | Built |
-| 6 | Validate checkout, payment and order workflows | Automated tests and browser checks done with a fake payment provider; real Stripe not tested |
-| 7 | Automated deployment, monitoring and backups | Partly: CI runs on every pull request, a health endpoint and alerts exist; hosting, backups and a tested restore are not done |
-| 8 | Universal product catalog | Not started. Today a "menu item" belongs to a restaurant |
-| 9 | Barcode and basic retail POS | Not started |
-| 10 | Convenience-store pilot | Not started |
+| Days 1–15 | Code release and staging | Integrated CI, secure HTTPS staging, least-privilege database roles, health and worker checks, tested backup restore, verified email |
+| Days 16–30 | Zogam sandbox pilot | Owner confirms menu, prices, hours and tax; mobile pickup, kitchen, QR and till acceptance tests; Stripe sandbox authorization, capture, refunds, webhook retries and reconciliation |
+| Days 31–45 | First commercial pickup launch | Founder and restaurant approve fees, entity and payment setup, legal policies, security and operational gates; small live order and refund; monitor first week and reconcile daily |
+| Days 46–60 | Delivery integration | DoorDash Drive and Uber Direct subject to production access; customer chooses courier or pickup, quote expiry, delivery fee disclosure, dispatch, tracking and cancellation tested; no launch without approval |
+| Days 61–90 | Expand to 3–5 restaurants | Learn from pilot, configurable tenant branding and timezone, documented onboarding, agreed fee collection and reconciliation, support and retention metrics |
 
-## Payments: learn from Olo Pay, build on Stripe
+## Current baseline
 
-We do not build our own processor or a card vault shared across businesses. We add what Stripe already offers.
+Merged: pickup authorization/capture, QR pay now/later, till discounts and receipts, kitchen, menu photos, promotions, dashboards, email-link authentication, database tenant isolation, Zogam storefront/importer, centralized branding, Docker build and health endpoints. PR CI passed for the integrated branding/deployment branch; live operation is not certified. Six Zogam dishes need owner-confirmed prices. Real Stripe, email delivery, physical devices/printer, staging and live restaurant acceptance remain unverified.
 
-- **At launch:** confirm Apple Pay and Google Pay appear at checkout on a real phone (Apple Pay needs the domain verified) and review Stripe's fraud-screening settings. Direct-ordering sites attract card testing; we have per-client request limits but no card-specific screening of our own.
-- **Soon after:** handle disputes and chargebacks. The webhook handler does not listen for dispute events today, so a chargeback would only show in Stripe. Add the events, an alert, a line in reports, and one view that reconciles captures, refunds, disputes and fees against Stripe payouts.
-- **Later:** one-click checkout for returning customers. Try Stripe's saved-card options (such as Link) first, and check how they behave with direct charges on a business's own account before promising it.
-- **Billing STEOS itself:** a Stripe subscription for the platform fee, tied to a tenant so paying switches the plan on. Decide plans and prices first; that is the founder's call.
+## Payment and commercial gates
 
-## Phases after the first 90 days
+- Pickup first. Pricing models remain experimental until founder and restaurant approve; no automatic plan switching. Record immutable order fee snapshots and reconcile actual processing fees, refunds and payouts.
+- Verify sandbox authorization/capture, failed payments, cancellation, expiration, duplicate/delayed webhooks and refunds. Resolve material reconciliation gaps and establish dispute monitoring and handling before live launch.
+- Check mobile wallet compatibility and fraud controls; do not promise Apple Pay, Google Pay or saved cards until tested with the actual Connect charge model.
+- Till/pay-later fees are recorded but not automatically billed. Agree collection before charging; recurring subscription billing is not implemented.
+- No live keys, real orders or courier dispatch until explicitly approved. See [LAUNCH_CHECKLIST.md](LAUNCH_CHECKLIST.md) once merged and [DEPLOY_COOLIFY.md](DEPLOY_COOLIFY.md).
 
-1. **STEOS Commerce:** finish Zogam Cafe, launch restaurant subscriptions.
-2. **STEOS POS and retail:** barcodes, universal catalog, convenience-store pilot.
-3. **STEOS Inventory and Supply:** stock, suppliers, purchasing.
-4. **STEOS Finance:** accounting and bookkeeping.
-5. **STEOS Enterprise:** ERP, training, safety, workforce and multi-location management.
-6. **STEOS Intelligence:** AI and business automation.
+## After pilot stability
 
-Deferred until the first commercial platform is stable: full ERP, advanced accounting, fuel integration, payroll, manufacturing.
+Prioritize repeat ordering and opt-in loyalty, then recurring billing and merchant onboarding improvements based on customer demand. Retail/barcodes, universal catalog, inventory/supply, finance, enterprise and intelligence are future modules, not 90-day commitments. No rewrite, large redesign, proprietary payment processor or shared card vault.
 
-## Not now
+## Founder decisions
 
-A consumer marketplace; a driver network (if delivery ever comes, it starts with a business's own drivers or a partner's driver service); our own payment processor; a large redesign.
+Confirm six dish prices, owner email, timezone, tax and hours, fee plans and collection, till-paid cancellation authority, entity and trademark clearance, hosting/email/Stripe access, and explicit live launch approval.
 
-## Decisions waiting on the founder
+## Operating discipline
 
-Real prices for the six Zogam dishes and the owner's sign-in email; whether to add a timezone field (new tenants default to America/Chicago); how platform fees on till and pay-later orders are collected; whether declining a till-paid order stays open to staff; the plan and price for subscription billing; the trademark and entity questions in [REBRANDING_MIGRATION.md](REBRANDING_MIGRATION.md); and the Stripe, hosting and email accounts.
+Small tested changes, independent review, founder approval for merges and financial decisions. Track actual orders, completion rate, payment discrepancies, restaurant savings, contribution margin and support burden. No phase is complete until its exit criteria are evidenced.
