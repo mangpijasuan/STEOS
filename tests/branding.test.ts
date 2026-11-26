@@ -44,6 +44,27 @@ describe("the platform's identity", () => {
   });
 });
 
+describe("the platform colors", () => {
+  const layout = (dir: string) => fs.readFileSync(path.join(root, "app", dir, "layout.tsx"), "utf8");
+
+  it("apply to the platform's own screens", () => {
+    for (const dir of ["dashboard", "kitchen", "login", "manage", "menu", "orders", "pos", "pricing", "promos", "reports", "tables"]) {
+      expect(layout(dir), dir).toContain('data-brand="platform"');
+    }
+    expect(fs.readFileSync(path.join(root, "app/page.tsx"), "utf8")).toContain('data-brand="platform"');
+  });
+
+  it("do not apply to restaurant-facing pages, so each restaurant keeps its own look", () => {
+    for (const dir of ["r", "t", "order"]) expect(layout(dir), dir).not.toContain("data-brand");
+  });
+
+  it("use the approved navy and gold", () => {
+    const css = fs.readFileSync(path.join(root, "app/ds.css"), "utf8");
+    expect(css.toLowerCase()).toContain(`--brand: ${branding.colors.primary.toLowerCase()}`);
+    expect(css.toLowerCase()).toContain(`--accent: ${branding.colors.secondary.toLowerCase()}`);
+  });
+});
+
 describe("nothing hard-codes the platform name", () => {
   const files = [...sourceFiles("app"), ...sourceFiles("lib"), ...sourceFiles("scripts")].filter((f) => f !== path.join("lib", "branding.ts"));
 

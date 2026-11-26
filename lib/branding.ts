@@ -4,8 +4,9 @@
 // This is the PLATFORM's brand. A restaurant's storefront keeps its own brand (name, logo, colors); nothing here is
 // applied to it. `tests/branding.test.ts` fails if a screen or library file hard-codes the platform name instead.
 //
-// Values are the founder's approved defaults. `domain` and `logo` are not set yet. `colors` are proposed defaults and are
-// not applied to the interface yet (the design system still uses its current accent).
+// Values are the founder's approved defaults. `domain` and `logo` are not set yet. `colors` are proposed defaults; they
+// are applied by app/ds.css (the `data-brand="platform"` block, which has to repeat the hex values because CSS cannot
+// import this file) to the platform's own screens only, and `tests/branding.test.ts` checks the two stay in step.
 
 export const branding = {
   name: "STEOS",

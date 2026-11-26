@@ -392,6 +392,44 @@
   .ds .page { padding: 0 !important; }
 }
 
+/* ============================================================ platform brand
+   STEOS's own screens (home, sign-in, staff and owner screens, the kitchen) carry data-brand="platform" and use the
+   approved navy and gold from lib/branding.ts. Restaurant-facing pages (the storefront, table page and order status) do
+   not, so each restaurant keeps its own look; Zogam Cafe overrides the same tokens with its green below.
+   Dark mode swaps the roles: navy on dark is unreadable, so gold becomes the main accent there. */
+.ds[data-brand="platform"] {
+  --brand: #183153;
+  --brand-hover: #112641;
+  --brand-ink: #ffffff;
+  --brand-soft: #e9eef6;
+  --brand-soft-ink: #183153;
+  --series: #183153;
+  --accent: #d4af37;
+  --logo-ink: #d4af37;
+}
+@media (prefers-color-scheme: dark) {
+  .ds[data-brand="platform"]:where(:not([data-theme="light"])) {
+    --brand: #d4af37;
+    --brand-hover: #e2c45f;
+    --brand-ink: #17120a;
+    --brand-soft: #2b2511;
+    --brand-soft-ink: #f1dc94;
+    --series: #d4af37;
+    --logo-ink: #17120a;
+  }
+}
+.ds[data-brand="platform"][data-theme="dark"] {
+  --brand: #d4af37;
+  --brand-hover: #e2c45f;
+  --brand-ink: #17120a;
+  --brand-soft: #2b2511;
+  --brand-soft-ink: #f1dc94;
+  --series: #d4af37;
+  --logo-ink: #17120a;
+}
+.ds[data-brand="platform"] .logo { color: var(--logo-ink); }
+.ds[data-brand="platform"] .side-link[aria-current="page"] { box-shadow: inset 3px 0 0 var(--accent); }
+
 /* ============================================================ till, menu cards and receipt */
 .ds .store-layout { display: grid; gap: 28px; padding-block: 20px 120px; }
 .ds .menu-section { scroll-margin-top: 72px; }

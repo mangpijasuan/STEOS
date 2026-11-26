@@ -17,11 +17,12 @@ The repository was searched for every reference to SROS (62 lines in 26 files, o
 
 ## How the branding is centralized
 
-`lib/branding.ts` holds the platform's identity as the founder approved it: name `STEOS`, full name "Siamsil Technologies Enterprise Operating System", company "Siamsil Technologies", tagline "One Platform. Every Business.", domain and logos (not set yet), colors (French navy `#183153`, gold `#D4AF37`, white; proposed defaults, **not yet applied to the interface**) and a "Powered by STEOS" option that is **off**. It also builds the strings that name the product: browser titles, metadata description, the sign-in email subject, the "STEOS fee" label, alert and report prefixes, and the two footer lines on the home and sign-in pages.
+`lib/branding.ts` holds the platform's identity as the founder approved it: name `STEOS`, full name "Siamsil Technologies Enterprise Operating System", company "Siamsil Technologies", tagline "One Platform. Every Business.", domain and logos (not set yet), colors (French navy `#183153`, gold `#D4AF37`, white; proposed defaults, applied to STEOS's own screens only, see below) and a "Powered by STEOS" option that is **off**. It also builds the strings that name the product: browser titles, metadata description, the sign-in email subject, the "STEOS fee" label, alert and report prefixes, and the two footer lines on the home and sign-in pages.
 
 - Screens and libraries import from it. `tests/branding.test.ts` fails if a file under `app`, `lib` or `scripts` types the product name into a string or page text, or uses the old name SROS (apart from the two kept storage keys and one internal field).
 - Restaurant storefronts do not use it. Zogam Cafe keeps its own name, logo and colors; the test checks the storefront does not import the config.
 - To rename the product again, change `lib/branding.ts` and the documentation; no screen needs editing.
+- **Colors.** STEOS's own screens (home, sign-in, the staff and owner screens and the kitchen) carry `data-brand="platform"` and use navy as the main color in light mode, with a gold accent on the logo letter and the active sidebar item. In dark mode (and the kitchen, which is always dark) gold becomes the main accent, because navy on a dark background is unreadable. Restaurant-facing pages (the storefront, table page and order status) do **not** carry it, so each restaurant keeps its own look: Zogam Cafe stays green and other restaurants keep the default orange.
 - Documentation cannot import code, so the docs still spell the name out; keep them in step by hand.
 
 ## What changed
@@ -40,7 +41,7 @@ Behavior, database schema, migrations, payment code, pricing and fees, API route
 
 1. **Trademark.** The name STEOS has not been searched. A search of the US trademark database for the different spelling "stos" (9 results; four live, none in business software) says nothing about STEOS, so it has to be repeated for STEOS and for close variants, in the software and business-services classes (9, 35, 36, 42). Then have a trademark attorney give an opinion before spending on logos or a public launch.
 2. **Legal entity.** The footer says "Siamsil Technologies, Inc.". I could not verify that this is the exact registered name. Confirm it before launch.
-3. **Brand assets.** The approved colors are in `lib/branding.ts` but not applied: no STEOS logo exists yet, and the design system still uses its current orange accent for STEOS's own screens. Applying navy and gold and adding a logo is a separate design task.
+3. **Brand assets.** No STEOS logo exists yet (the sidebar and home page use a navy square with a gold "S" as a placeholder), and the domain is unset. The navy and gold are applied (see below) but are proposed defaults.
 4. **Repository and domain.** The founder renamed the GitHub repository to `STEOS`. GitHub redirects the old address, but local clones should update their remote (`git remote set-url origin https://github.com/mangpijasuan/STEOS.git`). Decide on the domain before it is printed anywhere (`domain` is unset in `lib/branding.ts`).
 
 ## Rollback
@@ -49,4 +50,4 @@ Everything here is text and documentation on one branch. Revert the pull request
 
 ## Later, with approval
 
-Apply the approved colors to the interface and add the logo and domain once they exist; switch on "Powered by" for restaurant storefronts if the founder wants it; rename the local storage keys with a migration; rename the internal revenue field; move the package name; and, only if there is a customer reason, introduce new database role names through a planned migration.
+Add the logo and domain once they exist; switch on "Powered by" for restaurant storefronts if the founder wants it; rename the local storage keys with a migration; rename the internal revenue field; move the package name; and, only if there is a customer reason, introduce new database role names through a planned migration.
