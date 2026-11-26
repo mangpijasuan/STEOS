@@ -1,6 +1,6 @@
-# Deploying SROS with Coolify
+# Deploying STEOS with Coolify
 
-This guide gets SROS running on a Coolify server as a staging site. Do staging first, on its own subdomain, and only move to the real address after the [launch checklist](LAUNCH_CHECKLIST.md) is done. It was checked against the `Dockerfile` in this repository; the Coolify menu names are from memory of Coolify v4, so check them against your version.
+This guide gets STEOS running on a Coolify server as a staging site. Do staging first, on its own subdomain, and only move to the real address after the [launch checklist](LAUNCH_CHECKLIST.md) is done. It was checked against the `Dockerfile` in this repository; the Coolify menu names are from memory of Coolify v4, so check them against your version.
 
 ## What runs
 
@@ -26,13 +26,12 @@ This guide gets SROS running on a Coolify server as a staging site. Do staging f
 ## 2. Web app
 
 1. Add an application from the GitHub repository, branch `main`, build pack **Dockerfile**, port **3000**.
-2. Give it the staging domain so Coolify issues HTTPS. Set the health check path to `/api/health`.
+2. Give it the staging domain so Coolify issues HTTPS. Use `/api/ready` for traffic readiness if supported; Docker uses `/api/live` for liveness. Verify Coolify does not restart the app solely on a readiness failure.
 3. Set these environment variables. Use Coolify's secret setting for secrets and never paste them into chat or commit them:
 
    | Variable | Value |
    | --- | --- |
    | `DATABASE_URL` | connection string for `siamsil_app` |
-   | `DATABASE_OWNER_URL` | connection string for `siamsil_owner` (migrations only) |
    | `APP_DB_ROLE` | `siamsil_app` |
    | `APP_URL` | `https://<staging domain>` (must be HTTPS) |
    | `ORDER_TOKEN_SECRET` | at least 32 random characters; keep it stable |
@@ -43,22 +42,22 @@ This guide gets SROS running on a Coolify server as a staging site. Do staging f
 
    Leave `TRUSTED_CLIENT_IP_HEADER` empty until Cloudflare is in front and the origin refuses direct traffic.
 
-4. Deploy. Visit `/api/health`: `database` should be `ok`. It reports `trustedProxy: failing` until the header setting above is done, which is expected on staging.
+4. Run the migration job below before enabling traffic. `/api/live` must return 200, `/api/ready` must return 200 when the database responds, and `/api/health` must report operational checks. Missing trusted proxy configuration causes HTTP 503 on `/api/health`; it is a production launch blocker, not a liveness failure.
 
 ## 3. Migrations and the first restaurant
 
-Run these once from the application's terminal in Coolify, or as a pre-deploy command for migrations. They read the environment variables above; no `.env` file is needed.
+Run these in a separate one-off container using the same image, with `DATABASE_OWNER_URL` injected only into that job. Never supply the owner URL to the web or worker containers. Remove the job and its credentials after completion. No `.env` file is needed.
 
 ```bash
 npm run db:migrate
 ZOGAM_OWNER_EMAIL=owner@example.com npm run db:seed:zogam
 ```
 
-Run `db:migrate` again after any deploy that adds a migration. The importer is one-time and refuses to run twice.
+Run `db:migrate` before enabling traffic for any release that adds a migration. The importer is one-time and refuses to run twice.
 
 ## 4. Order worker
 
-Add a second application from the same repository and image, with start command `npm run worker:orders`, the same `APP_URL` and `CRON_SECRET`, and no domain. Leave `ORDER_WORKER_URL` unset so the worker calls the HTTPS `APP_URL`; the worker refuses plain HTTP unless the address is loopback, so an internal Docker address will not work. Alternatively use a Coolify scheduled task that calls `POST /api/internal/expire-orders` every minute with `Authorization: Bearer <CRON_SECRET>`.
+Add a second application from the same repository and image, with start command `npm run worker:orders`, the same `APP_URL` and `CRON_SECRET`, and no domain. Disable the inherited HTTP health check for this worker (Docker `--no-healthcheck` or equivalent); monitor worker heartbeat via `/api/health`. Leave `ORDER_WORKER_URL` unset so the worker calls the HTTPS `APP_URL`; the worker refuses plain HTTP unless the address is loopback, so an internal Docker address will not work. Alternatively use a Coolify scheduled task that calls `POST /api/internal/expire-orders` every minute with `Authorization: Bearer <CRON_SECRET>`.
 
 Stop the worker once on purpose and confirm `/api/health` reports it after about five minutes.
 
@@ -69,5 +68,5 @@ Sign in as the owner through the emailed link, place a test order, and run the S
 ## Notes
 
 - The image keeps dev dependencies on purpose, so the same image can run migrations and the importer (`tsx` is a dev dependency).
-- The container runs as the unprivileged `node` user and has a built-in health check against `/api/health`.
+- The container runs as the unprivileged `node` user and has a built-in liveness check against `/api/live`.
 - Close the Coolify dashboard's plain-HTTP address (`<server IP>:8000`) once its HTTPS domain works, and turn on two-step login for the Coolify account.

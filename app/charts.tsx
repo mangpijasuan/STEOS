@@ -45,10 +45,21 @@ export function AreaChart({ data, format, summary }: { data: Point[]; format: (v
 
   return (
     <div className="chart">
-      <div className="chart-y" aria-hidden="true">
-        <span>{format(max)}</span>
-        <span>{format((max + min) / 2)}</span>
-        <span>{format(min)}</span>
+      <div className="chart-y" aria-hidden="true" style={min < 0 ? { position: "relative", minWidth: "5.5em" } : undefined}>
+        {min < 0 ? (
+          // Zero is not in the middle once the axis dips below it, so each label sits at its own height.
+          <>
+            <span style={{ position: "absolute", right: 0, top: 0 }}>{format(max)}</span>
+            <span style={{ position: "absolute", right: 0, top: `${zero}%`, transform: "translateY(-50%)" }}>{format(0)}</span>
+            <span style={{ position: "absolute", right: 0, top: "100%", transform: "translateY(-100%)" }}>{format(min)}</span>
+          </>
+        ) : (
+          <>
+            <span>{format(max)}</span>
+            <span>{format((max + min) / 2)}</span>
+            <span>{format(min)}</span>
+          </>
+        )}
       </div>
       <div
         ref={ref}

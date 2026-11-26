@@ -1,4 +1,4 @@
-# Production image for SROS (used by Coolify or any Docker host).
+# Production image for STEOS (used by Coolify or any Docker host).
 #
 # The image keeps the full node_modules, including `tsx`, so the same image can run the web app, the order worker and the
 # one-off database commands:
@@ -26,5 +26,5 @@ COPY --from=build --chown=node:node /app /app
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT || 3000) + '/api/health').then((r) => process.exit(r.status < 500 ? 0 : 1)).catch(() => process.exit(1))"
+  CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT || 3000) + '/api/live').then((r) => process.exit(r.status === 200 ? 0 : 1)).catch(() => process.exit(1))"
 CMD ["npm", "start"]
