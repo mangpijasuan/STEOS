@@ -13,7 +13,7 @@ describe("plan estimates at $10,000 a month and $30 orders", () => {
     expect(e.restaurantCostCents).toBe(30_000 + e.processingCents);
   });
 
-  it("all-in 6%: the restaurant pays 6% and SROS keeps it minus card fees", () => {
+  it("all-in 6%: the restaurant pays 6% and STEOS keeps it minus card fees", () => {
     const e = estimateMonthly(PLANS.model_b, SALES, AVG);
     expect(e.restaurantCostCents).toBe(60_000);
     expect(e.srosRevenueCents).toBe(60_000 - e.processingCents);
@@ -32,7 +32,7 @@ describe("plan estimates at $10,000 a month and $30 orders", () => {
     expect(e.restaurantCostCents).toBe(50_000 + 7_900 + e.processingCents);
   });
 
-  it("all-in never makes SROS pay for a small restaurant's card fees", () => {
+  it("all-in never makes STEOS pay for a small restaurant's card fees", () => {
     const e = estimateMonthly(PLANS.model_b, 5_000, 500); // $50 a month in $5 orders: card fees exceed 6%
     expect(e.platformFeeCents).toBe(0);
     expect(e.srosRevenueCents).toBe(0);

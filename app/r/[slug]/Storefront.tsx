@@ -171,6 +171,11 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
     return () => observer.disconnect();
   }, [store, search]);
 
+  // The browser tab shows the restaurant's own name, not the platform's.
+  useEffect(() => {
+    if (store?.restaurant.name) document.title = store.restaurant.name;
+  }, [store]);
+
   // Escape closes the phone cart sheet.
   useEffect(() => {
     if (!cartOpen) return;

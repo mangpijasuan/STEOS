@@ -1,8 +1,8 @@
-/* SROS design system, scoped.
+/* STEOS design system, scoped.
    Everything here applies only inside an element with class "ds" (see app/menu/layout.tsx), so screens that have
    not been moved to the design system keep their current look. To move a screen over, wrap it in .ds.
    Brand: change the --brand* variables in the first block. */
-/* SROS design system. Every screen uses these tokens and classes; no page carries its own colors.
+/* STEOS design system. Every screen uses these tokens and classes; no page carries its own colors.
    Change the brand by editing --brand* below. Light and dark themes are both defined; the kitchen
    screen always uses dark (data-theme="dark") because it runs all day on a tablet near the line. */
 .ds {
@@ -710,6 +710,8 @@ body:has(.sidebar) { padding-left: 0 !important; }
 .ds .zogam-store .item-card:disabled { opacity: 1; }
 @media (min-width: 1100px) { .ds .zogam-featured-grid { grid-template-columns: repeat(4, minmax(0,1fr)); } }
 @media (max-width: 520px) { .ds .zogam-top-inner { gap: 12px; min-height: 72px; } .ds .zogam-brand { width: 76px; } .ds .zogam-menu-link { font-size: .875rem; } .ds .zogam-top-inner > .btn { padding-inline: 10px; font-size: .85rem; } .ds .zogam-store .menu-grid.photos { grid-template-columns: repeat(2,minmax(0,1fr)); } .ds .zogam-store .item-card.has-photo .item-body { padding-right: 14px; padding-bottom: 50px; } }
+.ds .platform-footer { margin-top: 48px; padding: 20px 16px 28px; text-align: center; color: var(--text-3); font-size: 0.8125rem; line-height: 1.6; }
+.ds .platform-footer p { margin: 0; }
 .ds .testpay { border: 1.5px dashed var(--border-strong); border-radius: var(--radius); padding: 14px; background: var(--surface-2); }
 .ds .status-hero { text-align: center; padding: 28px 18px 22px; }
 .ds .progress { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 4px 0 0; padding: 0; list-style: none; }

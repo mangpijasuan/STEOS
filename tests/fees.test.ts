@@ -6,7 +6,7 @@ describe("fees", () => {
     expect(estimateProcessingCents(3000)).toBe(117); // 87 + 30
   });
 
-  it("all-in: restaurant's total cost is the target, so SROS takes target minus processing", () => {
+  it("all-in: restaurant's total cost is the target, so STEOS takes target minus processing", () => {
     const f = applicationFee({ subtotalCents: 3000, totalCents: 3263, feeBps: 600, model: "all_in" });
     expect(f.targetCents).toBe(180);
     expect(f.applicationFeeCents).toBe(180 - f.processingEstimateCents);
