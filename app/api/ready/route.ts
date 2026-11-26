@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 let pending: Promise<unknown> | undefined;
 function probe() {
   if (!pending) {
-    pending = pool.query({ text: "select 1", query_timeout: 2500 }).finally(() => { pending = undefined; });
+    pending = pool.query("select 1").finally(() => { pending = undefined; });
   }
   return pending;
 }

@@ -7,7 +7,7 @@ import { GET as live } from "../app/api/live/route";
 import { GET as ready } from "../app/api/ready/route";
 import { GET as health } from "../app/api/health/route";
 
-beforeEach(() => query.reset());
+beforeEach(() => query.mockReset());
 afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
 
 describe("release health endpoints", () => {
