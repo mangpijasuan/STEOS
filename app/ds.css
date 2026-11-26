@@ -277,7 +277,7 @@
 .ds .nav a:hover { background: var(--surface-2); color: var(--text); text-decoration: none; }
 .ds .nav a[aria-current="page"] { background: var(--surface-2); color: var(--text); }
 /* ----------------------------------------------------------- sheet/modal */
-.ds .backdrop { position: fixed; inset: 0; z-index: 60; background: rgb(12 10 9 / 0.5); display: flex; align-items: flex-end; justify-content: center; animation: fade-in 0.2s var(--ease); }
+.ds .backdrop { position: fixed; inset: 0; z-index: 75; background: rgb(12 10 9 / 0.5); display: flex; align-items: flex-end; justify-content: center; animation: fade-in 0.2s var(--ease); }
 .ds .sheet { width: 100%; max-width: 560px; max-height: 92dvh; display: flex; flex-direction: column; background: var(--surface); border-radius: 22px 22px 0 0; box-shadow: var(--shadow-lg); animation: slide-up 0.28s var(--ease); }
 .ds .sheet-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 20px 20px 12px; }
 .ds .sheet-body { padding: 0 20px 16px; overflow-y: auto; overscroll-behavior: contain; }
