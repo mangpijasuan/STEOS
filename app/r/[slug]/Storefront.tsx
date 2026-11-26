@@ -171,6 +171,11 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
     return () => observer.disconnect();
   }, [store, search]);
 
+  // The browser tab shows the restaurant's own name, not the platform's.
+  useEffect(() => {
+    if (store?.restaurant.name) document.title = store.restaurant.name;
+  }, [store]);
+
   // Escape closes the phone cart sheet.
   useEffect(() => {
     if (!cartOpen) return;
@@ -225,8 +230,9 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
   const { restaurant } = store;
   // Seated guests do not need pickup times or opening hours; they only need the kitchen to be taking orders.
   const canOrder = restaurant.orderingOpen && (!!table || !!pickup);
-  // When any dish has a photo the menu switches to photo cards; dishes without one get a neutral tile.
-  const hasPhotos = store.categories.some((c) => c.items.some((i) => i.imageUrl));
+  // A section shows big photo cards only when most of its dishes have a photo. Otherwise it is a clean list, with a small
+  // photo on the dishes that have one, so a menu that is still gaining photos never fills up with empty grey tiles.
+  const photoRich = (items: { imageUrl?: string | null }[]) => items.some((i) => i.imageUrl) && items.filter((i) => i.imageUrl).length * 2 >= items.length;
   const tipCents = quote ? Math.round((quote.subtotalCents * tipPct) / 100) : 0;
   const itemCount = cart.reduce((n, l) => n + l.quantity, 0);
   const totalCents = quote ? quote.totalCents + tipCents : null;
@@ -298,7 +304,7 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
 
       <div className="container store-layout">
         <main id={isZogam ? "zogam-menu" : undefined}>
-          {isZogam && <div className="zogam-search"><label htmlFor="zogam-search">Explore the menu</label><div className="zogam-search-field"><Icon name="search" size={20} /><input id="zogam-search" className="input" placeholder="Search dishes, ingredients or categories" value={search} onChange={(e) => setSearch(e.target.value)} />{search && <Button size="sm" variant="ghost" onClick={() => setSearch("")}>Clear</Button>}</div></div>}
+          {isZogam && <div className="zogam-search"><label htmlFor="zogam-search">Explore the menu</label><div className="zogam-search-field"><Icon name="search" size={20} /><input id="zogam-search" className="input" placeholder="Search dishes or ingredients" value={search} onChange={(e) => setSearch(e.target.value)} />{search && <Button size="sm" variant="ghost" onClick={() => setSearch("")}>Clear</Button>}</div></div>}
           {featured.length > 0 && <section className="zogam-featured" aria-label="Featured dishes"><h2>Explore our favorites</h2><div className="zogam-featured-grid">{featured.map((item) => <button key={item.id} className="zogam-feature-card" disabled={!canOrder} onClick={() => setPicking(item)}>{item.imageUrl && <img src={item.imageUrl} alt="" loading="lazy" />}<span>{item.name}</span><strong>{money(item.priceCents)}</strong><span className="zogam-feature-action">Choose options <Icon name="plus" size={16} /></span></button>)}</div></section>}
           {isZogam && query && categories.length === 0 && <div className="empty"><p>No dishes match your search.</p><Button onClick={() => setSearch("")}>See all dishes</Button></div>}
           {store.categories.length === 0 && (
@@ -307,17 +313,19 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
               <p>The menu is being updated. Please check back soon.</p>
             </div>
           )}
-          {categories.map((category) => (
+          {categories.map((category) => {
+            const hasPhotos = photoRich(category.items);
+            return (
             <section key={category.id} id={`cat-${category.id}`} data-category={category.id} className="menu-section" aria-labelledby={`h-${category.id}`}>
-              <h2 id={`h-${category.id}`} style={{ marginBottom: 12 }}>{category.name}</h2>
-              <div className={`menu-grid ${hasPhotos ? "photos" : ""}`}>
+              <h2 id={`h-${category.id}`} className="menu-heading">{category.name}<span className="menu-count">{category.items.length}</span></h2>
+              <div className={`menu-grid ${hasPhotos ? "photos" : "rows"}`}>
                 {category.items.map((item) => {
                   const inCart = countByItem.get(item.id) ?? 0;
                   const orderable = item.available && restaurant.orderingOpen;
                   const quickAdd = item.modifierGroups.every((g) => g.minChoices === 0);
                   return (
                     <div key={item.id} style={{ position: "relative" }}>
-                      <button className={`item-card ${hasPhotos ? "has-photo" : ""}`} disabled={!orderable} onClick={() => setPicking(item)} aria-label={`${item.name}, ${money(item.priceCents)}${item.available ? "" : ", sold out"}`}>
+                      <button className={`item-card ${hasPhotos ? "has-photo" : `row${item.imageUrl ? " with-thumb" : ""}`}`}disabled={!orderable} onClick={() => setPicking(item)} aria-label={`${item.name}, ${money(item.priceCents)}${item.available ? "" : ", sold out"}`}>
                         {hasPhotos &&
                           (item.imageUrl ? (
                             // eslint-disable-next-line @next/next/no-img-element
@@ -353,7 +361,8 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
                 })}
               </div>
             </section>
-          ))}
+            );
+          })}
         </main>
 
         <div className={`cart-backdrop ${cartOpen ? "open" : ""}`} onClick={() => setCartOpen(false)} aria-hidden="true" />

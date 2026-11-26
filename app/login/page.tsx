@@ -1,7 +1,7 @@
 "use client";
 
 import { use, useEffect, useState, type FormEvent } from "react";
-import { Alert, Button } from "../ui";
+import { Alert, Button, PlatformFooter } from "../ui";
 import { Icon } from "../icons";
 
 const COOLDOWN_S = 30;
@@ -80,6 +80,7 @@ export default function Login({ searchParams }: { searchParams: Promise<{ error?
           </form>
         )}
       </div>
+      <PlatformFooter />
     </main>
   );
 }

@@ -6,6 +6,7 @@
 // Each alert key is sent at most once per 15 minutes, so an outage produces one message, not hundreds.
 // Repeats are still logged. Sending an alert never throws: alerting must not break the request.
 
+import { branding } from "./branding";
 import { log, redact, type Fields } from "./log";
 import { allow } from "./ratelimit";
 
@@ -36,7 +37,7 @@ export async function alert(key: string, message: string, fields: Fields = {}): 
       .filter(([, value]) => typeof value === "string" || typeof value === "number")
       .map(([name, value]) => `${name}: ${value}`)
       .join(", ");
-    const text = [`SROS: ${message}`, details, "See the logs for repeats."].filter(Boolean).join("\n");
+    const text = [`${branding.name}: ${message}`, details, "See the logs for repeats."].filter(Boolean).join("\n");
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

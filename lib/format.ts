@@ -1,11 +1,12 @@
 // Formatting shared by server and client components.
 
+/** A negative amount reads "-$20.00", with the sign in front of the dollar sign. */
 export const money = (cents: number) =>
-  `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  `${cents < 0 ? "-" : ""}$${(Math.abs(cents) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 /** Whole dollars when the amount is round ("$12"), otherwise cents ("$12.50"). For compact labels. */
 export const moneyShort = (cents: number) =>
-  cents % 100 === 0 ? `$${(cents / 100).toLocaleString("en-US")}` : money(cents);
+  cents % 100 === 0 ? `${cents < 0 ? "-" : ""}$${(Math.abs(cents) / 100).toLocaleString("en-US")}` : money(cents);
 
 export const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 

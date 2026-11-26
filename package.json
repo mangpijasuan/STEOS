@@ -2,16 +2,18 @@
   "name": "siamsil-restaurant",
   "version": "0.1.0",
   "private": true,
+  "description": "STEOS (Siamsil Technologies Enterprise Operating System), a multi-tenant business platform. Formerly SROS.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "typecheck": "tsc --noEmit",
-    "db:migrate": "tsx --env-file=.env scripts/migrate.ts",
-    "db:seed": "tsx --env-file=.env scripts/seed.ts",
+    "db:migrate": "tsx --env-file-if-exists=.env scripts/migrate.ts",
+    "db:seed": "tsx --env-file-if-exists=.env scripts/seed.ts",
     "test": "vitest run",
-    "report:platform": "tsx --env-file=.env scripts/platform-report.ts",
+    "report:platform": "tsx --env-file-if-exists=.env scripts/platform-report.ts",
     "worker:orders": "node --env-file-if-exists=.env scripts/order-worker.mjs",
-    "db:seed:zogam": "tsx --env-file=.env scripts/seed-zogam-cafe.ts"
+    "db:seed:zogam": "tsx --env-file-if-exists=.env scripts/seed-zogam-cafe.ts",
+    "start": "next start"
   },
   "dependencies": {
     "@stripe/react-stripe-js": "^7.1.0",

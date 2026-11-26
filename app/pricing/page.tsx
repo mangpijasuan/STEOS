@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Button, Skeleton, StaffTopbar, api, useMe, useToasts } from "../ui";
+import { feeLabel } from "@/lib/branding";
 import { money } from "@/lib/format";
 
 type Estimate = { platformFeeCents: number; processingCents: number; monthlyFeeCents: number; restaurantCostCents: number; effectiveRateBps: number };
@@ -81,7 +82,7 @@ export default function Pricing() {
                 </div>
                 <p className="muted small">{p.summary}</p>
                 <p className="subtle num">
-                  SROS fee {money(p.estimate.platformFeeCents)} · card fees {money(p.estimate.processingCents)}
+                  {feeLabel} {money(p.estimate.platformFeeCents)} · card fees {money(p.estimate.processingCents)}
                   {p.estimate.monthlyFeeCents > 0 && ` · subscription ${money(p.estimate.monthlyFeeCents)}`}
                 </p>
                 <div style={{ marginTop: "auto" }}>

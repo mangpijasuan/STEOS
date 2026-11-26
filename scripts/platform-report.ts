@@ -1,4 +1,5 @@
 import { Client } from "pg";
+import { branding } from "../lib/branding";
 
 const days = Number(process.argv[2] ?? 30);
 const url = process.env.DATABASE_OWNER_URL;
@@ -25,7 +26,7 @@ async function main() {
        group by r.id order by net_fee desc`,
       [days],
     );
-    console.log(`SROS revenue, last ${days} days (captured fees less confirmed refunds)\n`);
+    console.log(`${branding.name} revenue, last ${days} days (captured fees less confirmed refunds)\n`);
     let fees = 0;
     for (const row of rows) {
       fees += Number(row.net_fee);
