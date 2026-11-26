@@ -21,11 +21,23 @@ export async function asOwner<T>(fn: (client: Client) => Promise<T>): Promise<T>
   }
 }
 
+/**
+ * Test restaurants are open 00:00 to 23:45, so in the last half hour before midnight (their local time) no pickup slot is
+ * left and every checkout test fails. Put each test restaurant in a fixed-offset zone where it is about midday right now,
+ * so the suite passes at any time of day. Tests that care about a specific zone set their own.
+ */
+export function middayZone(now = new Date()): string {
+  let offset = 12 - now.getUTCHours();
+  if (offset > 12) offset -= 24;
+  if (offset < -12) offset += 24;
+  return offset === 0 ? "Etc/UTC" : `Etc/GMT${offset > 0 ? "-" : "+"}${Math.abs(offset)}`;
+}
+
 export async function createFixture(label: string): Promise<Fixture> {
   const suffix = crypto.randomBytes(4).toString("hex");
   const slug = `${label}-${suffix}`;
   return asOwner(async (c) => {
-    const r = await c.query("insert into restaurants (name, slug) values ($1, $2) returning id", [`Test ${label}`, slug]);
+    const r = await c.query("insert into restaurants (name, slug, timezone) values ($1, $2, $3) returning id", [`Test ${label}`, slug, middayZone()]);
     const restaurantId = r.rows[0].id as string;
     const ownerEmail = `owner-${suffix}@example.com`;
     const staffEmail = `staff-${suffix}@example.com`;
