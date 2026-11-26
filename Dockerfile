@@ -8,7 +8,7 @@
 #   Zogam import     npm run db:seed:zogam
 # Secrets and connection strings are supplied as environment variables at run time, never baked into the image.
 
-FROM node:22-slim AS build
+FROM node:22-slim@sha256:be979e5523c76fa4d5ca4ebd3099078f220aa47ec39c48ad5b5df9314debd6eb AS build
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY package.json package-lock.json ./
@@ -16,7 +16,7 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-FROM node:22-slim AS run
+FROM node:22-slim@sha256:be979e5523c76fa4d5ca4ebd3099078f220aa47ec39c48ad5b5df9314debd6eb AS run
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \

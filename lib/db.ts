@@ -6,7 +6,7 @@ const globalForPool = globalThis as unknown as { __pool?: Pool };
 
 /** Pool for the restricted app role. Row-level security applies to every connection. */
 export const pool: Pool =
-  globalForPool.__pool ?? new Pool({ connectionString: process.env.DATABASE_URL, max: 10 });
+  globalForPool.__pool ?? new Pool({ connectionString: process.env.DATABASE_URL, max: 10, connectionTimeoutMillis: 2000 });
 if (process.env.NODE_ENV !== "production") globalForPool.__pool = pool;
 
 export type Tx = NodePgDatabase<typeof schema>;
