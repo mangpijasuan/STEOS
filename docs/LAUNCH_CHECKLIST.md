@@ -38,6 +38,7 @@ Plan on record: Contabo server, Coolify to deploy, Cloudflare in front. Adjust i
 - [ ] The approved release is deployed to an isolated staging domain over HTTPS before live deployment. Staging uses a separate database, secrets, Stripe test account and webhook configuration. *Founder, Claude*
 - [ ] The origin refuses direct public traffic; only Cloudflare and the proxy can reach the app. *Founder*
 - [ ] `APP_URL` is the HTTPS public address. *Founder*
+- [ ] Staging is not listed by search engines: `ROBOTS_NOINDEX=true` on staging only (check `/robots.txt` on staging says `Disallow: /` and on production does not), and staging sits behind a login or allow-list. *Founder, Claude*
 - [ ] `TRUSTED_CLIENT_IP_HEADER` is set to a single-IP header that the ingress overwrites on every request, and only after the item above is confirmed. Without it, public rate limits share one anonymous bucket. *Founder, Codex to verify*
 - [ ] Access logs redact the bearer tokens that appear in sign-in and order paths. *Founder*
 - [ ] `GET /api/health` returns healthy in production, and is not reported as degraded for the client-IP setting. *Claude*
