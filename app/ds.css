@@ -679,8 +679,12 @@ body:has(.sidebar) { padding-left: 0 !important; }
 }
 .ds .zogam-top { background: var(--surface); border-bottom: 1px solid var(--border); }
 .ds .zogam-top-inner { display: flex; align-items: center; gap: 22px; min-height: 88px; }
-.ds .zogam-brand { display: block; width: 104px; flex: none; background: #fff; border-radius: 8px; }
-.ds .zogam-brand img { width: 100%; height: auto; display: block; }
+/* The logo is dark artwork on white, so it always sits on a white badge. The badge is a trimmed copy of the logo (the whitespace
+   around it removed) at a fixed height that fits inside the bar, with rounded corners and a hairline ring, so on a dark theme it
+   reads as a deliberate badge and not a white rectangle touching the edges of the bar. */
+.ds .zogam-brand { display: flex; align-items: center; justify-content: center; flex: none; height: 64px; padding: 5px 9px; background: #fff; border-radius: 14px; box-shadow: 0 0 0 1px rgb(0 0 0 / 0.1); }
+.ds .zogam-brand img { height: 100%; width: auto; display: block; }
+@media (prefers-color-scheme: dark) { .ds .zogam-brand { box-shadow: 0 0 0 1px rgb(255 255 255 / 0.18), 0 2px 10px rgb(0 0 0 / 0.35); } }
 .ds .zogam-menu-link { font-size: 1.05rem; font-weight: 800; text-transform: uppercase; color: var(--text); border-bottom: 3px solid var(--brand); padding-block: 10px; }
 .ds .zogam-top-inner > .btn { margin-left: auto; }
 .ds .zogam-store .store-hero { padding-block: 28px; background: var(--brand-soft); }
@@ -709,7 +713,7 @@ body:has(.sidebar) { padding-left: 0 !important; }
 .ds .zogam-store .item-card:not(.has-photo):not(.row) .item-body { padding-right: 38px; }
 .ds .zogam-store .item-card:disabled { opacity: 1; }
 @media (min-width: 1100px) { .ds .zogam-featured-grid { grid-template-columns: repeat(4, minmax(0,1fr)); } }
-@media (max-width: 520px) { .ds .zogam-top-inner { gap: 12px; min-height: 72px; } .ds .zogam-brand { width: 76px; } .ds .zogam-menu-link { font-size: .875rem; } .ds .zogam-top-inner > .btn { padding-inline: 10px; font-size: .85rem; } .ds .zogam-store .menu-grid.photos { grid-template-columns: repeat(2,minmax(0,1fr)); } .ds .zogam-store .item-card.has-photo .item-body { padding-right: 14px; padding-bottom: 50px; } }
+@media (max-width: 520px) { .ds .zogam-top-inner { gap: 12px; min-height: 72px; } .ds .zogam-brand { height: 50px; padding: 4px 7px; border-radius: 12px; } .ds .zogam-menu-link { font-size: .875rem; } .ds .zogam-top-inner > .btn { padding-inline: 10px; font-size: .85rem; } .ds .zogam-store .menu-grid.photos { grid-template-columns: repeat(2,minmax(0,1fr)); } .ds .zogam-store .item-card.has-photo .item-body { padding-right: 14px; padding-bottom: 50px; } }
 .ds .platform-footer { margin-top: 48px; padding: 20px 16px 28px; text-align: center; color: var(--text-3); font-size: 0.8125rem; line-height: 1.6; }
 .ds .platform-footer p { margin: 0; }
 .ds .testpay { border: 1.5px dashed var(--border-strong); border-radius: var(--radius); padding: 14px; background: var(--surface-2); }

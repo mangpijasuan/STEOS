@@ -253,7 +253,7 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
   return (
     <div className={isZogam ? "zogam-store" : undefined}>
       {isZogam && <div className="zogam-top"><div className="container zogam-top-inner">
-        <a href="#zogam-menu" className="zogam-brand" aria-label="Zogam Cafe menu"><img src="/brands/zogam-cafe.png" alt="Zogam Cafe Restaurant & Cafe" /></a>
+        <a href="#zogam-menu" className="zogam-brand" aria-label="Zogam Cafe menu"><img src="/brands/zogam-cafe-badge.png" width={551} height={468} alt="Zogam Cafe Restaurant & Cafe" /></a>
         <a href="#zogam-menu" className="zogam-menu-link">Menu</a>
         <Button variant="primary" icon="bag" onClick={() => { setCartOpen(true); if (window.matchMedia("(min-width: 960px)").matches) document.getElementById("store-cart")?.scrollIntoView({ block: "nearest" }); }}>Your order {totalCents !== null ? `· ${money(totalCents)}` : `· ${itemCount}`}</Button>
       </div></div>}
