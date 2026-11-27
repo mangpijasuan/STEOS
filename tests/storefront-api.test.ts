@@ -142,6 +142,25 @@ describe("hours", () => {
     expect((await putHours(req("PUT", ownerToken, { periods: [{ weekday: 1, opens: "12:00", closes: "09:00" }] }), ctx(""))).status).toBe(400);
   });
 
+  it("lets a period close at midnight (24:00) and keeps it that way", async () => {
+    const put = (periods: unknown[]) => putHours(req("PUT", ownerToken, { periods }), ctx(""));
+    try {
+      const res = await put([{ weekday: 5, opens: "11:00", closes: "24:00" }]);
+      expect(res.status).toBe(200);
+      expect((await res.json()).periods).toEqual([{ weekday: 5, opens: "11:00", closes: "24:00" }]);
+      const saved = await (await getHours(req("GET", staffToken), ctx(""))).json();
+      expect(saved.periods).toEqual([{ weekday: 5, opens: "11:00", closes: "24:00" }]);
+      // midnight is a closing time only, and nothing later than midnight is accepted
+      expect((await put([{ weekday: 5, opens: "24:00", closes: "24:00" }])).status).toBe(400);
+      expect((await put([{ weekday: 5, opens: "11:00", closes: "24:01" }])).status).toBe(400);
+      expect((await put([{ weekday: 5, opens: "11:00", closes: "25:00" }])).status).toBe(400);
+      // a second period cannot start before the first one ends at midnight
+      expect((await put([{ weekday: 5, opens: "11:00", closes: "24:00" }, { weekday: 5, opens: "23:00", closes: "24:00" }])).status).toBe(400);
+    } finally {
+      expect((await put(everyDay("00:00", "23:45"))).status).toBe(200);
+    }
+  });
+
   it("does not touch another restaurant's hours", async () => {
     const before = await asOwner((c) => c.query("select count(*)::int n from business_hours where restaurant_id = $1", [b.restaurantId]));
     await putHours(req("PUT", ownerToken, { periods: [{ weekday: 2, opens: "10:00", closes: "14:00" }] }), ctx(""));

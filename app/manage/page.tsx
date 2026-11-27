@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Icon } from "../icons";
 import { Alert, Button, Skeleton, StaffTopbar, api, useMe, useToasts } from "../ui";
-import type { HoursPeriod } from "@/lib/hours";
+import { MIDNIGHT, type HoursPeriod } from "@/lib/hours";
 import { StorefrontLook } from "./StorefrontLook";
 
 type Settings = { slug: string; timezone: string; acceptingOrders: boolean; minPrepMinutes: number; maxAdvanceDays: number; taxRateBps: number; dineInEnabled: boolean; payLaterEnabled: boolean };
@@ -206,7 +206,7 @@ export default function Manage() {
               <div className="row-between wrap">
                 <div>
                   <h2 id="weekly">Weekly hours</h2>
-                  <p className="subtle">Customers can only choose pickup times inside these hours, in your time zone.</p>
+                  <p className="subtle">Customers can only choose pickup times inside these hours, in your time zone. To stay open past midnight, tick "Until midnight" and add hours from 12:00 AM on the next day.</p>
                 </div>
                 <span className="subtle">{total} of {MAX_PERIODS} periods</span>
               </div>
@@ -226,7 +226,16 @@ export default function Manage() {
                           <span className="subtle" aria-hidden="true">to</span>
                           <label className="field">
                             <span className="sr-only">{d.name} period {i + 1} closes</span>
-                            <input className="input num" type="time" required value={p.closes} onChange={(e) => update(p.key, { closes: e.target.value })} />
+                            {p.closes === MIDNIGHT ? (
+                              // A time field cannot show 24:00, so the word is shown instead while "Until midnight" is ticked.
+                              <input className="input num" type="text" readOnly disabled value="Midnight" />
+                            ) : (
+                              <input className="input num" type="time" required value={p.closes} onChange={(e) => update(p.key, { closes: e.target.value })} />
+                            )}
+                          </label>
+                          <label className="row hours-midnight" style={{ cursor: "pointer", gap: 6 }}>
+                            <input type="checkbox" checked={p.closes === MIDNIGHT} onChange={(e) => update(p.key, { closes: e.target.checked ? MIDNIGHT : "23:45" })} />
+                            <span>Until midnight</span>
                           </label>
                           <Button type="button" variant="ghost" size="sm" icon="trash" aria-label={`Remove ${d.name} period ${i + 1}`} disabled={saving !== null} onClick={() => remove(p.key)} />
                         </div>
