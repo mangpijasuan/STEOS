@@ -22,9 +22,17 @@ export function chartRange(values: number[]): [number, number] {
   return [bottom < 0 ? -niceMax(-bottom) : 0, top > 0 || bottom === 0 ? niceMax(top) : 0];
 }
 
+/** Which points get a date under the axis: the first, the last and, when there is room, three evenly spaced between. */
+export function ticks(n: number): number[] {
+  if (n <= 0) return [];
+  const count = n >= 7 ? 5 : n >= 3 ? 3 : n;
+  return [...new Set(Array.from({ length: count }, (_, k) => Math.round((k * (n - 1)) / Math.max(1, count - 1))))];
+}
+
 /** One line over time, with a hover crosshair and tooltip. A single series, so no legend: the card title names it. */
 export function AreaChart({ data, format, summary }: { data: Point[]; format: (v: number) => string; summary: string }) {
   const ref = useRef<HTMLDivElement>(null);
+  const gradient = useId();
   const [hover, setHover] = useState<number | null>(null);
   // The axis reaches below zero when any point does, so a day that refunded more than it sold is drawn, not hidden.
   const [min, max] = useMemo(() => chartRange(data.map((d) => d.value)), [data]);
@@ -80,8 +88,14 @@ export function AreaChart({ data, format, summary }: { data: Point[]; format: (v
       >
         <div className="chart-grid" aria-hidden="true"><i /><i /><i /></div>
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <linearGradient id={gradient} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" style={{ stopColor: "var(--series)", stopOpacity: 0.3 }} />
+              <stop offset="1" style={{ stopColor: "var(--series)", stopOpacity: 0 }} />
+            </linearGradient>
+          </defs>
           {min < 0 && <line x1="0" x2="100" y1={zero} y2={zero} stroke="currentColor" strokeOpacity="0.5" strokeWidth="1" vectorEffect="non-scaling-stroke" />}
-          {area && <path className="chart-area" d={area} />}
+          {area && <path className="chart-area" d={area} fill={`url(#${gradient})`} />}
           <path className="chart-line" d={line} />
         </svg>
         {active && hover !== null && (
@@ -96,9 +110,7 @@ export function AreaChart({ data, format, summary }: { data: Point[]; format: (v
         )}
       </div>
       <div className="chart-x" aria-hidden="true">
-        <span>{data[0]?.label}</span>
-        {n > 2 && <span>{data[Math.floor((n - 1) / 2)].label}</span>}
-        {n > 1 && <span>{data[n - 1].label}</span>}
+        {ticks(n).map((i) => <span key={i}>{data[i].label}</span>)}
       </div>
     </div>
   );

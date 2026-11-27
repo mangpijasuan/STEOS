@@ -28,8 +28,8 @@ const PERIODS = [7, 30, 90].map((d) => ({ value: d, label: `${d} days` }));
 const SLICE_COLORS = ["var(--c1)", "var(--c2)", "var(--c3)", "var(--c4)"];
 
 function Delta({ now, before, label }: { now: number; before: number | undefined; label: string }) {
-  if (before === undefined) return null;
-  if (before === 0) return <span className="delta flat">{now > 0 ? "New this period" : "No change"}</span>;
+  // With nothing to compare against (a new restaurant, or a quiet last period) a percentage means nothing, so say nothing.
+  if (before === undefined || before === 0) return null;
   const pct = Math.round(((now - before) / before) * 100);
   if (pct === 0) return <span className="delta flat">No change {label}</span>;
   return (
@@ -129,7 +129,7 @@ export default function Dashboard() {
   const bestDay = series.reduce((m, d) => (d.value > m.value ? d : m), { label: "", value: 0, detail: "", key: "" });
 
   const tile = (href: string, label: string, n: number, icon: IconName, hot = false) => (
-    <a className={`live-tile ${hot && n > 0 ? "hot" : ""}`} href={href}>
+    <a className={`live-tile ${hot && n > 0 ? "hot" : ""} ${(active || board) && n === 0 ? "quiet" : ""}`} href={href}>
       <span className="live-l"><Icon name={icon} size={16} />{label}</span>
       <span className="live-n">{active || board ? n : "–"}</span>
     </a>
@@ -186,8 +186,9 @@ export default function Dashboard() {
                     <Delta now={report.averageOrderCents} before={report.previous?.averageOrderCents} label={`vs last ${days} days`} />
                   </div>
                   <div className="stat">
-                    <div className="stat-label">What you keep (estimated)</div>
+                    <div className="stat-label">Estimated take-home</div>
                     <div className="stat-value">{money(report.netEstimateCents)}</div>
+                    <div className="stat-note">After tax, fees and card costs</div>
                     <Delta now={report.netEstimateCents} before={report.previous?.netEstimateCents} label={`vs last ${days} days`} />
                   </div>
                 </>
@@ -195,35 +196,27 @@ export default function Dashboard() {
             </div>
 
             <div className="dash-grid">
-              <section className="card" aria-labelledby="trend">
-                <div className="section-title">
-                  <h2 id="trend">Sales by day</h2>
-                  {report && bestDay.value > 0 && <span className="subtle">Best day {bestDay.label} · {money(bestDay.value)}</span>}
-                </div>
-                {!report ? <Skeleton height={230} /> : report.days.length === 0 ? (
-                  <div className="empty"><Icon name="chart" size={32} /><p>No sales or refunds in this period yet.</p></div>
-                ) : (
-                  <>
-                    <AreaChart data={series} format={(v) => money(Math.round(v))} summary={`Sales after refunds for each of the last ${days} days. Total ${money(report.netChargedCents)}. Best day ${bestDay.label}, ${money(bestDay.value)}.`} />
-                    <details style={{ marginTop: 12 }}>
-                      <summary className="subtle" style={{ cursor: "pointer" }}>View as a table</summary>
-                      <div className="list" style={{ marginTop: 8 }}>
-                        {[...series].reverse().map((d) => <div key={d.key} className="kv"><span>{d.label} · {d.detail}</span><span>{money(d.value)}</span></div>)}
-                      </div>
-                    </details>
-                  </>
-                )}
-              </section>
-
               <div className="stack">
-                <section className="card" aria-labelledby="cats">
-                  <h2 id="cats" style={{ marginBottom: 12 }}>Sales by category</h2>
-                  {!report ? <Skeleton height={170} /> : slices.length === 0 ? (
-                    <div className="empty"><Icon name="chart" size={28} /><p>No sales yet.</p></div>
+                <section className="card" aria-labelledby="trend">
+                  <div className="section-title">
+                    <h2 id="trend">Sales by day</h2>
+                    {report && bestDay.value > 0 && <span className="subtle">Best day {bestDay.label} · {money(bestDay.value)}</span>}
+                  </div>
+                  {!report ? <Skeleton height={230} /> : report.days.length === 0 ? (
+                    <div className="empty"><Icon name="chart" size={32} /><p>No sales or refunds in this period yet.</p></div>
                   ) : (
-                    <Donut slices={slices} format={(v) => money(v)} centerLabel="of sales" />
+                    <>
+                      <AreaChart data={series} format={(v) => money(Math.round(v))} summary={`Sales after refunds for each of the last ${days} days. Total ${money(report.netChargedCents)}. Best day ${bestDay.label}, ${money(bestDay.value)}.`} />
+                      <details style={{ marginTop: 12 }}>
+                        <summary className="subtle" style={{ cursor: "pointer" }}>View as a table</summary>
+                        <div className="list" style={{ marginTop: 8 }}>
+                          {[...series].reverse().map((d) => <div key={d.key} className="kv"><span>{d.label} · {d.detail}</span><span>{money(d.value)}</span></div>)}
+                        </div>
+                      </details>
+                    </>
                   )}
                 </section>
+
                 <section className="card" aria-labelledby="types">
                   <h2 id="types" style={{ marginBottom: 4 }}>Order type</h2>
                   {!report ? <Skeleton height={110} /> : (
@@ -241,6 +234,18 @@ export default function Dashboard() {
                   )}
                 </section>
               </div>
+
+              <section className="card" aria-labelledby="cats">
+                <h2 id="cats" style={{ marginBottom: 12 }}>Sales by category</h2>
+                {!report ? <Skeleton height={170} /> : slices.length === 0 ? (
+                  <div className="empty"><Icon name="chart" size={28} /><p>No sales yet.</p></div>
+                ) : (
+                  <>
+                    <Donut slices={slices} format={(v) => money(v)} centerLabel="of sales" />
+                    {slices.some((x) => x.name === "Other") && <p className="stat-note" style={{ marginTop: 12 }}>Other: dishes that are no longer on the menu.</p>}
+                  </>
+                )}
+              </section>
             </div>
           </>
         )}

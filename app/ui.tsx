@@ -320,7 +320,7 @@ export function StaffTopbar({ current, me }: { current: string; me: Me | null })
             <div className="side-user">
               <span className="avatar" aria-hidden="true">{initials}</span>
               <span className="nav-text side-who">
-                <span className="strong">{me.name || me.email.split("@")[0]}</span>
+                <span className="strong" title={me.name || me.email}>{me.name || me.email.split("@")[0]}</span>
                 <span className="subtle">{me.role === "owner" ? "Owner" : "Staff"}</span>
               </span>
               <Button variant="ghost" size="sm" icon="logout" aria-label="Sign out" className="nav-text" loading={busy} onClick={signOut} />

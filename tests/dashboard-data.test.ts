@@ -8,7 +8,7 @@ import { GET as summary } from "../app/api/staff/reports/summary/route";
 import { GET as history } from "../app/api/staff/orders/history/route";
 import { GET as me } from "../app/api/staff/me/route";
 import { GET as activeOrders } from "../app/api/staff/orders/route";
-import { chartRange } from "../app/charts";
+import { chartRange, ticks } from "../app/charts";
 import { asOwner, createFixture, deleteFixture, type Fixture } from "./helpers";
 
 let a: Fixture;
@@ -169,5 +169,23 @@ describe("the sales chart axis", () => {
 describe("who am I", () => {
   it("includes the restaurant's name for the navigation", async () => {
     expect(await (await me(req("GET", staffToken), {})).json()).toMatchObject({ role: "staff", restaurantName: "Test dash-a" });
+  });
+});
+
+describe("dates under the sales chart", () => {
+  it("shows five evenly spaced dates for a week or more, fewer for short spans, and never repeats one", () => {
+    expect(ticks(0)).toEqual([]);
+    expect(ticks(1)).toEqual([0]);
+    expect(ticks(2)).toEqual([0, 1]);
+    expect(ticks(5)).toEqual([0, 2, 4]);
+    expect(ticks(7)).toEqual([0, 2, 3, 5, 6]);
+    expect(ticks(30)).toEqual([0, 7, 15, 22, 29]);
+    expect(ticks(90)).toEqual([0, 22, 45, 67, 89]);
+    for (const n of [1, 2, 3, 4, 7, 30, 90]) {
+      const t = ticks(n);
+      expect(new Set(t).size).toBe(t.length);
+      expect(t[0]).toBe(0);
+      expect(t[t.length - 1]).toBe(n - 1);
+    }
   });
 });
