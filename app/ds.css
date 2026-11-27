@@ -744,6 +744,74 @@ body:has(.sidebar) { padding-left: 0 !important; }
 @media (max-width: 520px) { .ds .rb-top-inner { gap: 12px; min-height: 72px; } .ds .rb-brand { height: 50px; padding: 4px 7px; border-radius: 12px; } .ds .rb-menu-link { font-size: .875rem; } .ds .rb-top-inner > .btn { padding-inline: 10px; font-size: .85rem; } .ds .rb-store .menu-grid.photos { grid-template-columns: repeat(2,minmax(0,1fr)); } .ds .rb-store .item-card.has-photo .item-body { padding-right: 14px; padding-bottom: 50px; } }
 .ds .platform-footer { margin-top: 48px; padding: 20px 16px 28px; text-align: center; color: var(--text-3); font-size: 0.8125rem; line-height: 1.6; }
 .ds .platform-footer p { margin: 0; }
+
+/* Storefront 2.0: keep the restaurant's existing colors and ordering controls; scope the new layout to guest pages. */
+.ds .storefront-v2 { background: var(--bg); color: var(--text); min-height: 100dvh; }
+.ds .storefront-v2 .container { max-width: 1440px; }
+.ds .storefront-v2 .rb-top-inner { min-height: 76px; gap: 18px; }
+.ds .storefront-v2 .rb-brand { height: 56px; }
+.ds .store-v2-wordmark { color: var(--text); font-weight: 800; letter-spacing: -.03em; min-width: 0; overflow-wrap: anywhere; }
+.ds .storefront-v2 .rb-menu-link { text-transform: none; font-size: .95rem; font-weight: 650; border-bottom-width: 2px; }
+.ds .storefront-v2 .store-hero { padding-block: 18px; background: var(--surface); }
+.ds .store-v2-hero-inner { display: grid; align-items: stretch; gap: 0; }
+.ds .store-v2-hero-copy { display: flex; flex-direction: column; justify-content: center; gap: 12px; padding-block: 24px; }
+.ds .storefront-v2 .store-hero h1 { color: var(--text); font-size: clamp(2rem, 4vw, 3.6rem); letter-spacing: -.055em; line-height: 1.08; margin: 0; }
+.ds .storefront-v2 .rb-tagline { font-size: clamp(1rem, 1.8vw, 1.25rem); margin: 0; }
+.ds .store-v2-hero-photo { display: block; width: 100%; height: 100%; max-height: 260px; min-height: 140px; object-fit: cover; border-radius: 18px; }
+.ds .storefront-v2 .store-meta { max-width: 620px; }
+.ds .storefront-v2 .catnav { background: var(--surface); }
+.ds .storefront-v2 .chip { min-height: 40px; }
+.ds .storefront-v2 .chip[aria-current="true"] { color: var(--brand-ink); background: var(--brand); border-color: var(--brand); }
+.ds .storefront-v2 .store-layout { gap: 26px; padding-top: 26px; }
+.ds .storefront-v2 #rb-menu { min-width: 0; scroll-margin-top: 72px; }
+.ds .storefront-v2 .menu-section + .menu-section { margin-top: 36px; }
+.ds .storefront-v2 .menu-heading, .ds .storefront-v2 .rb-featured h2 { font-size: clamp(1.35rem, 2vw, 1.7rem); letter-spacing: -.035em; }
+.ds .storefront-v2 .menu-grid { gap: 14px; }
+.ds .storefront-v2 .item-card, .ds .storefront-v2 .rb-feature-card { border-radius: 16px; transition: border-color .18s, box-shadow .18s; }
+.ds .storefront-v2 .item-card:disabled { opacity: 1; }
+.ds .storefront-v2 .item-card.has-photo .item-body { padding: 14px 52px 14px 14px; width: 100%; }
+.ds .storefront-v2 .item-card .item-name { font-weight: 760; letter-spacing: -.02em; }
+.ds .storefront-v2 .item-card .item-price { color: var(--text); font-weight: 750; }
+.ds .storefront-v2 .item-photo { aspect-ratio: 16 / 10; }
+.ds .storefront-v2 .item-card.row.with-thumb { padding-right: 56px; }
+.ds .storefront-v2 .item-card.row.with-thumb .item-thumb { order: -1; width: 104px; height: 104px; }
+.ds .storefront-v2 .add-fab { background: var(--brand); color: var(--brand-ink); border: 0; width: 44px; height: 44px; }
+.ds .storefront-v2 .add-fab:hover { background: var(--brand-hover); }
+.ds .storefront-v2 .rb-feature-card { height: 100%; padding: 0; gap: 0; }
+.ds .storefront-v2 .rb-feature-card > img { aspect-ratio: 16/10; border-radius: 0; }
+.ds .storefront-v2 .rb-feature-card > span, .ds .storefront-v2 .rb-feature-card > strong { padding: 6px 14px; }
+.ds .storefront-v2 .rb-feature-card > span:first-of-type { padding-top: 14px; }
+.ds .storefront-v2 .rb-feature-card:disabled > strong { padding-bottom: 14px; }
+.ds .storefront-v2 .rb-feature-action { padding-bottom: 14px !important; }
+.ds .storefront-v2 .rb-featured-grid { align-items: stretch; }
+.ds .storefront-v2 .cart-head { padding: 20px; }
+.ds .storefront-v2 .cart-scroll > .empty { border: 0; padding-block: 36px; }
+.ds .storefront-v2 .store-v2-cart-footer { padding: 16px 20px; border-top: 1px solid var(--border); }
+.ds .storefront-v2 .cart-bar .btn { min-height: 52px; }
+@media (min-width: 700px) {
+  .ds .store-v2-hero-inner.with-photo { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px; }
+}
+@media (min-width: 960px) {
+  .ds .storefront-v2 .store-layout { grid-template-columns: minmax(0, 1fr) minmax(300px, 340px); }
+  .ds .storefront-v2 .cart-panel { min-height: 320px; }
+  .ds .storefront-v2 .cart-scroll { flex: 1; }
+}
+@media (min-width: 1240px) {
+  .ds .storefront-v2 .menu-grid.photos { grid-template-columns: repeat(3,minmax(0,1fr)); }
+}
+@media (max-width: 699px) {
+  .ds .storefront-v2 .rb-top-inner { min-height: 68px; gap: 10px; }
+  .ds .storefront-v2 .rb-brand { height: 48px; }
+  .ds .storefront-v2 .store-hero { padding-block: 10px; }
+  .ds .store-v2-hero-copy { padding-block: 18px; }
+  .ds .store-v2-hero-photo { max-height: 170px; }
+  .ds .storefront-v2 .menu-grid.photos { grid-template-columns: 1fr; }
+  .ds .storefront-v2 .item-card.has-photo { flex-direction: row; align-items: center; padding: 10px; gap: 10px; }
+  .ds .storefront-v2 .item-card.has-photo .item-photo { width: 96px; height: 96px; border-radius: 12px; flex: none; }
+  .ds .storefront-v2 .item-card.has-photo .item-body { padding: 6px 48px 6px 0; }
+  .ds .storefront-v2 .item-card.row.with-thumb .item-thumb { width: 76px; height: 76px; }
+  .ds .storefront-v2 .item-card.row.with-thumb { padding: 10px 56px 10px 10px; }
+}
 .ds .testpay { border: 1.5px dashed var(--border-strong); border-radius: var(--radius); padding: 14px; background: var(--surface-2); }
 .ds .status-hero { text-align: center; padding: 28px 18px 22px; }
 .ds .progress { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 4px 0 0; padding: 0; list-style: none; }

@@ -241,6 +241,8 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
   const css = brandCss(brand);
   const categories = brand.search && query ? store.categories.map((c) => ({ ...c, items: c.items.filter((i) => `${i.name} ${i.description ?? ""} ${c.name}`.toLowerCase().includes(query)) })).filter((c) => c.items.length) : store.categories;
   const featured = brand.featured?.length && !query ? brand.featured.map((name) => [...items.values()].find((i) => i.name === name)).filter((i): i is Item => !!i && i.available) : [];
+  // Use only the restaurant's own uploaded photography; a missing photo never becomes a misleading stock image.
+  const heroPhoto = (brand.featured ?? []).map((name) => [...items.values()].find((i) => i.name === name && i.imageUrl)).find(Boolean)?.imageUrl;
 
   const status = !restaurant.orderingOpen
     ? { tone: "badge-warning", label: "Ordering paused", detail: "Online ordering is paused right now. Please check back soon." }
@@ -253,15 +255,16 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
         : { tone: "badge", label: "Closed", detail: "No pickup times are available right now." };
 
   return (
-    <div className={hasBranding(brand) ? "rb-store" : undefined}>
+    <div className={`storefront-v2${hasBranding(brand) ? " rb-store" : ""}`}>
       {css && <style>{css}</style>}
-      {brand.logo && <div className="rb-top"><div className="container rb-top-inner">
-        <a href="#rb-menu" className="rb-brand" aria-label={`${restaurant.name} menu`}><img src={brand.logo.src} width={brand.logo.width} height={brand.logo.height} alt={brand.logo.alt} /></a>
+      <div className="rb-top"><div className="container rb-top-inner">
+        {brand.logo ? <a href="#rb-menu" className="rb-brand" aria-label={`${restaurant.name} menu`}><img src={brand.logo.src} width={brand.logo.width} height={brand.logo.height} alt={brand.logo.alt} /></a> : <a href="#rb-menu" className="store-v2-wordmark">{restaurant.name}</a>}
         <a href="#rb-menu" className="rb-menu-link">Menu</a>
         <Button variant="primary" icon="bag" onClick={() => { setCartOpen(true); if (window.matchMedia("(min-width: 960px)").matches) document.getElementById("store-cart")?.scrollIntoView({ block: "nearest" }); }}>Your order {totalCents !== null ? `· ${money(totalCents)}` : `· ${itemCount}`}</Button>
-      </div></div>}
+      </div></div>
       <header className="store-hero">
-        <div className="container">
+        <div className={`container store-v2-hero-inner${heroPhoto ? " with-photo" : ""}`}>
+          <div className="store-v2-hero-copy">
           <h1>{restaurant.name}</h1>
           {brand.tagline && <p className="rb-tagline">{brand.tagline}</p>}
           <div className="store-meta">
@@ -285,6 +288,8 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
               </Button>
             )}
           </div>
+          </div>
+          {heroPhoto && <img className="store-v2-hero-photo" src={heroPhoto} alt="" />}
         </div>
       </header>
 
@@ -295,7 +300,7 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
               <button
                 key={c.id}
                 className="chip"
-                aria-current={activeCat === c.id}
+                aria-current={(activeCat ?? categories[0]?.id) === c.id}
                 onClick={() => document.getElementById(`cat-${c.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })}
               >
                 {c.name}
@@ -306,9 +311,9 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
       )}
 
       <div className="container store-layout">
-        <main id={brand.logo ? "rb-menu" : undefined}>
+        <main id="rb-menu">
           {brand.search && <div className="rb-search"><label htmlFor="rb-search">Explore the menu</label><div className="rb-search-field"><Icon name="search" size={20} /><input id="rb-search" className="input" placeholder="Search dishes or ingredients" value={search} onChange={(e) => setSearch(e.target.value)} />{search && <Button size="sm" variant="ghost" onClick={() => setSearch("")}>Clear</Button>}</div></div>}
-          {featured.length > 0 && <section className="rb-featured" aria-label="Featured dishes"><h2>Explore our favorites</h2><div className="rb-featured-grid">{featured.map((item) => <button key={item.id} className="rb-feature-card" disabled={!canOrder} onClick={() => setPicking(item)}>{item.imageUrl && <img src={item.imageUrl} alt="" loading="lazy" />}<span>{item.name}</span><strong>{money(item.priceCents)}</strong><span className="rb-feature-action">Choose options <Icon name="plus" size={16} /></span></button>)}</div></section>}
+          {featured.length > 0 && <section className="rb-featured" aria-label="Featured dishes"><h2>Explore our favorites</h2><div className="rb-featured-grid">{featured.map((item) => <button key={item.id} className="rb-feature-card" disabled={!canOrder} onClick={() => setPicking(item)}>{item.imageUrl && <img src={item.imageUrl} alt="" loading="lazy" />}<span>{item.name}</span><strong>{money(item.priceCents)}</strong>{canOrder && <span className="rb-feature-action">Choose options <Icon name="plus" size={16} /></span>}</button>)}</div></section>}
           {brand.search && query && categories.length === 0 && <div className="empty"><p>No dishes match your search.</p><Button onClick={() => setSearch("")}>See all dishes</Button></div>}
           {store.categories.length === 0 && (
             <div className="empty">
@@ -324,7 +329,7 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
               <div className={`menu-grid ${hasPhotos ? "photos" : "rows"}`}>
                 {category.items.map((item) => {
                   const inCart = countByItem.get(item.id) ?? 0;
-                  const orderable = item.available && restaurant.orderingOpen;
+                  const orderable = item.available && canOrder;
                   const quickAdd = item.modifierGroups.every((g) => g.minChoices === 0);
                   return (
                     <div key={item.id} style={{ position: "relative" }}>
@@ -381,8 +386,8 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
             {cart.length === 0 ? (
               <div className="empty">
                 <Icon name="bag" size={32} />
-                <p>Your order is empty.</p>
-                <p className="small">Tap an item to add it.</p>
+                <p className="strong">Your order is empty.</p>
+                <p className="small">{canOrder ? "Tap an item to add it." : status.detail}</p>
               </div>
             ) : (
               <>
@@ -479,10 +484,11 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
               </>
             )}
           </div>
+          {cart.length === 0 && <div className="store-v2-cart-footer"><Button variant="primary" size="lg" block disabled>Checkout</Button></div>}
         </aside>
       </div>
 
-      {itemCount > 0 && !cartOpen && (
+      {!cartOpen && (
         <div className="cart-bar">
           <Button variant="primary" size="lg" block onClick={() => setCartOpen(true)}>
             <span className="row" style={{ "--gap": "10px" } as React.CSSProperties}>
