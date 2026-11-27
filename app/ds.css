@@ -681,7 +681,7 @@ body:has(.sidebar) { padding-left: 0 !important; }
 .ds .kds-col-head h2 { font-size: 1.05rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-2); }
 .ds .count-pill { min-width: 28px; height: 28px; padding: 0 9px; border-radius: 14px; display: grid; place-items: center; background: var(--surface-3); font-weight: 750; font-variant-numeric: tabular-nums; }
 .ds .count-pill.hot { background: var(--brand); color: var(--brand-ink); animation: ring 1.6s infinite; }
-.ds .ticket { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px; margin-bottom: 12px; overflow: hidden; }
+.ds .ticket { container-type: inline-size; position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px; margin-bottom: 12px; overflow: hidden; }
 .ds .ticket::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 6px; background: var(--accent, var(--border-strong)); }
 .ds .ticket-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .ds .ticket-num { font-size: 2rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; }
@@ -697,11 +697,18 @@ body:has(.sidebar) { padding-left: 0 !important; }
 .ds .timer-fill { height: 100%; border-radius: 4px; background: var(--brand); transition: width 1s linear; }
 .ds .timer.urgent .timer-fill { background: var(--danger); }
 .ds .timer.urgent .timer-label { color: var(--danger); }
-.ds .ticket-actions { display: flex; gap: 10px; margin-top: 14px; }
+.ds .ticket-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+/* A button never squeezes its own label: it keeps its width and the row wraps instead. */
+.ds .ticket-actions .btn { flex-shrink: 0; white-space: nowrap; }
+.ds .ticket-actions .grow { flex: 1 1 auto; }
+/* In a narrow column (a tablet in landscape) the big buttons give up a little padding so Accept and Decline stay on one row. */
+@container (max-width: 330px) { .ds .ticket-actions .btn-xl { padding: 0 14px; font-size: 1.05rem; } .ds .ticket-actions .btn-lg { padding: 0 14px; } }
+.ds .ticket-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 14px; }
+.ds .ticket-phone { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--text-2); font-size: 0.9rem; }
 .ds .prep-row { margin-top: 14px; }
 .ds .prep-row .label { display: block; margin-bottom: 6px; }
-.ds .chips { display: flex; flex-wrap: wrap; gap: 8px; }
-.ds .chips button { min-width: 48px; min-height: 44px; padding: 0 8px; border-radius: 12px; border: 1.5px solid var(--border-strong); background: var(--surface-2); color: var(--text); font-weight: 700; cursor: pointer; font-variant-numeric: tabular-nums; }
+.ds .chips { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.ds .chips button { min-width: 0; min-height: 48px; padding: 0; border-radius: 12px; border: 1.5px solid var(--border-strong); background: var(--surface-2); color: var(--text); font-weight: 700; cursor: pointer; font-variant-numeric: tabular-nums; }
 .ds .chips button[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
 .ds .kds-empty { padding: 26px 12px; text-align: center; color: var(--text-3); border: 1.5px dashed var(--border); border-radius: var(--radius-lg); }
 .ds .kds-banner { margin: 12px 16px 0; }
@@ -714,7 +721,9 @@ body:has(.sidebar) { padding-left: 0 !important; }
 
 /* kitchen header bar */
 .ds .kds-bar { position: sticky; top: 60px; z-index: 29; display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: var(--surface); border-bottom: 1px solid var(--border); }
-.ds .kds-bar h1 { font-size: 1.4rem; }
+.ds .kds-bar h1 { font-size: 1.4rem; min-width: 0; }
+/* On a phone the buttons keep their icons and drop their words, so the title and the Live badge are never squeezed. */
+@media (max-width: 520px) { .ds .kds-bar { gap: 8px; } .ds .kds-bar h1 { font-size: 1.2rem; } .ds .kds-btn-text { display: none; } }
 @media (min-width: 960px) {
   .ds .kds-bar { top: 0; }
 }

@@ -207,12 +207,12 @@ export default function Kitchen() {
           <span className={`dot ${offline ? "" : "dot-live"}`} />
           {offline ? "Offline" : "Live"}
         </span>
-        <Button size="sm" icon={soundOn ? "bell" : "bellOff"} onClick={toggleSound} aria-pressed={soundOn}>
-          {soundOn ? "Sound on" : "Sound off"}
+        <Button size="sm" icon={soundOn ? "bell" : "bellOff"} onClick={toggleSound} aria-pressed={soundOn} aria-label={soundOn ? "Sound on" : "Sound off"}>
+          <span className="kds-btn-text">{soundOn ? "Sound on" : "Sound off"}</span>
         </Button>
         {accepting !== null && (
-          <Button size="sm" variant={accepting ? "secondary" : "success"} icon={accepting ? "pause" : "play"} onClick={togglePause}>
-            {accepting ? "Pause orders" : "Resume orders"}
+          <Button size="sm" variant={accepting ? "secondary" : "success"} icon={accepting ? "pause" : "play"} onClick={togglePause} aria-label={accepting ? "Pause orders" : "Resume orders"}>
+            <span className="kds-btn-text">{accepting ? "Pause orders" : "Resume orders"}</span>
           </Button>
         )}
       </div>
@@ -349,7 +349,14 @@ function needsInPersonRefund(order: Order): boolean {
   return order.paymentMode === "pay_later" && order.paidAt !== null;
 }
 
+/** How the order is being paid, as a short badge the kitchen can read at a glance. */
+function paymentBadge(order: Order): { label: string; tone: string } {
+  if (order.paymentMode === "online") return order.status === "awaiting_acceptance" ? { label: "Card on hold", tone: "badge-warning" } : { label: "Paid online", tone: "badge-success" };
+  return order.paidAt ? { label: "Paid in person", tone: "badge-success" } : { label: "Pays at the table", tone: "" };
+}
+
 function Ticket({ order, variant, timezone, children }: { order: Order; variant: "new" | "cooking" | "ready" | "late"; timezone: string | undefined; children: React.ReactNode }) {
+  const pay = paymentBadge(order);
   return (
     <article className={`ticket ticket-${variant}`} aria-label={`Order ${order.number} for ${order.customerName}`}>
       <div className="ticket-head">
@@ -389,21 +396,14 @@ function Ticket({ order, variant, timezone, children }: { order: Order; variant:
           </li>
         ))}
       </ul>
-      <div className="subtle row" style={{ marginTop: 12, "--gap": "10px" } as React.CSSProperties}>
+      <div className="ticket-meta">
+        <span className={`badge ${pay.tone}`}>{pay.label}</span>
+        <span className="num strong">{money(order.totalCents)}</span>
         {order.customerPhone && (
-          <>
-            <a href={`tel:${order.customerPhone}`} className="row" style={{ "--gap": "6px" } as React.CSSProperties}>
-              <Icon name="phone" size={14} /> {order.customerPhone}
-            </a>
-            <span>·</span>
-          </>
+          <a href={`tel:${order.customerPhone}`} className="ticket-phone" aria-label={`Call ${order.customerName} on ${order.customerPhone}`}>
+            <Icon name="phone" size={14} /> {order.customerPhone}
+          </a>
         )}
-        <span className="num">
-          {money(order.totalCents)}{" "}
-          {order.paymentMode === "online"
-            ? order.status === "awaiting_acceptance" ? "on hold" : "paid online"
-            : order.paidAt ? "paid at the restaurant" : "· pays at the table"}
-        </span>
       </div>
       {children}
     </article>
