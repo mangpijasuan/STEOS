@@ -10,6 +10,8 @@ Phase 1 is an optional staff workspace at `/pos/terminal`, accessible from the s
 
 Phase 2 adds inline editing of an unsent ticket line. Staff can change quantity, available modifiers and special instructions or cancel the edit. Required choices are checked before saving; a saved edit must receive a fresh server quote before payment or kitchen submission is enabled. Existing Clear is a local draft reset, not a void of a submitted sale.
 
-The next phases require explicit product decisions and tests: durable held tickets, split payment/ticket workflows, corporate accounts and a constrained command palette which previews ambiguous or consequential actions. No payment or ordering availability changes are introduced here.
+Phase 3 adds up to twenty unsent held tickets in the current terminal page session. Hold snapshots items, modifiers, notes, customer and table context, and promo or discount entry; resume requires an empty active cart and a fresh server quote. No order is created, money collected or kitchen event sent by holding or resuming. A ticket with an unresolved submission error cannot be held. A warning is installed while held tickets exist; refreshing or leaving loses them. Drafts are not written to browser storage or the database.
+
+The next phases require explicit product decisions and tests: durable and cross-device held tickets, split payment/ticket workflows, corporate accounts and a constrained command palette which previews ambiguous or consequential actions. No payment or ordering availability changes are introduced here.
 
 Verify with `npm run typecheck`, `npm test`, `npm run build` and `npm run e2e -- e2e/order-terminal.spec.ts e2e/till.spec.ts` against a disposable local database. Test desktop, tablet and phone; no real payment provider is needed.

@@ -42,3 +42,27 @@ test("terminal edits modifiers inline and requires a fresh quote before payment"
   await expect(page.getByRole("button", { name: /Take payment/ })).toBeEnabled();
   await expectNoSidewaysScroll(page);
 });
+
+test("terminal holds multiple unsent tickets and restores their context", async ({ page }) => {
+  await page.goto("/pos/terminal");
+  let submissions = 0;
+  page.on("request", req => { if (req.method() === "POST" && req.url().endsWith("/api/staff/pos/orders")) submissions++; });
+  const review = page.getByRole("button", { name: /Review order/ });
+  await page.getByRole("button", { name: /Chicken rice bowl,/ }).click();
+  if (await review.isVisible()) await review.click();
+  await page.getByRole("button", { name: "Takeaway" }).click();
+  await page.getByLabel("Name (optional)").fill("Test guest");
+  await page.getByRole("button", { name: "Hold ticket" }).click();
+  await expect(page.getByRole("heading", { name: "Held tickets (1)" })).toBeVisible();
+  await page.getByRole("button", { name: /Iced tea,/ }).click();
+  if (await review.isVisible()) await review.click();
+  await page.getByRole("button", { name: "Hold ticket" }).click();
+  await expect(page.getByRole("heading", { name: "Held tickets (2)" })).toBeVisible();
+  await page.getByRole("button", { name: "Resume ticket 1" }).click();
+  await expect(page.getByLabel("Name (optional)")).toHaveValue("Test guest");
+  await expect(page.getByRole("group", { name: "Quantity of Chicken rice bowl" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Take payment/ })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Resume ticket 2" })).toBeDisabled();
+  expect(submissions).toBe(0);
+  await expectNoSidewaysScroll(page);
+});

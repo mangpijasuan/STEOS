@@ -20,6 +20,11 @@ type Quote = {
 };
 type Placed = { id: string; number: number; totalCents: number; paid: boolean };
 type Method = "cash" | "card_terminal" | "other";
+type HeldTicket = {
+  id: string; number: number; cart: CartLine[]; orderType: "dine_in" | "counter"; tableId: string;
+  customerName: string; promoCode: string; promoDraft: string; discountOpen: boolean;
+  discountKind: "percent" | "fixed"; discountValue: string;
+};
 
 const METHODS: { id: Method; label: string; icon: "cash" | "card" | "more" }[] = [
   { id: "cash", label: "Cash", icon: "cash" },
@@ -56,6 +61,8 @@ export default function Pos({ searchParams, terminal = false }: { searchParams: 
   const [busy, setBusy] = useState<"later" | Method | null>(null);
   const [placeError, setPlaceError] = useState<string | null>(null);
   const [placed, setPlaced] = useState<Placed | null>(null);
+  const [held, setHeld] = useState<HeldTicket[]>([]);
+  const nextHeldNumber = useRef(1);
   const { toast, toasts } = useToasts();
 
   // Menu and tables for the pickers.
@@ -173,6 +180,34 @@ export default function Pos({ searchParams, terminal = false }: { searchParams: 
   const itemCount = cart.reduce((n, l) => n + l.quantity, 0);
   const tables = (board?.tables ?? []).filter((t) => t.active);
   const ready = cart.length > 0 && !!quote && !pricing && !editing && (orderType === "counter" || !!tableId);
+  const canHold = terminal && cart.length > 0 && held.length < 20 && !editing && !paying && !picking && !busy && !placed && !placeError;
+  const canResume = terminal && cart.length === 0 && !editing && !paying && !picking && !busy && !placed;
+
+  // The first version keeps drafts in memory, not browser storage. Warn before a reload or navigation loses them.
+  useEffect(() => {
+    if (!terminal || held.length === 0) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [terminal, held.length]);
+
+  function holdTicket() {
+    if (!canHold || attemptKey.current) return;
+    const ticket: HeldTicket = { id: crypto.randomUUID(), number: nextHeldNumber.current++, cart, orderType, tableId, customerName, promoCode, promoDraft, discountOpen, discountKind, discountValue };
+    setHeld(list => [...list, ticket]);
+    reset();
+    setOrderType("dine_in");
+    setPanelOpen(false);
+  }
+
+  function resumeTicket(ticket: HeldTicket) {
+    if (!canResume) return;
+    setCart(ticket.cart); setOrderType(ticket.orderType); setTableId(ticket.tableId);
+    setCustomerName(ticket.customerName); setPromoCode(ticket.promoCode); setPromoDraft(ticket.promoDraft);
+    setDiscountOpen(ticket.discountOpen); setDiscountKind(ticket.discountKind); setDiscountValue(ticket.discountValue);
+    setQuoted(null); setProblems([]); setPlaceError(null); setHeld(list => list.filter(t => t.id !== ticket.id));
+    setPanelOpen(true);
+  }
 
   async function place(payment: { mode: "later" } | { mode: "now"; method: Method }) {
     setBusy(payment.mode === "later" ? "later" : payment.method);
@@ -212,6 +247,7 @@ export default function Pos({ searchParams, terminal = false }: { searchParams: 
     setDiscountValue("");
     setQuoted(null);
     setEditing(null);
+    setProblems([]);
     setPlaced(null);
     setPlaceError(null);
   }
@@ -224,6 +260,7 @@ export default function Pos({ searchParams, terminal = false }: { searchParams: 
         <main>
           <div className="stack" style={{ "--gap": "12px", marginBottom: 14 } as React.CSSProperties}>
             <div className="row-between"><h1>{terminal ? "Menu" : "New order"}</h1>{!terminal && <a className="btn btn-sm" href="/pos/terminal">Order terminal</a>}</div>
+            {terminal && <section className="terminal-held" aria-label="Held tickets"><div className="row-between"><h2>Held tickets ({held.length})</h2><small>Current session only</small></div><p className="hint">Drafts are not sent to the kitchen. Reloading or leaving this page clears them.</p>{held.length > 0 && <div className="terminal-held-list">{held.map(ticket => <div key={ticket.id} className="row-between"><span>Ticket {ticket.number} · {plural(ticket.cart.reduce((n, l) => n + l.quantity, 0), "item")} · {ticket.orderType === "counter" ? "Takeaway" : "Dine-in"}</span><Button size="sm" disabled={!canResume} onClick={() => resumeTicket(ticket)}>Resume ticket {ticket.number}</Button></div>)}</div>}{held.length > 0 && cart.length > 0 && <p className="hint">Hold or clear the current draft before resuming another.</p>}</section>}
             <div className="input-icon">
               <Icon name="search" size={18} />
               <input ref={searchRef} className="input" type="search" placeholder={terminal ? "Search menu (/)" : "Search the menu"} aria-label="Search the menu" value={query} onChange={(e) => setQuery(e.target.value)} />
@@ -288,6 +325,7 @@ export default function Pos({ searchParams, terminal = false }: { searchParams: 
               {itemCount > 0 && <div className="subtle">{plural(itemCount, "item")}</div>}
             </div>
             <div className="row" style={{ "--gap": "4px" } as React.CSSProperties}>
+              {terminal && cart.length > 0 && <Button size="sm" disabled={!canHold || !!attemptKey.current} onClick={holdTicket}>Hold ticket</Button>}
               {cart.length > 0 && <Button variant="ghost" size="sm" onClick={reset}>Clear</Button>}
               <Button variant="ghost" icon="x" aria-label="Close order summary" className="cart-close" onClick={() => setPanelOpen(false)} />
             </div>
