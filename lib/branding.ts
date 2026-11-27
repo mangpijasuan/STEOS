@@ -29,8 +29,8 @@ export const branding = {
   },
 } as const;
 
-/** The registered company name used in the footer. Taken from the founder's directive; not yet verified against a filing. */
-export const legalName = "Siamsil Technologies, Inc.";
+/** Public company display name until the registered legal name is verified. */
+export const legalName = branding.company;
 
 /** The year the footer shows. Fixed on purpose: it is the year of first publication, not "today". */
 export const copyrightYear = 2026;

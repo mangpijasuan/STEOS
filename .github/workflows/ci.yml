@@ -58,3 +58,13 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t steos:ci .
+
+      - name: Container startup and database recovery smoke test
+        run: bash scripts/ci-container-smoke.sh
