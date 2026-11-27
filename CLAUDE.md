@@ -6,7 +6,7 @@
 - **The platform's name, tagline, company, footer, page titles, email subject and fee label live in one file, `lib/branding.ts`.** Import from it; never type the product name into a screen, email or library string. `tests/branding.test.ts` fails if you do. A restaurant's storefront keeps its own brand and does not use it.
 - STEOS is a product of **Siamsil Technologies** (the parent company), not a separate legal entity.
 - **SROS is the historical project name.** Use STEOS in anything a person reads: UI text, emails, docs, comments, test names, pull requests. Do not reintroduce SROS, except in the places listed as intentionally unchanged in [docs/REBRANDING_MIGRATION.md](docs/REBRANDING_MIGRATION.md).
-- Footer for STEOS's own pages (home, sign-in): "© 2026 Siamsil Technologies, Inc. All rights reserved." and "STEOS is a product of Siamsil Technologies." Restaurant storefronts carry the restaurant's brand, not STEOS's.
+- Footer for STEOS's own pages (home, sign-in): "© 2026 Siamsil Technologies. All rights reserved." (the legal-name suffix is added only after the registered name is verified) and "STEOS is a product of Siamsil Technologies." Restaurant storefronts carry the restaurant's brand, not STEOS's.
 - Brand colors: French navy, white and gold, with optional red accents. The restaurant storefronts have their own per-restaurant branding (Zogam Cafe is forest green).
 - STEOS is one multi-tenant platform with configurable modules, not a separate app per industry. Today only the restaurant modules are built. See [docs/PRODUCT_VISION.md](docs/PRODUCT_VISION.md) and [docs/STEOS_MASTER_PLAN.md](docs/STEOS_MASTER_PLAN.md).
 

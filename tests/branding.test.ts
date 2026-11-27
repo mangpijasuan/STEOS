@@ -34,7 +34,7 @@ describe("the platform's identity", () => {
     expect(metaDescription).toBe("STEOS by Siamsil Technologies: One Platform. Every Business.");
     expect(copyrightYear).toBe(2026);
     expect(legalName).toBe("Siamsil Technologies");
-    expect(footerLines).toEqual(["© 2026 Siamsil Technologies All rights reserved.", "STEOS is a product of Siamsil Technologies."]);
+    expect(footerLines).toEqual(["© 2026 Siamsil Technologies. All rights reserved.", "STEOS is a product of Siamsil Technologies."]);
   });
 
   it("is not applied to a restaurant's storefront, which keeps its own brand", () => {
@@ -58,5 +58,13 @@ describe("nothing hard-codes the platform name", () => {
       return /sros/i.test(code) ? [f] : [];
     });
     expect(offenders).toEqual([]);
+  });
+});
+
+describe("the footer's punctuation", () => {
+  it("separates the company from 'All rights reserved' whether or not the name ends with a period", async () => {
+    const line = (name: string) => `© 2026 ${name.replace(/\.$/, "")}. All rights reserved.`;
+    expect(line("Siamsil Technologies")).toBe("© 2026 Siamsil Technologies. All rights reserved.");
+    expect(line("Siamsil Technologies, Inc.")).toBe("© 2026 Siamsil Technologies, Inc. All rights reserved.");
   });
 });

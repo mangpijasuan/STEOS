@@ -45,7 +45,7 @@ export const signInSubject = `Sign in to ${branding.name}`;
 
 /** The two footer lines for the platform's own pages (home, sign-in). */
 export const footerLines = [
-  `© ${copyrightYear} ${legalName} All rights reserved.`,
+  `© ${copyrightYear} ${legalName.replace(/\.$/, "")}. All rights reserved.`,
   `${branding.name} is a product of ${branding.company}.`,
 ] as const;
 

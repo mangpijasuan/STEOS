@@ -27,7 +27,7 @@ The repository was searched for every reference to SROS (62 lines in 26 files, o
 ## What changed
 
 - Product name and descriptions: README, `package.json` description, browser title and description, email subject (now "Sign in to STEOS"), alert prefix, platform report, and every user-visible mention in the app.
-- The footer "© 2026 Siamsil Technologies, Inc. All rights reserved. / STEOS is a product of Siamsil Technologies." appears on STEOS's own pages (home and sign-in). It does **not** appear on restaurant storefronts, which carry the restaurant's brand.
+- The footer "© 2026 Siamsil Technologies. All rights reserved. / STEOS is a product of Siamsil Technologies." appears on STEOS's own pages (home and sign-in). It does **not** appear on restaurant storefronts, which carry the restaurant's brand.
 - Each restaurant page's browser tab now shows the restaurant's name. Before, every page showed the platform name, so Zogam Cafe's customers saw "Siamsil Restaurant" in the tab.
 - `docs/architecture.md` became `docs/ARCHITECTURE.md` (renamed, history kept). A file that differs only in capitalization would break checkouts on macOS and Windows, so there is exactly one.
 - New documents: CLAUDE.md, STEOS_MASTER_PLAN, PRODUCT_VISION, PRODUCT_ROADMAP, SECURITY, MULTI_TENANCY, DEPLOYMENT, TESTING and this page. AGENTS.md keeps the Next.js notice and gains STEOS instructions.
