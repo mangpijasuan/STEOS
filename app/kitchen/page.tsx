@@ -200,7 +200,7 @@ export default function Kitchen() {
 
   return (
     <div className="kds">
-      <StaffTopbar current="/kitchen" me={me} />
+      <StaffTopbar current="/kitchen" me={me} fixedTheme />
       <div className="kds-bar">
         <h1 className="grow">Kitchen</h1>
         <span className={`badge ${offline ? "badge-danger" : "badge-success"}`} role="status">
