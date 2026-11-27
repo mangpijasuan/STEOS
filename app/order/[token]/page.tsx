@@ -27,6 +27,8 @@ type Order = {
   taxCents: number;
   tipCents: number;
   totalCents: number;
+  arrivedAt: string | null;
+  arrivedNote: string | null;
   items: { name: string; quantity: number; options: { name: string }[]; note: string | null; lineTotalCents: number }[];
 };
 
@@ -70,6 +72,44 @@ function dineInLook(order: Order, base: Look): Look {
   }
 }
 const FINAL = new Set(["completed", "declined", "expired", "cancelled", "payment_failed"]);
+
+/** A pickup guest tells the kitchen they have arrived, with an optional note about where to find them. */
+function ArrivalCard({ token, order, onArrived }: { token: string; order: Order; onArrived: (a: { arrivedAt: string; arrivedNote: string | null }) => void }) {
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (order.arrivedAt) {
+    return (
+      <section className="card" aria-label="Arrival">
+        <Alert tone="success">The restaurant knows you're here.{order.arrivedNote ? ` Your note: “${order.arrivedNote}”.` : ""}</Alert>
+      </section>
+    );
+  }
+  async function send() {
+    setBusy(true);
+    setError(null);
+    const res = await fetch(`/api/orders/${token}/arrived`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ note: note.trim() || undefined }) }).catch(() => null);
+    setBusy(false);
+    if (!res) return setError("No connection. Check your internet and try again.");
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return setError(data.error ?? "That didn't work. Try again.");
+    onArrived(data);
+  }
+  return (
+    <section className="card stack" aria-labelledby="arrive-h" style={{ "--gap": "12px" } as React.CSSProperties}>
+      <div>
+        <h2 id="arrive-h">Here for your order?</h2>
+        <p className="muted">Let the kitchen know you've arrived.</p>
+      </div>
+      <label className="field">
+        <span className="label">Where will they find you? (optional)</span>
+        <input className="input" maxLength={60} value={note} placeholder="For example: blue car, space 4" onChange={(e) => setNote(e.target.value)} />
+      </label>
+      {error && <Alert tone="danger">{error}</Alert>}
+      <Button variant="primary" size="lg" block icon="bell" loading={busy} onClick={send}>I'm here</Button>
+    </section>
+  );
+}
 
 export default function OrderPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params);
@@ -197,6 +237,10 @@ export default function OrderPage({ params }: { params: Promise<{ token: string 
           </a>
         )}
       </section>
+
+      {!dineIn && order.orderType === "pickup" && (order.status === "accepted" || order.status === "ready") && (
+        <ArrivalCard token={token} order={order} onArrived={(a) => setOrder((o) => (o ? { ...o, ...a } : o))} />
+      )}
 
       {dineIn && (
         <section className="card stack" aria-label="At your table" style={{ "--gap": "12px" } as React.CSSProperties}>

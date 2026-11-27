@@ -157,6 +157,8 @@ export const orders = pgTable("orders", {
   feeCollection: text("fee_collection").notNull().default("platform"),
   paidAt: timestamp("paid_at", { withTimezone: true }),
   servedAt: timestamp("served_at", { withTimezone: true }),
+  arrivedAt: timestamp("arrived_at", { withTimezone: true }),
+  arrivedNote: text("arrived_note"),
   discountCents: integer("discount_cents").notNull().default(0),
   promoCode: text("promo_code"),
   promoId: uuid("promo_id"),

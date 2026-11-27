@@ -260,6 +260,8 @@ export async function getOrderByToken(token: string) {
       // In-person refunds on pay-later orders are the restaurant's to hand back, so no card-refund message.
       refundStatus: order.paymentMode === "online" ? payment?.refundStatus ?? null : null,
       customerName: order.customerName,
+      arrivedAt: order.arrivedAt?.toISOString() ?? null,
+      arrivedNote: order.arrivedNote,
       pickupAt: order.pickupAt.toISOString(),
       pickupType: order.pickupType,
       prepMinutes: order.prepMinutes,
@@ -295,6 +297,46 @@ async function recordRefund(
 }
 
 /** Records a provider event and applies it in the same transaction. */
+export const ARRIVAL_NOTE_MAX = 60;
+
+/**
+ * A guest's note to the kitchen, tidied: control characters become spaces, invisible and direction-changing characters (which can
+ * make text display backwards or hide it) are removed, whitespace is collapsed, and empty means none.
+ */
+export function cleanArrivalNote(raw: string | null | undefined): string | null {
+  const note = (raw ?? "")
+    .replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/g, "")
+    .replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (note.length > ARRIVAL_NOTE_MAX) throw new HttpError(400, `Keep the note under ${ARRIVAL_NOTE_MAX + 1} characters`);
+  return note || null;
+}
+
+/**
+ * A pickup guest tells the kitchen they have arrived. Works only through the guest's private order link, only for a pickup order
+ * the kitchen has accepted, and only once: pressing it again returns the first arrival and never changes it.
+ */
+export async function markGuestArrived(token: string, noteRaw?: string | null) {
+  const note = cleanArrivalNote(noteRaw);
+  const found = await pool.query("select * from public_order_by_token($1)", [sha256(token)]);
+  const row = found.rows[0];
+  if (!row) throw new HttpError(404, "Order not found");
+  return withTenant(row.restaurant_id, async (db) => {
+    const [order] = await db.select().from(orders).where(eq(orders.id, row.order_id)).for("update");
+    if (!order) throw new HttpError(404, "Order not found");
+    if (order.orderType !== "pickup") throw new HttpError(409, "Arrival notices are for pickup orders");
+    if (order.arrivedAt && ["accepted", "ready", "completed"].includes(order.status)) {
+      return { arrivedAt: order.arrivedAt.toISOString(), arrivedNote: order.arrivedNote };
+    }
+    if (order.status === "awaiting_acceptance") throw new HttpError(409, "The restaurant hasn't accepted this order yet");
+    if (!["accepted", "ready"].includes(order.status)) throw new HttpError(409, "This order is no longer active");
+    const now = new Date();
+    await db.update(orders).set({ arrivedAt: now, arrivedNote: note }).where(eq(orders.id, order.id));
+    return { arrivedAt: now.toISOString(), arrivedNote: note };
+  });
+}
+
 export async function applyPaymentEvent(event: PaymentEvent): Promise<"applied" | "duplicate" | "ignored"> {
   if (!event.restaurantId || !event.orderId) return "ignored";
   const orderId = event.orderId;
@@ -566,6 +608,8 @@ export async function listActiveOrders(db: Tx, offset = 0, limit = 100) {
     tableLabel: labels.get(o.id) ?? null,
     paymentMode: o.paymentMode,
     paidAt: o.paidAt?.toISOString() ?? null,
+    arrivedAt: o.arrivedAt?.toISOString() ?? null,
+    arrivedNote: o.arrivedNote,
     items: items.filter((i) => i.orderId === o.id).map((i) => ({ name: i.name, quantity: i.quantity, options: i.options, note: i.note })),
   })) };
 }

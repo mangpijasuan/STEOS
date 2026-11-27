@@ -905,3 +905,7 @@ body:has(.sidebar) { padding-left: 0 !important; }
 .ds .hero h1 { font-size: clamp(2.1rem, 1.4rem + 3vw, 3.4rem); font-weight: 800; letter-spacing: -0.03em; max-width: 16ch; margin: 0 auto 14px; }
 .ds .hero p { color: var(--text-2); font-size: 1.15rem; max-width: 48ch; margin: 0 auto 26px; }
 .ds .features { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); padding-bottom: 64px; }
+
+/* A pickup guest has arrived: the kitchen's ticket says so, with their note. */
+.ds .ticket-arrived { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 12px; padding: 8px 12px; border-radius: 10px; background: var(--brand); color: var(--brand-ink); font-size: 0.95rem; }
+.ds .ticket-arrived .ticket-arrived-note { flex-basis: 100%; font-weight: 600; overflow-wrap: anywhere; }
