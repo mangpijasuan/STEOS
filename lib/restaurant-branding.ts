@@ -88,7 +88,7 @@ export function completeMode(m: ColorMode, dark: boolean): Required<Omit<ColorMo
 }
 
 /** The dark palette when a restaurant gave only a light one: its brand color, lightened so it reads on a dark page. */
-const deriveDark = (light: ColorMode): ColorMode => ({ brand: mix(light.brand, "#ffffff", 0.45) });
+export const deriveDark = (light: ColorMode): ColorMode => ({ brand: mix(light.brand, "#ffffff", 0.45) });
 
 function block(selector: string, m: ReturnType<typeof completeMode>): string {
   const lines = [`--brand:${m.brand}`, `--brand-hover:${m.hover}`, `--brand-ink:${m.ink}`, `--brand-soft:${m.soft}`, `--brand-soft-ink:${m.softInk}`];
@@ -106,3 +106,50 @@ export function brandCss(branding: RestaurantBranding): string | null {
 
 /** True when the storefront needs the branded wrapper at all. */
 export const hasBranding = (b: RestaurantBranding) => Object.keys(b).length > 0;
+
+// --- the owner's editor ----------------------------------------------------------------------------------------------
+
+/** What the owner can change on screen. The logo is not here: it is a file under public/brands/ and is kept as it is. */
+export const brandingEditSchema = z
+  .object({
+    color: hex.nullable(), // null: no custom colors
+    colorDark: hex.nullable(), // null: worked out from the brand color
+    tagline: z.string().trim().max(120).nullable(),
+    search: z.boolean(),
+    featured: z.array(z.string().trim().min(1).max(80)).max(8),
+  })
+  .strict();
+
+export type BrandingEdit = z.infer<typeof brandingEditSchema>;
+
+export const LIGHT_PAGE = "#ffffff";
+export const DARK_PAGE = "#121212";
+/** A brand color is used as text and icons on the page, so it needs at least this much contrast with it (WCAG's bar for large text and icons). */
+export const MIN_BRAND_CONTRAST = 3;
+
+/** A plain sentence for each color that would be hard to read, or null when both are fine. */
+export function colorProblem(edit: Pick<BrandingEdit, "color" | "colorDark">): string | null {
+  if (edit.color && contrast(edit.color, LIGHT_PAGE) < MIN_BRAND_CONTRAST) return "That brand color is too light to read on a white page. Choose a darker one.";
+  if (edit.color && edit.colorDark && contrast(edit.colorDark, DARK_PAGE) < MIN_BRAND_CONTRAST) return "That dark-mode color is too dark to read on a dark page. Choose a lighter one.";
+  return null;
+}
+
+const same = (a: string | undefined, b: string) => a !== undefined && a.toLowerCase() === b.toLowerCase();
+
+/**
+ * Applies an edit to the stored branding. The logo is always kept. A color the owner did not change keeps every detail it had
+ * (so a restaurant with a hand-tuned palette is not flattened by saving other fields); a color they changed is worked out afresh.
+ */
+export function applyBrandingEdit(current: RestaurantBranding, edit: BrandingEdit): RestaurantBranding {
+  const next: RestaurantBranding = {};
+  if (edit.color) {
+    const light = same(current.colors?.light.brand, edit.color) ? current.colors!.light : { brand: edit.color.toLowerCase() };
+    const dark = edit.colorDark ? (same(current.colors?.dark?.brand, edit.colorDark) ? current.colors!.dark! : { brand: edit.colorDark.toLowerCase() }) : undefined;
+    next.colors = dark ? { light, dark } : { light };
+  }
+  if (current.logo) next.logo = current.logo;
+  if (edit.tagline) next.tagline = edit.tagline;
+  if (edit.featured.length) next.featured = [...new Set(edit.featured)];
+  if (edit.search) next.search = true;
+  return restaurantBrandingSchema.parse(next);
+}

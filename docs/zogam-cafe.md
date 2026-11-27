@@ -35,4 +35,4 @@ The following descriptions are ready for the owner to add in `/menu` once the ca
 
 Pepper Steak is imported at the printed beef price. Confirm whether other protein choices are offered.
 
-Zogam Cafe's storefront look (green palette, logo badge, tagline, favorite dishes and menu search) is stored as branding data on the restaurant, not in code. The importer sets it for new databases, and migration `0015` applied it to existing ones. See [ARCHITECTURE.md](ARCHITECTURE.md).
+Zogam Cafe's storefront look (green palette, logo badge, tagline, favorite dishes and menu search) is stored as branding data on the restaurant, not in code. The importer sets it for new databases, and migration `0015` applied it to existing ones. See [ARCHITECTURE.md](ARCHITECTURE.md). The owner can change its colors, tagline, search and favorites in Hours & settings; the logo stays as set.
