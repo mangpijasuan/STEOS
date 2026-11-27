@@ -184,15 +184,20 @@ export async function createPosOrder(store: Store, input: PosInput, actor: Actor
 
 // ----------------------------------------------------------------- receipt
 export async function getReceipt(db: Tx, orderId: string) {
-  const [o] = await db.select().from(orders).where(eq(orders.id, orderId));
-  if (!o) throw new HttpError(404, "Order not found");
-  const [items, [r], [loc], [table], [pay], tenders] = await Promise.all([
+  // One statement snapshot for the order, payment and tender ledger, even if another till settles concurrently.
+  const settlement = await db.select({ order: orders, payment: { method: payments.method, status: payments.status }, tender: { position: manualSplitTenders.position, method: manualSplitTenders.method, amountCents: manualSplitTenders.amountCents } })
+    .from(orders)
+    .leftJoin(payments, and(eq(payments.orderId, orders.id), eq(payments.restaurantId, orders.restaurantId)))
+    .leftJoin(manualSplitTenders, and(eq(manualSplitTenders.orderId, orders.id), eq(manualSplitTenders.restaurantId, orders.restaurantId)))
+    .where(eq(orders.id, orderId)).orderBy(manualSplitTenders.position);
+  if (!settlement.length) throw new HttpError(404, "Order not found");
+  const { order: o, payment: pay } = settlement[0];
+  const tenders = settlement.flatMap(row => row.tender ? [row.tender] : []);
+  const [items, [r], [loc], [table]] = await Promise.all([
     db.select().from(orderItems).where(eq(orderItems.orderId, orderId)),
     db.select({ name: restaurants.name, timezone: restaurants.timezone }).from(restaurants),
     db.select().from(locations).where(eq(locations.isDefault, true)),
     o.tableId ? db.select({ label: diningTables.label }).from(diningTables).where(eq(diningTables.id, o.tableId)) : Promise.resolve([] as { label: string }[]),
-    db.select({ method: payments.method, status: payments.status }).from(payments).where(eq(payments.orderId, orderId)),
-    db.select({ position: manualSplitTenders.position, method: manualSplitTenders.method, amountCents: manualSplitTenders.amountCents }).from(manualSplitTenders).where(eq(manualSplitTenders.orderId, orderId)).orderBy(manualSplitTenders.position),
   ]);
   return {
     restaurant: {

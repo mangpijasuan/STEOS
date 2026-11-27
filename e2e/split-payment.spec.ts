@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { AUTH, expectNoSidewaysScroll } from "./helpers";
+import type { Board } from "../app/tables/types";
 
 test.use({storageState:AUTH.staff});
 
@@ -26,4 +27,28 @@ test("staff can allocate a mixed split and must confirm collection before record
   await expectNoSidewaysScroll(page);
   await record.click();
   await expect(page.getByRole("heading",{name:/Order #\d+ placed/})).toBeVisible();
+});
+
+test.describe("owner refund confirmation", () => {
+  test.use({storageState: AUTH.owner});
+  test("table owner confirms all manually split tenders were returned", async ({page}) => {
+    const board: Board = await (await page.request.get("/api/staff/tables")).json();
+    const table = board.tables.find(t => t.label === "3")!;
+    const menu = await (await page.request.get("/api/staff/menu")).json() as {items:{id:string;name:string}[]}[];
+    const item = menu.flatMap(c=>c.items).find(i=>i.name === "Iced tea")!;
+    const placed = await page.request.post("/api/staff/pos/orders", {headers:{"Idempotency-Key":crypto.randomUUID()},data:{items:[{itemId:item.id,quantity:1,optionIds:[]}],orderType:"dine_in",tableId:table.id,payment:{mode:"later"}}});
+    expect(placed.status()).toBe(201);
+    const {id,number,totalCents} = await placed.json();
+    expect((await page.request.post(`/api/staff/orders/${id}/accept`,{data:{prepMinutes:5}})).status()).toBe(200);
+    expect((await page.request.post(`/api/staff/orders/${id}/pay-split`,{headers:{"Idempotency-Key":crypto.randomUUID()},data:{tenders:[{method:"cash",amountCents:1},{method:"card_terminal",amountCents:totalCents-1}]}})).status()).toBe(200);
+    await page.goto("/tables");
+    await page.getByRole("button",{name:/^Table 3,/}).click();
+    const order = page.locator(".order-block").filter({has:page.getByText(`#${number}`,{exact:true})});
+    await order.getByRole("button",{name:"Cancel",exact:true}).click();
+    await order.getByRole("button",{name:/Confirm .* returned in person/}).click();
+    await expect.poll(async()=> (await (await page.request.get(`/api/staff/orders/${id}`)).json()).paymentStatus).toBe("refunded");
+    const receipt = await (await page.request.get(`/api/staff/orders/${id}`)).json();
+    expect(receipt.tenders).toHaveLength(2);
+    expect(receipt.status).toBe("cancelled");
+  });
 });

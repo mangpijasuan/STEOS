@@ -69,4 +69,27 @@ describe("atomic manual split settlement",()=>{
     expect((await splitPay(req(staff,{tenders:split}),idCtx(id))).status).toBe(409);
     expect((await asOwner(c=>c.query("select id from manual_split_tenders where order_id=$1",[id]))).rows).toHaveLength(2);
   });
+
+  it("never returns a partially visible settlement on concurrent receipt reads", async () => {
+    const placed = await place(req(staff,{...body(),payment:{mode:"later"}}),{});
+    const {id} = await placed.json();
+    expect((await accept(req(staff,{prepMinutes:5}),idCtx(id))).status).toBe(200);
+    const read = async () => {
+      const res = await receipt(req(staff,undefined,undefined,"GET"),idCtx(id));
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      if (data.paid) {
+        expect(data.paymentStatus).toBe("captured");
+        expect(data.tenders).toEqual(split.map((p,i) => ({position:i+1,...p})));
+      } else {
+        expect(data.paymentStatus).toBeNull();
+        expect(data.tenders).toEqual([]);
+      }
+      return data.paid;
+    };
+    expect(await read()).toBe(false);
+    const [settlement] = await Promise.all([splitPay(req(staff,{tenders:split}),idCtx(id)),...Array.from({length:8},()=>read())]);
+    expect(settlement.status).toBe(200);
+    expect(await read()).toBe(true);
+  });
 });
