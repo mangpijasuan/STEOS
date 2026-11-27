@@ -9,6 +9,7 @@ import { clockTime, money, plural } from "@/lib/format";
 import Checkout from "./Checkout";
 import { HelpSheet } from "../../t/help";
 import { ItemSheet, type CartLine, type Item, type Option, type Group } from "./ItemSheet";
+import { OrderAgain, rememberOrder } from "./OrderAgain";
 
 type Category = { id: string; name: string; items: Item[] };
 type Store = {
@@ -186,6 +187,7 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
   }, [cartOpen]);
 
   const items = useMemo(() => new Map((store?.categories ?? []).flatMap((c) => c.items).map((i) => [i.id, i])), [store]);
+  const itemNames = useMemo(() => new Map([...items].map(([id, i]) => [id, i.name])), [items]);
   const countByItem = useMemo(() => {
     const m = new Map<string, number>();
     cart.forEach((l) => m.set(l.itemId, (m.get(l.itemId) ?? 0) + l.quantity));
@@ -207,6 +209,24 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
         return [...c, { ...line, key: crypto.randomUUID() }];
       });
       toast(`Added ${line.quantity > 1 ? `${line.quantity} × ` : ""}${name}`);
+    },
+    [toast],
+  );
+
+  // Puts a remembered order back in the cart. The same dish with the same choices and note just adds to that line.
+  const addMany = useCallback(
+    (lines: Omit<CartLine, "key">[], dropped: string[]) => {
+      setCart((c) => {
+        let next = c;
+        for (const line of lines) {
+          const same = next.find((l) => l.itemId === line.itemId && l.note === line.note && l.optionIds.slice().sort().join() === line.optionIds.slice().sort().join());
+          next = same
+            ? next.map((l) => (l === same ? { ...l, quantity: Math.min(50, l.quantity + line.quantity) } : l))
+            : [...next, { ...line, key: crypto.randomUUID() }];
+        }
+        return next;
+      });
+      toast(dropped.length ? `Added your last order. Not available: ${dropped.join(", ")}` : "Added your last order");
     },
     [toast],
   );
@@ -314,6 +334,7 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
 
       <div className="container store-layout">
         <main id="rb-menu">
+          {!table && <OrderAgain slug={slug} items={items} names={itemNames} cartEmpty={cart.length === 0} onAdd={addMany} />}
           {brand.search && <div className="rb-search"><label htmlFor="rb-search">Explore the menu</label><div className="rb-search-field"><Icon name="search" size={20} /><input id="rb-search" className="input" placeholder="Search dishes or ingredients" value={search} onChange={(e) => setSearch(e.target.value)} />{search && <Button size="sm" variant="ghost" onClick={() => setSearch("")}>Clear</Button>}</div></div>}
           {featured.length > 0 && <section className="rb-featured" aria-label="Featured dishes"><h2>Explore our favorites</h2><div className="rb-featured-grid">{featured.map((item) => <button key={item.id} className="rb-feature-card" disabled={!canOrder} onClick={() => setPicking(item)}>{item.imageUrl && <img src={item.imageUrl} alt="" loading="lazy" />}<span>{item.name}</span><strong>{money(item.priceCents)}</strong>{canOrder && <span className="rb-feature-action">Choose options <Icon name="plus" size={16} /></span>}</button>)}</div></section>}
           {brand.search && query && categories.length === 0 && <div className="empty"><p>No dishes match your search.</p><Button onClick={() => setSearch("")}>See all dishes</Button></div>}
@@ -477,7 +498,7 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
                     tipCents={tipCents}
                     totalCents={totalCents}
                     canOrder={canOrder && issues.length === 0 && !pricing}
-                    onClearCart={() => setCart([])}
+                    onClearCart={() => { if (!table) rememberOrder(slug, cart, (id) => items.get(id)?.name); setCart([]); }}
                     promoCode={quote?.discountLabel ? promoCode : undefined}
                     table={table}
                   />

@@ -905,3 +905,10 @@ body:has(.sidebar) { padding-left: 0 !important; }
 .ds .hero h1 { font-size: clamp(2.1rem, 1.4rem + 3vw, 3.4rem); font-weight: 800; letter-spacing: -0.03em; max-width: 16ch; margin: 0 auto 14px; }
 .ds .hero p { color: var(--text-2); font-size: 1.15rem; max-width: 48ch; margin: 0 auto 26px; }
 .ds .features { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); padding-bottom: 64px; }
+
+/* "Order again" on the storefront: the guest's last order, offered back with one tap. */
+.ds .reorder { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 16px; padding: 14px 16px; margin-bottom: 20px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); }
+.ds .reorder-copy { min-width: 0; flex: 1 1 240px; }
+.ds .reorder-copy h2 { display: flex; align-items: center; gap: 8px; font-size: 1.05rem; color: var(--brand); }
+.ds .reorder-items { margin: 4px 0 0; font-weight: 600; overflow-wrap: anywhere; }
+.ds .reorder-actions { display: flex; gap: 8px; flex-wrap: wrap; }
