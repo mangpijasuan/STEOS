@@ -24,7 +24,7 @@ npx playwright install chromium     # once; or set PW_CHROMIUM_PATH to a Chromiu
 npm run e2e                         # add --project=mobile (or tablet, desktop) to run one size
 ```
 
-CI runs them as the `e2e` job and keeps the report and failure traces as a downloadable artifact. A test that fails is a real problem to fix, not a test to skip. Known gap: the site has no favicon, so every page logs one 404 for `/favicon.ico`; the tests ignore exactly that one.
+CI runs them as the `e2e` job and keeps the report and failure traces as a downloadable artifact. A test that fails is a real problem to fix, not a test to skip.
 
 ## Running the tests locally
 

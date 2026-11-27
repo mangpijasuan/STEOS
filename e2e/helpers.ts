@@ -13,8 +13,6 @@ export function seed(): { tables: Record<string, string> } {
 }
 
 /** Collects what a visitor would call a broken page: console errors, uncaught exceptions and failed requests. */
-// Known gap, tracked separately: the site has no favicon yet, so every page logs one 404 for /favicon.ico.
-const KNOWN = [/favicon\.ico/];
 
 export function watchProblems(page: Page, ignore: RegExp[] = []) {
   const problems: string[] = [];
@@ -25,7 +23,7 @@ export function watchProblems(page: Page, ignore: RegExp[] = []) {
   page.on("response", (r) => {
     if (r.status() >= 400 && !r.url().includes("/_next/")) problems.push(`HTTP ${r.status()} ${r.request().method()} ${new URL(r.url()).pathname}`);
   });
-  return { list: () => problems.filter((p) => ![...KNOWN, ...ignore].some((re) => re.test(p))) };
+  return { list: () => problems.filter((p) => !ignore.some((re) => re.test(p))) };
 }
 
 /** A phone page that scrolls sideways is a layout defect. */
