@@ -12,7 +12,7 @@ test("customer appearance follows system and remembers explicit choices", async 
   await control.selectOption("light");
   await expect(wrapper).toHaveCSS("color-scheme", "light");
   await expect(store).toHaveCSS("--brand", "#17623b");
-  await expect(wrapper).toHaveCSS("--surface", "#ffffff");
+  await expect(page.locator(".rb-top")).toHaveCSS("background-color", "rgb(255, 255, 255)");
   await page.reload();
   await expect(control).toHaveValue("light");
   await expect(store).toHaveCSS("--brand", "#17623b");
@@ -20,6 +20,7 @@ test("customer appearance follows system and remembers explicit choices", async 
   await control.selectOption("dark");
   await expect(wrapper).toHaveCSS("color-scheme", "dark");
   await expect(store).toHaveCSS("--brand", "#8ed6a2");
+  await expect(page.locator(".rb-top")).toHaveCSS("background-color", "rgb(43, 55, 65)");
   await control.selectOption("system");
   await expect(wrapper).toHaveCSS("color-scheme", "light");
   await expect(store).toHaveCSS("--brand", "#17623b");
