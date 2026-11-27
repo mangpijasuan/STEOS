@@ -112,6 +112,16 @@ describe("pausing and settings", () => {
     expect((await (await getSettings(req("GET", staffToken), ctx(""))).json()).minPrepMinutes).toBe(45);
   });
 
+  it("lets the owner change the time zone, rejects unknown zones and keeps it owner-only", async () => {
+    expect((await patchSettings(req("PATCH", staffToken, { timezone: "America/Denver" }), ctx(""))).status).toBe(403);
+    expect((await patchSettings(req("PATCH", ownerToken, { timezone: "Not/AZone" }), ctx(""))).status).toBe(400);
+    const res = await patchSettings(req("PATCH", ownerToken, { timezone: "America/Denver" }), ctx(""));
+    expect(res.status).toBe(200);
+    expect((await res.json()).timezone).toBe("America/Denver");
+    expect((await (await getSettings(req("GET", staffToken), ctx(""))).json()).timezone).toBe("America/Denver");
+    expect((await patchSettings(req("PATCH", ownerToken, { timezone: "America/Chicago" }), ctx(""))).status).toBe(200);
+  });
+
   it("requires sign-in", async () => {
     expect((await getSettings(req("GET", null), ctx(""))).status).toBe(401);
   });

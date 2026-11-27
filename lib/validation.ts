@@ -79,7 +79,18 @@ export const quoteInput = z.object({
   promoCode: z.string().trim().max(24).optional(),
 });
 
+/** True for a time zone name the runtime knows, such as "America/Chicago". */
+export function isTimeZone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export const settingsUpdate = z.object({
+  timezone: z.string().min(1).max(64).refine(isTimeZone, "Choose a valid time zone").optional(),
   acceptingOrders: z.boolean().optional(),
   minPrepMinutes: z.number().int().min(5).max(240).optional(),
   maxAdvanceDays: z.number().int().min(0).max(14).optional(),

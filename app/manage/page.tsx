@@ -5,7 +5,7 @@ import { Icon } from "../icons";
 import { Alert, Button, Skeleton, StaffTopbar, api, useMe, useToasts } from "../ui";
 import type { HoursPeriod } from "@/lib/hours";
 
-type Settings = { acceptingOrders: boolean; minPrepMinutes: number; maxAdvanceDays: number; taxRateBps: number; dineInEnabled: boolean; payLaterEnabled: boolean };
+type Settings = { timezone: string; acceptingOrders: boolean; minPrepMinutes: number; maxAdvanceDays: number; taxRateBps: number; dineInEnabled: boolean; payLaterEnabled: boolean };
 type Period = HoursPeriod & { key: string };
 
 // Monday first, the way a restaurant thinks about a week. weekday 0 is Sunday, as the server stores it.
@@ -42,6 +42,13 @@ export default function Manage() {
   const [accepting, setAccepting] = useState(true);
   const [dineIn, setDineIn] = useState(false);
   const [payLater, setPayLater] = useState(true);
+  const [timezone, setTimezone] = useState("");
+
+  // Every zone the browser knows, plus the saved one in case it is not in that list.
+  const zones = useMemo(() => {
+    const all = typeof Intl.supportedValuesOf === "function" ? Intl.supportedValuesOf("timeZone") : [];
+    return timezone && !all.includes(timezone) ? [timezone, ...all] : all.length ? all : timezone ? [timezone] : [];
+  }, [timezone]);
 
   const fillSettings = (s: Settings) => {
     setSettings(s);
@@ -51,6 +58,7 @@ export default function Manage() {
     setAccepting(s.acceptingOrders);
     setDineIn(s.dineInEnabled);
     setPayLater(s.payLaterEnabled);
+    setTimezone(s.timezone);
   };
 
   useEffect(() => {
@@ -87,6 +95,7 @@ export default function Manage() {
         acceptingOrders: accepting,
         dineInEnabled: dineIn,
         payLaterEnabled: payLater,
+        timezone,
       },
     });
     setSaving(null);
@@ -161,6 +170,13 @@ export default function Manage() {
                   <span className="label">Days available for advance orders</span>
                   <input className="input num" type="number" min={0} max={14} required value={advance} onChange={(e) => setAdvance(e.target.value)} />
                   <span className="hint">0 means same day only.</span>
+                </label>
+                <label className="field">
+                  <span className="label">Time zone</span>
+                  <select className="input" required value={timezone} onChange={(e) => setTimezone(e.target.value)}>
+                    {zones.map((z) => <option key={z} value={z}>{z.replace(/_/g, " ")}</option>)}
+                  </select>
+                  <span className="hint">Opening hours and pickup times follow this zone.</span>
                 </label>
                 <label className="field">
                   <span className="label">Sales tax (%)</span>

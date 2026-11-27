@@ -26,7 +26,7 @@ export async function getSettings(db: Tx) {
 export async function updateSettings(
   db: Tx,
   restaurantId: string,
-  patch: { acceptingOrders?: boolean; minPrepMinutes?: number; maxAdvanceDays?: number; taxRateBps?: number; dineInEnabled?: boolean; payLaterEnabled?: boolean },
+  patch: { timezone?: string; acceptingOrders?: boolean; minPrepMinutes?: number; maxAdvanceDays?: number; taxRateBps?: number; dineInEnabled?: boolean; payLaterEnabled?: boolean },
 ) {
   const clean = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
   if (Object.keys(clean).length === 0) throw new HttpError(400, "Nothing to update");
