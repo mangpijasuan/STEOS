@@ -8,6 +8,7 @@ import { money, plural } from "@/lib/format";
 import { photoUrl, toCents, type Category } from "../menu/editor";
 import type { Board } from "../tables/types";
 import { LineEditor } from "./terminal/LineEditor";
+import type { HeldClaim, HeldPayload, HeldSummary } from "@/lib/held-ticket-input";
 
 type Quote = {
   lines: { itemId: string; name: string; quantity: number; options: { name: string }[]; note: string | null; lineTotalCents: number }[];
@@ -20,11 +21,6 @@ type Quote = {
 };
 type Placed = { id: string; number: number; totalCents: number; paid: boolean };
 type Method = "cash" | "card_terminal" | "other";
-type HeldTicket = {
-  id: string; number: number; cart: CartLine[]; orderType: "dine_in" | "counter"; tableId: string;
-  customerName: string; promoCode: string; promoDraft: string; discountOpen: boolean;
-  discountKind: "percent" | "fixed"; discountValue: string;
-};
 
 const METHODS: { id: Method; label: string; icon: "cash" | "card" | "more" }[] = [
   { id: "cash", label: "Cash", icon: "cash" },
@@ -61,8 +57,13 @@ export default function Pos({ searchParams, terminal = false }: { searchParams: 
   const [busy, setBusy] = useState<"later" | Method | null>(null);
   const [placeError, setPlaceError] = useState<string | null>(null);
   const [placed, setPlaced] = useState<Placed | null>(null);
-  const [held, setHeld] = useState<HeldTicket[]>([]);
-  const nextHeldNumber = useRef(1);
+  const [held, setHeld] = useState<HeldSummary[]>([]);
+  const [activeClaim, setActiveClaim] = useState<HeldClaim | null>(null);
+  const [draftBusy, setDraftBusy] = useState(false);
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const [pendingHold, setPendingHold] = useState<string | null>(null);
+  const pendingClaim = useRef<{ id: string; version: number; claimId: string } | null>(null);
+  const heldListRequest = useRef(0);
   const { toast, toasts } = useToasts();
 
   // Menu and tables for the pickers.
@@ -74,6 +75,22 @@ export default function Pos({ searchParams, terminal = false }: { searchParams: 
       if (t.ok) setBoard(t.data);
     })();
   }, []);
+
+  const refreshHeld = useCallback(async () => {
+    const request = ++heldListRequest.current;
+    const r = await api<HeldSummary[]>("/api/staff/pos/held");
+    if (request !== heldListRequest.current) return;
+    if (r.ok) setHeld(r.data);
+    else setDraftError(r.error);
+  }, []);
+  useEffect(() => {
+    if (!terminal) return;
+    void refreshHeld();
+    const timer = window.setInterval(() => { if (document.visibilityState === "visible") void refreshHeld(); }, 15_000);
+    const onFocus = () => void refreshHeld();
+    window.addEventListener("focus", onFocus);
+    return () => { window.clearInterval(timer); window.removeEventListener("focus", onFocus); };
+  }, [terminal, refreshHeld]);
 
   const items = useMemo(() => new Map((menu ?? []).flatMap((c) => c.items).map((i) => [i.id, i])), [menu]);
   const asSheetItem = useCallback(
@@ -162,7 +179,7 @@ export default function Pos({ searchParams, terminal = false }: { searchParams: 
   useEffect(() => {
     if (!terminal) return;
     function keydown(event: KeyboardEvent) {
-      if (event.defaultPrevented || picking || paying || placed || panelOpen || busy || editing) return;
+      if (event.defaultPrevented || picking || paying || placed || panelOpen || busy || editing || draftBusy) return;
       const target = event.target as HTMLElement | null;
       if (target?.closest("input, textarea, select, [contenteditable=true]")) return;
       if (event.key === "/" && !event.altKey && !event.ctrlKey && !event.metaKey) {
@@ -175,41 +192,75 @@ export default function Pos({ searchParams, terminal = false }: { searchParams: 
     }
     window.addEventListener("keydown", keydown);
     return () => window.removeEventListener("keydown", keydown);
-  }, [terminal, menu, picking, paying, placed, panelOpen, busy, editing]);
+  }, [terminal, menu, picking, paying, placed, panelOpen, busy, editing, draftBusy]);
 
   const itemCount = cart.reduce((n, l) => n + l.quantity, 0);
   const tables = (board?.tables ?? []).filter((t) => t.active);
-  const ready = cart.length > 0 && !!quote && !pricing && !editing && (orderType === "counter" || !!tableId);
-  const canHold = terminal && cart.length > 0 && held.length < 20 && !editing && !paying && !picking && !busy && !placed && !placeError;
-  const canResume = terminal && cart.length === 0 && !editing && !paying && !picking && !busy && !placed;
+  const claimCurrent = !activeClaim || held.some(ticket => ticket.id === activeClaim.id && ticket.status === "claimed" && ticket.version === activeClaim.version);
+  const ready = cart.length > 0 && !!quote && !pricing && !editing && !draftBusy && !pendingHold && claimCurrent && (orderType === "counter" || !!tableId);
+  const otherHeld = held.filter(ticket => ticket.id !== activeClaim?.id);
+  const canHold = terminal && !!me && cart.length > 0 && !editing && !paying && !picking && !busy && !placed && !placeError && !draftBusy && (claimCurrent || !!pendingHold) && (!manual || !!manual.value);
+  const canResume = terminal && !!me && cart.length === 0 && !activeClaim && !pendingHold && !editing && !paying && !picking && !busy && !placed && !draftBusy;
 
-  // The first version keeps drafts in memory, not browser storage. Warn before a reload or navigation loses them.
+  // A held snapshot survives reload; edits to an active ticket are unsaved until Hold is pressed again.
   useEffect(() => {
-    if (!terminal || held.length === 0) return;
+    if (!terminal || (!cart.length && !pendingHold && !activeClaim)) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
-  }, [terminal, held.length]);
+  }, [terminal, cart.length, pendingHold, activeClaim]);
 
-  function holdTicket() {
+  async function holdTicket() {
     if (!canHold || attemptKey.current) return;
-    const ticket: HeldTicket = { id: crypto.randomUUID(), number: nextHeldNumber.current++, cart, orderType, tableId, customerName, promoCode, promoDraft, discountOpen, discountKind, discountValue };
-    setHeld(list => [...list, ticket]);
+    const payload = { items: cart.map(({itemId, quantity, optionIds, note}) => ({itemId, quantity, optionIds, note})), orderType, tableId: orderType === "dine_in" ? tableId || undefined : undefined, customerName: customerName.trim() || undefined, promoCode: promoCode || undefined, discount: manual ?? undefined };
+    const id = activeClaim?.id ?? pendingHold ?? crypto.randomUUID();
+    setPendingHold(id); setDraftBusy(true); setDraftError(null);
+    const r = await api(activeClaim ? `/api/staff/pos/held/${id}` : "/api/staff/pos/held", { method: activeClaim ? "PATCH" : "POST", json: activeClaim ? { action: "rehold", claimId: activeClaim.claimId, version: activeClaim.version, payload } : { id, payload } });
+    setDraftBusy(false);
+    if (!r.ok) { setDraftError(r.status === 0 ? "Hold result unknown. Retry Hold without editing, or reload and recover the saved ticket." : r.error); if (r.status !== 0 && r.status !== 500 && r.status !== 409) setPendingHold(null); await refreshHeld(); return; }
+    setActiveClaim(null); setPendingHold(null);
     reset();
     setOrderType("dine_in");
     setPanelOpen(false);
+    await refreshHeld();
   }
 
-  function resumeTicket(ticket: HeldTicket) {
+  async function resumeTicket(ticket: HeldSummary) {
     if (!canResume) return;
-    setCart(ticket.cart); setOrderType(ticket.orderType); setTableId(ticket.tableId);
-    setCustomerName(ticket.customerName); setPromoCode(ticket.promoCode); setPromoDraft(ticket.promoDraft);
-    setDiscountOpen(ticket.discountOpen); setDiscountKind(ticket.discountKind); setDiscountValue(ticket.discountValue);
-    setQuoted(null); setProblems([]); setPlaceError(null); setHeld(list => list.filter(t => t.id !== ticket.id));
+    if (ticket.status === "claimed" && !window.confirm("Recover this saved ticket? The previous workstation will no longer be able to submit it. Unsaved edits there will not be recovered.")) return;
+    const prior = pendingClaim.current;
+    const claimId = prior?.id === ticket.id && prior.version === ticket.version ? prior.claimId : crypto.randomUUID();
+    pendingClaim.current = { id: ticket.id, version: ticket.version, claimId };
+    setDraftBusy(true); setDraftError(null);
+    const r = await api<HeldClaim & { payload: HeldPayload }>(`/api/staff/pos/held/${ticket.id}`, { method: "PATCH", json: { action: "claim", version: ticket.version, claimId, recover: ticket.status === "claimed" } });
+    setDraftBusy(false);
+    if (!r.ok) { setDraftError(r.error); await refreshHeld(); return; }
+    pendingClaim.current = null;
+    const { payload, ...claim } = r.data;
+    setActiveClaim(claim);
+    setCart(payload.items.map(l => ({ ...l, note: l.note ?? "", key: crypto.randomUUID() }))); setOrderType(payload.orderType); setTableId(payload.tableId ?? "");
+    setCustomerName(payload.customerName ?? ""); setPromoCode(payload.promoCode ?? ""); setPromoDraft(payload.promoCode ?? "");
+    // A saved owner-only discount is not silently granted to a staff member.
+    const discount = isOwner ? payload.discount : undefined;
+    setDiscountOpen(!!discount); setDiscountKind(discount?.kind ?? "percent"); setDiscountValue(discount ? String(discount.kind === "fixed" ? discount.value / 100 : discount.value) : "");
+    if (payload.discount && !isOwner) toast("Owner discount removed. Ask an owner to reapply it.", "danger");
+    setQuoted(null); setProblems([]); setPlaceError(null);
     setPanelOpen(true);
+    await refreshHeld();
+  }
+
+  async function cancelTicket(ticket: { id: string; version: number; claimId?: string }, active = false) {
+    if (draftBusy || !window.confirm("Cancel this saved draft? No submitted order or payment will be changed.")) return;
+    setDraftBusy(true); setDraftError(null);
+    const r = await api(`/api/staff/pos/held/${ticket.id}`, { method: "PATCH", json: { action: "cancel", version: ticket.version, claimId: ticket.claimId } });
+    setDraftBusy(false);
+    if (!r.ok) setDraftError(r.error);
+    else if (active) { setActiveClaim(null); setPendingHold(null); reset(); setPanelOpen(false); }
+    await refreshHeld();
   }
 
   async function place(payment: { mode: "later" } | { mode: "now"; method: Method }) {
+    if (!ready || busy || draftBusy) return;
     setBusy(payment.mode === "later" ? "later" : payment.method);
     setPlaceError(null);
     const r = await api<Placed>("/api/staff/pos/orders", {
@@ -224,6 +275,7 @@ export default function Pos({ searchParams, terminal = false }: { searchParams: 
         promoCode: promoCode || undefined,
         discount: manual ?? undefined,
         payment,
+        heldTicket: activeClaim ?? undefined,
       },
     });
     setBusy(null);
@@ -234,6 +286,8 @@ export default function Pos({ searchParams, terminal = false }: { searchParams: 
     }
     setPaying(false);
     setPanelOpen(false);
+    setActiveClaim(null);
+    if (terminal) void refreshHeld();
     setPlaced(r.data);
   }
 
@@ -257,10 +311,10 @@ export default function Pos({ searchParams, terminal = false }: { searchParams: 
       {terminal ? <header className="terminal-header"><div><h1>Order terminal</h1><span>{me?.restaurantName ?? "Restaurant"} · {me?.name ?? "Loading operator…"}</span></div><span role="status" className={`terminal-status ${loadError ? "offline" : menu && board ? "ready" : "pending"}`}>{loadError ? "Menu unavailable" : menu && board ? "Menu and tables loaded" : "Loading or unavailable"}</span><a className="btn btn-sm" href="/pos">Standard till</a><a className="btn btn-sm" href="/dashboard">Dashboard</a></header> : <StaffTopbar current="/pos" me={me} />}
       <div className={`container store-layout${terminal ? " terminal-layout" : ""}`} style={{ paddingTop: 16 }}>
         {terminal && <nav className="terminal-categories" aria-label="Terminal categories"><h2>Categories</h2>{[{ id: "all", name: "All items", items: (menu ?? []).flatMap(c => c.items) }, ...(menu ?? [])].map((c, index) => <button key={c.id} type="button" aria-current={cat === c.id} onClick={() => setCat(c.id)}><span>{c.name}</span><small>{c.items.length}{index < 10 && <kbd>Alt+{index}</kbd>}</small></button>)}</nav>}
-        <main>
+        <main inert={terminal && (draftBusy || !!pendingHold)}>
           <div className="stack" style={{ "--gap": "12px", marginBottom: 14 } as React.CSSProperties}>
             <div className="row-between"><h1>{terminal ? "Menu" : "New order"}</h1>{!terminal && <a className="btn btn-sm" href="/pos/terminal">Order terminal</a>}</div>
-            {terminal && <section className="terminal-held" aria-label="Held tickets"><div className="row-between"><h2>Held tickets ({held.length})</h2><small>Current session only</small></div><p className="hint">Drafts are not sent to the kitchen. Reloading or leaving this page clears them.</p>{held.length > 0 && <div className="terminal-held-list">{held.map(ticket => <div key={ticket.id} className="row-between"><span>Ticket {ticket.number} · {plural(ticket.cart.reduce((n, l) => n + l.quantity, 0), "item")} · {ticket.orderType === "counter" ? "Takeaway" : "Dine-in"}</span><Button size="sm" disabled={!canResume} onClick={() => resumeTicket(ticket)}>Resume ticket {ticket.number}</Button></div>)}</div>}{held.length > 0 && cart.length > 0 && <p className="hint">Hold or clear the current draft before resuming another.</p>}</section>}
+            {terminal && <section className="terminal-held" aria-label="Held tickets"><div className="row-between"><h2>Held tickets ({otherHeld.length})</h2><Button size="sm" onClick={() => { setDraftError(null); void refreshHeld(); }}>Refresh</Button></div><p className="hint">Saved drafts survive reloads. Hold again to save edits. Recovering a claimed ticket transfers it to this workstation.</p>{draftError && <Alert tone="danger">{draftError}</Alert>}{otherHeld.length > 0 && <div className="terminal-held-list">{otherHeld.map(ticket => <div key={ticket.id} className="row-between"><span>Ticket {ticket.id.slice(0,8)} · {plural(ticket.itemCount, "item")} · {ticket.orderType === "counter" ? "Takeaway" : "Dine-in"}{ticket.status === "claimed" && " · In use"}</span><div className="row wrap"><Button size="sm" disabled={!canResume} onClick={() => resumeTicket(ticket)}>{ticket.status === "claimed" ? "Recover" : "Resume"} ticket {ticket.id.slice(0,8)}</Button>{ticket.status === "held" && <Button size="sm" variant="ghost" disabled={!me || draftBusy || !!pendingHold || !!busy} onClick={() => cancelTicket(ticket)}>Cancel draft</Button>}</div></div>)}</div>}{otherHeld.length > 0 && cart.length > 0 && <p className="hint">Hold or clear the current draft before resuming another.</p>}</section>}
             <div className="input-icon">
               <Icon name="search" size={18} />
               <input ref={searchRef} className="input" type="search" placeholder={terminal ? "Search menu (/)" : "Search the menu"} aria-label="Search the menu" value={query} onChange={(e) => setQuery(e.target.value)} />
@@ -326,11 +380,13 @@ export default function Pos({ searchParams, terminal = false }: { searchParams: 
             </div>
             <div className="row" style={{ "--gap": "4px" } as React.CSSProperties}>
               {terminal && cart.length > 0 && <Button size="sm" disabled={!canHold || !!attemptKey.current} onClick={holdTicket}>Hold ticket</Button>}
-              {cart.length > 0 && <Button variant="ghost" size="sm" onClick={reset}>Clear</Button>}
+              {(cart.length > 0 || activeClaim) && <Button variant="ghost" size="sm" disabled={draftBusy || !!pendingHold || !!busy} onClick={() => activeClaim ? void cancelTicket(activeClaim, true) : reset()}>{activeClaim ? "Cancel draft" : "Clear"}</Button>}
               <Button variant="ghost" icon="x" aria-label="Close order summary" className="cart-close" onClick={() => setPanelOpen(false)} />
             </div>
           </div>
-          <div className="cart-scroll">
+          {terminal && draftError && <div className="terminal-draft-error"><Alert tone="danger">{draftError}</Alert></div>}
+          {terminal && !claimCurrent && !draftBusy && !pendingHold && <div className="terminal-draft-error"><Alert tone="warning">This ticket is being synchronized or was recovered by another workstation. Payment is disabled until the current claim is verified.</Alert></div>}
+          <div className="cart-scroll" inert={terminal && (draftBusy || !!pendingHold)}>
             <div className="stack" style={{ "--gap": "12px" } as React.CSSProperties}>
               <Segmented label="Order type" value={orderType} onChange={setOrderType} options={[{ value: "dine_in", label: "Dine-in" }, { value: "counter", label: "Takeaway" }]} size="lg" />
               {orderType === "dine_in" && (

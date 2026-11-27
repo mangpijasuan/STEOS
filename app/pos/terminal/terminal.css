@@ -44,6 +44,7 @@
 .ds .terminal-held small { color: var(--text-3); }
 .ds .terminal-held-list { display: grid; gap: 6px; }
 .ds .terminal-held-list > div { flex-wrap: wrap; font-size: .8rem; padding-top: 6px; border-top: 1px solid var(--border); }
+.ds .terminal-draft-error { padding: 6px 12px; }
 .ds .terminal-line-editor fieldset { min-width: 0; border: 1px solid var(--border); padding: 8px; }
 .ds .terminal-line-editor legend { font-weight: 650; font-size: .85rem; }
 .ds .terminal-option { display: flex; align-items: center; gap: 8px; min-height: 36px; font-size: .85rem; }

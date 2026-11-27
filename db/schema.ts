@@ -2,11 +2,24 @@
 // (constraints, row-level security and composite keys live there).
 import { boolean, integer, jsonb, pgTable, smallint, text, time, timestamp, uuid } from "drizzle-orm/pg-core";
 import type { RestaurantBranding } from "../lib/restaurant-branding";
+import type { HeldPayload } from "../lib/held-ticket-input";
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 };
+
+export const heldTickets = pgTable("held_tickets", {
+  id: uuid("id").primaryKey(), restaurantId: uuid("restaurant_id").notNull(),
+  status: text("status").notNull().default("held"), version: integer("version").notNull().default(1),
+  payload: jsonb("payload").$type<HeldPayload>(), createdBy: uuid("created_by"), updatedBy: uuid("updated_by"),
+  claimId: uuid("claim_id"), claimedBy: uuid("claimed_by"), orderId: uuid("order_id"), ...timestamps,
+});
+export const heldTicketEvents = pgTable("held_ticket_events", {
+  id: uuid("id").primaryKey().defaultRandom(), restaurantId: uuid("restaurant_id").notNull(), ticketId: uuid("ticket_id").notNull(),
+  actorId: uuid("actor_id"), action: text("action").notNull(), version: integer("version").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 export const restaurants = pgTable("restaurants", {
   id: uuid("id").primaryKey().defaultRandom(),

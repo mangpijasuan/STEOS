@@ -58,11 +58,20 @@ test("terminal holds multiple unsent tickets and restores their context", async 
   if (await review.isVisible()) await review.click();
   await page.getByRole("button", { name: "Hold ticket" }).click();
   await expect(page.getByRole("heading", { name: "Held tickets (2)" })).toBeVisible();
-  await page.getByRole("button", { name: "Resume ticket 1" }).click();
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Held tickets (2)" })).toBeVisible();
+  await page.getByRole("button", { name: /Resume ticket/ }).first().click();
   await expect(page.getByLabel("Name (optional)")).toHaveValue("Test guest");
   await expect(page.getByRole("group", { name: "Quantity of Chicken rice bowl" })).toBeVisible();
   await expect(page.getByRole("button", { name: /Take payment/ })).toBeEnabled();
-  await expect(page.getByRole("button", { name: "Resume ticket 2" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: /Resume ticket/ })).toBeDisabled();
   expect(submissions).toBe(0);
   await expectNoSidewaysScroll(page);
+  // Clean up persistent drafts because the three viewport projects share one disposable database.
+  page.once("dialog", d => d.accept());
+  await page.getByRole("complementary", { name: "Order summary" }).getByRole("button", { name: "Cancel draft" }).click();
+  await expect(page.getByRole("heading", { name: "Held tickets (1)" })).toBeVisible();
+  page.once("dialog", d => d.accept());
+  await page.getByRole("region", { name: "Held tickets" }).getByRole("button", { name: "Cancel draft" }).click();
+  await expect(page.getByRole("heading", { name: "Held tickets (0)" })).toBeVisible();
 });
