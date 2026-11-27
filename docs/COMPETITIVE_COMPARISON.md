@@ -38,10 +38,30 @@ Assumptions: $25 average order, no tax, tips or discounts; ChowNow Launch billed
 
 **Against a marketplace**, every STEOS plan saves most of the commission: at $25 an order, 6% all-in costs $1.50 against about $5.50.
 
-## Zogam Cafe worksheet (fill in the real numbers)
+## Zogam Cafe: what we know so far
+
+The cafe pays DoorDash **15%** (reported by the founder). Still to confirm from a DoorDash statement: which DoorDash plan, whether the 15% is for delivery or pickup orders, and whether card processing is charged on top.
+
+Cost per order moved from DoorDash to direct ordering, by order size:
+
+| Order | DoorDash at 15% | STEOS 6% all-in | STEOS 7% founding | STEOS 3% + card fees |
+| --- | --- | --- | --- | --- |
+| $15 | $2.25 | $0.90 | $1.05 | $1.19 |
+| $25 | $3.75 | $1.50 | $1.75 | $1.78 |
+| $35 | $5.25 | $2.10 | $2.45 | $2.37 |
+
+At a $25 order the cafe saves about $2.00 to $2.25 for each order that moves from DoorDash to direct, so every 100 orders moved saves roughly $200 to $225 a month. That is a smaller saving than against a 22% marketplace.
+
+Cautions:
+
+- The saving only applies to orders that would otherwise go through DoorDash. A customer who would have phoned or walked in costs the cafe a new fee on a direct order.
+- STEOS has no delivery. Only DoorDash pickup orders can move, so the real saving may be smaller than the table suggests.
+- DoorDash may charge card processing separately, which would make the comparison more favorable to STEOS. Confirm before quoting a number.
+
+## Zogam Cafe worksheet (fill in the rest)
 
 1. Direct orders a month: ____   Average order: $____   Marketplace orders a month: ____
-2. What the cafe pays DoorDash or Uber Eats a month (commission and fees): $____
+2. What the cafe pays DoorDash a month (15% commission and any other fees): $____
 3. STEOS cost = orders × average order × plan rate (6% all-in, or 3% plus card fees of 2.9% + $0.30 per order).
 4. Saving if marketplace orders move to direct ordering = line 2 minus line 3 for those orders.
 
