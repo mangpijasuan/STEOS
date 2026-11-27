@@ -3,5 +3,5 @@ import "../ds.css";
 
 // Screens under this layout use the design system (see app/ds.css). Others keep their original look.
 export default function MenuLayout({ children }: { children: ReactNode }) {
-  return <div className="ds">{children}</div>;
+  return <div className="ds" data-brand="platform">{children}</div>;
 }

@@ -5,7 +5,7 @@ import "./ds.css";
 
 export default function Home() {
   return (
-    <div className="ds">
+    <div className="ds" data-brand="platform">
       <header className="topbar">
         <div className="container topbar-inner">
           <span className="brandmark">
