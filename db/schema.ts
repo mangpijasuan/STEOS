@@ -198,6 +198,13 @@ export const payments = pgTable("payments", {
   ...timestamps,
 });
 
+export const manualSplitTenders = pgTable("manual_split_tenders", {
+  id: uuid("id").primaryKey().defaultRandom(), restaurantId: uuid("restaurant_id").notNull(), orderId: uuid("order_id").notNull(),
+  position: integer("position").notNull(), method: text("method").notNull(), amountCents: integer("amount_cents").notNull(),
+  settlementKey: text("settlement_key").notNull(), recordedBy: uuid("recorded_by"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const providerIntegrations = pgTable("provider_integrations", {
   id: uuid("id").primaryKey().defaultRandom(),
   restaurantId: uuid("restaurant_id").notNull(),

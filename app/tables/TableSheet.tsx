@@ -171,6 +171,7 @@ function OrderBlock({
             <>
               {pay("cash")}
               {pay("card_terminal")}
+              {o.totalCents >= 2 && <a className="btn btn-sm" href={`/orders/${o.id}/receipt?split=1`} target="_blank" rel="noreferrer">Split bill</a>}
             </>
           )}
           {canCancel &&

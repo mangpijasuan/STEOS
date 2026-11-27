@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { and, asc, eq, gt, inArray, sql } from "drizzle-orm";
-import { diningTables, floors, orderItems, orders, payments, tableRequests } from "../db/schema";
+import { diningTables, floors, manualSplitTenders, orderItems, orders, payments, tableRequests } from "../db/schema";
+import { matchesTotal, type Tender } from "./split-tenders";
 import { pool, type Tx } from "./db";
 import { HttpError } from "./http";
 import { allow } from "./ratelimit";
@@ -252,11 +253,19 @@ export type ManualMethod = "cash" | "card_terminal" | "other";
  * Records that the restaurant collected payment itself (cash, or its own card machine) for a pay-later order.
  * STEOS's fee for these orders is invoiced, not taken from a card payment.
  */
-export async function markOrderPaid(db: Tx, restaurantId: string, orderId: string, method: ManualMethod, now = new Date(), opts: { allowUnaccepted?: boolean } = {}) {
+export async function markOrderPaid(db: Tx, restaurantId: string, orderId: string, method: ManualMethod, now = new Date(), opts: { allowUnaccepted?: boolean; split?: { parts: Tender[]; key: string; staffUserId: string } } = {}) {
   const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).for("update");
   if (!order) throw new HttpError(404, "Order not found");
-  if (order.paidAt) throw new HttpError(409, "This order is already paid");
   if (order.paymentMode !== "pay_later") throw new HttpError(409, "This order was paid online");
+  if (opts.split && !matchesTotal(opts.split.parts, order.totalCents)) throw new HttpError(422, "Split amounts must exactly match the current order total");
+  if (order.paidAt) {
+    if (opts.split) {
+      const [payment] = await db.select({status: payments.status}).from(payments).where(eq(payments.orderId, orderId));
+      const rows = await db.select().from(manualSplitTenders).where(eq(manualSplitTenders.orderId, orderId)).orderBy(manualSplitTenders.position);
+      if (payment?.status === "captured" && rows.length === opts.split.parts.length && rows.every((row, i) => row.settlementKey === opts.split!.key && row.recordedBy === opts.split!.staffUserId && row.method === opts.split!.parts[i].method && row.amountCents === opts.split!.parts[i].amountCents)) return;
+    }
+    throw new HttpError(409, "This order is already paid");
+  }
   // An order a staff member just rang up and took cash for is paid before the kitchen has seen it.
   if (!["accepted", "ready", "completed"].includes(order.status) && !(opts.allowUnaccepted && order.status === "awaiting_acceptance")) {
     throw new HttpError(409, order.status === "awaiting_acceptance" ? "Accept the order in the kitchen first" : `This order is ${order.status.replaceAll("_", " ")}`);
@@ -271,8 +280,9 @@ export async function markOrderPaid(db: Tx, restaurantId: string, orderId: strin
     capturedAt: now,
     amountCents: order.totalCents,
     feeCents: 0,
-    method,
+    method: opts.split ? (opts.split.parts.every(p => p.method === opts.split!.parts[0].method) ? opts.split.parts[0].method : "other") : method,
   });
+  if (opts.split) await db.insert(manualSplitTenders).values(opts.split.parts.map((part, i) => ({restaurantId, orderId, position: i + 1, method: part.method, amountCents: part.amountCents, settlementKey: opts.split!.key, recordedBy: opts.split!.staffUserId, createdAt: now})));
   await db.update(orders).set({ paidAt: now }).where(eq(orders.id, orderId));
   if (order.tableId) {
     // Paying settles the bill request, if there was one.

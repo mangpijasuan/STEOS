@@ -8,6 +8,8 @@ import { money, plural } from "@/lib/format";
 import { photoUrl, toCents, type Category } from "../menu/editor";
 import type { Board } from "../tables/types";
 import { LineEditor } from "./terminal/LineEditor";
+import { SplitTenderSheet } from "./terminal/SplitTenderSheet";
+import type { Tender } from "@/lib/split-tenders";
 import type { HeldClaim, HeldPayload, HeldSummary } from "@/lib/held-ticket-input";
 
 type Quote = {
@@ -54,7 +56,8 @@ export default function Pos({ searchParams, terminal = false }: { searchParams: 
   const [picking, setPicking] = useState<SheetItem | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [paying, setPaying] = useState(false);
-  const [busy, setBusy] = useState<"later" | Method | null>(null);
+  const [splitting, setSplitting] = useState(false);
+  const [busy, setBusy] = useState<"later" | "split" | Method | null>(null);
   const [placeError, setPlaceError] = useState<string | null>(null);
   const [placed, setPlaced] = useState<Placed | null>(null);
   const [held, setHeld] = useState<HeldSummary[]>([]);
@@ -179,7 +182,7 @@ export default function Pos({ searchParams, terminal = false }: { searchParams: 
   useEffect(() => {
     if (!terminal) return;
     function keydown(event: KeyboardEvent) {
-      if (event.defaultPrevented || picking || paying || placed || panelOpen || busy || editing || draftBusy) return;
+      if (event.defaultPrevented || picking || paying || splitting || placed || panelOpen || busy || editing || draftBusy) return;
       const target = event.target as HTMLElement | null;
       if (target?.closest("input, textarea, select, [contenteditable=true]")) return;
       if (event.key === "/" && !event.altKey && !event.ctrlKey && !event.metaKey) {
@@ -192,15 +195,15 @@ export default function Pos({ searchParams, terminal = false }: { searchParams: 
     }
     window.addEventListener("keydown", keydown);
     return () => window.removeEventListener("keydown", keydown);
-  }, [terminal, menu, picking, paying, placed, panelOpen, busy, editing, draftBusy]);
+  }, [terminal, menu, picking, paying, splitting, placed, panelOpen, busy, editing, draftBusy]);
 
   const itemCount = cart.reduce((n, l) => n + l.quantity, 0);
   const tables = (board?.tables ?? []).filter((t) => t.active);
   const claimCurrent = !activeClaim || held.some(ticket => ticket.id === activeClaim.id && ticket.status === "claimed" && ticket.version === activeClaim.version);
   const ready = cart.length > 0 && !!quote && !pricing && !editing && !draftBusy && !pendingHold && claimCurrent && (orderType === "counter" || !!tableId);
   const otherHeld = held.filter(ticket => ticket.id !== activeClaim?.id);
-  const canHold = terminal && !!me && cart.length > 0 && !editing && !paying && !picking && !busy && !placed && !placeError && !draftBusy && (claimCurrent || !!pendingHold) && (!manual || !!manual.value);
-  const canResume = terminal && !!me && cart.length === 0 && !activeClaim && !pendingHold && !editing && !paying && !picking && !busy && !placed && !draftBusy;
+  const canHold = terminal && !!me && cart.length > 0 && !editing && !paying && !splitting && !picking && !busy && !placed && !placeError && !draftBusy && (claimCurrent || !!pendingHold) && (!manual || !!manual.value);
+  const canResume = terminal && !!me && cart.length === 0 && !activeClaim && !pendingHold && !editing && !paying && !splitting && !picking && !busy && !placed && !draftBusy;
 
   // A held snapshot survives reload; edits to an active ticket are unsaved until Hold is pressed again.
   useEffect(() => {
@@ -259,9 +262,9 @@ export default function Pos({ searchParams, terminal = false }: { searchParams: 
     await refreshHeld();
   }
 
-  async function place(payment: { mode: "later" } | { mode: "now"; method: Method }) {
+  async function place(payment: { mode: "later" } | { mode: "now"; method: Method } | { mode: "split"; tenders: Tender[] }) {
     if (!ready || busy || draftBusy) return;
-    setBusy(payment.mode === "later" ? "later" : payment.method);
+    setBusy(payment.mode === "now" ? payment.method : payment.mode);
     setPlaceError(null);
     const r = await api<Placed>("/api/staff/pos/orders", {
       method: "POST",
@@ -285,6 +288,7 @@ export default function Pos({ searchParams, terminal = false }: { searchParams: 
       return;
     }
     setPaying(false);
+    setSplitting(false);
     setPanelOpen(false);
     setActiveClaim(null);
     if (terminal) void refreshHeld();
@@ -475,6 +479,7 @@ export default function Pos({ searchParams, terminal = false }: { searchParams: 
                   <Button variant="primary" size="lg" block icon="cash" disabled={!ready || busy !== null} onClick={() => setPaying(true)}>
                     Take payment{quote ? ` · ${money(quote.totalCents)}` : ""}
                   </Button>
+                  {terminal && <Button size="lg" block disabled={!ready || busy !== null || (quote?.totalCents ?? 0)<2} onClick={() => { setPlaceError(null); setSplitting(true); }}>Split payment</Button>}
                   <Button size="lg" block loading={busy === "later"} disabled={!ready || busy !== null} onClick={() => place({ mode: "later" })}>
                     Send to kitchen · pay later
                   </Button>
@@ -496,7 +501,8 @@ export default function Pos({ searchParams, terminal = false }: { searchParams: 
       )}
 
       {picking && <ItemSheet item={picking} onClose={() => setPicking(null)} onAdd={(line) => { addLine(line); toast(`Added ${picking.name}`); setPicking(null); }} />}
-      {paying && quote && <PaySheet total={quote.totalCents} busy={busy} onPay={(method) => place({ mode: "now", method })} onClose={() => setPaying(false)} />}
+      {paying && quote && <PaySheet total={quote.totalCents} busy={busy === "split" ? null : busy} onPay={(method) => place({ mode: "now", method })} onClose={() => setPaying(false)} />}
+      {splitting && quote && <SplitTenderSheet total={quote.totalCents} busy={busy === "split"} disabled={!ready} error={placeError} onConfirm={tenders=>place({mode:"split",tenders})} onClose={()=>setSplitting(false)} />}
       {placed && (
         <Sheet title={`Order #${placed.number} placed`} subtitle={placed.paid ? "Paid and sent to the kitchen" : "Sent to the kitchen, to be paid later"} onClose={reset}>
           <div className="stack">
@@ -507,7 +513,7 @@ export default function Pos({ searchParams, terminal = false }: { searchParams: 
           </div>
         </Sheet>
       )}
-      {!placed && !paying && !panelOpen && toasts}
+      {!placed && !paying && !splitting && !panelOpen && toasts}
     </div>
   );
 }

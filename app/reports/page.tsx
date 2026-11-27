@@ -164,6 +164,8 @@ export default function Reports() {
                         <div className="kv"><span>Paid online by card</span><span>{plural(report.byMethod.card_online.orders, "order")} · {money(report.byMethod.card_online.grossCents)}</span></div>
                         {report.byMethod.cash.orders > 0 && <div className="kv"><span>Cash at the table</span><span>{plural(report.byMethod.cash.orders, "order")} · {money(report.byMethod.cash.grossCents)}</span></div>}
                         {report.byMethod.card_terminal.orders > 0 && <div className="kv"><span>Your card machine</span><span>{plural(report.byMethod.card_terminal.orders, "order")} · {money(report.byMethod.card_terminal.grossCents)}</span></div>}
+                        {report.byMethod.other.orders > 0 && <div className="kv"><span>Other payment</span><span>{plural(report.byMethod.other.orders, "order")} · {money(report.byMethod.other.grossCents)}</span></div>}
+                        <p className="hint">Split orders can count under multiple methods; payment amounts are not duplicated.</p>
                         <hr className="divider" />
                         <div className="kv"><span>Pickup</span><span>{plural(report.byType.pickup.orders, "order")} · {money(report.byType.pickup.grossCents)}</span></div>
                         <div className="kv"><span>Dine-in</span><span>{plural(report.byType.dine_in.orders, "order")} · {money(report.byType.dine_in.grossCents)}</span></div>
