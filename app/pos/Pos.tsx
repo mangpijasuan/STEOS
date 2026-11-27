@@ -7,6 +7,7 @@ import { ItemSheet, type CartLine, type Item as SheetItem } from "../r/[slug]/It
 import { money, plural } from "@/lib/format";
 import { photoUrl, toCents, type Category } from "../menu/editor";
 import type { Board } from "../tables/types";
+import { LineEditor } from "./terminal/LineEditor";
 
 type Quote = {
   lines: { itemId: string; name: string; quantity: number; options: { name: string }[]; note: string | null; lineTotalCents: number }[];
@@ -45,7 +46,8 @@ export default function Pos({ searchParams, terminal = false }: { searchParams: 
   const [discountOpen, setDiscountOpen] = useState(false);
   const [discountKind, setDiscountKind] = useState<"percent" | "fixed">("percent");
   const [discountValue, setDiscountValue] = useState("");
-  const [quote, setQuote] = useState<Quote | null>(null);
+  const [quoted, setQuoted] = useState<{ key: string; value: Quote } | null>(null);
+  const [editing, setEditing] = useState<string | null>(null);
   const [problems, setProblems] = useState<string[]>([]);
   const [pricing, setPricing] = useState(false);
   const [picking, setPicking] = useState<SheetItem | null>(null);
@@ -74,16 +76,19 @@ export default function Pos({ searchParams, terminal = false }: { searchParams: 
 
   const discountCents = toCents(discountValue);
   const manual = isOwner && discountOpen && discountValue.trim() ? { kind: discountKind, value: discountKind === "fixed" ? discountCents : Number(discountValue) } : null;
+  const quoteKey = JSON.stringify([cart, orderType, promoCode, manual]);
+  const quote = quoted?.key === quoteKey ? quoted.value : null;
 
   // Price on the server whenever the order changes. The till never works out money itself.
   useEffect(() => {
     if (cart.length === 0) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setQuote(null);
+      setQuoted(null);
+      setPricing(false);
       setProblems([]);
       return;
     }
-    if (manual && (!manual.value || manual.value < 1)) return;
+    if (manual && (!manual.value || manual.value < 1)) { setPricing(false); return; }
     setPricing(true);
     let cancelled = false;
     const timer = setTimeout(async () => {
@@ -100,14 +105,14 @@ export default function Pos({ searchParams, terminal = false }: { searchParams: 
       if (cancelled) return;
       setPricing(false);
       if (r.ok) {
-        setQuote(r.data);
+        setQuoted({ key: quoteKey, value: r.data });
         setProblems([]);
         if (r.data.promoError) {
           toast(r.data.promoError, "danger");
           setPromoCode("");
         }
       } else {
-        setQuote(null);
+        setQuoted(null);
         setProblems([r.error]);
       }
     }, 200);
@@ -116,7 +121,7 @@ export default function Pos({ searchParams, terminal = false }: { searchParams: 
       clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cart, orderType, promoCode, discountKind, discountValue, discountOpen]);
+  }, [quoteKey]);
 
   // One key per attempt. Any change to the order starts a new attempt, so a changed order is never mistaken for a
   // double tap, while a double tap on the same order cannot ring it up twice.
@@ -150,7 +155,7 @@ export default function Pos({ searchParams, terminal = false }: { searchParams: 
   useEffect(() => {
     if (!terminal) return;
     function keydown(event: KeyboardEvent) {
-      if (event.defaultPrevented || picking || paying || placed || panelOpen || busy) return;
+      if (event.defaultPrevented || picking || paying || placed || panelOpen || busy || editing) return;
       const target = event.target as HTMLElement | null;
       if (target?.closest("input, textarea, select, [contenteditable=true]")) return;
       if (event.key === "/" && !event.altKey && !event.ctrlKey && !event.metaKey) {
@@ -163,11 +168,11 @@ export default function Pos({ searchParams, terminal = false }: { searchParams: 
     }
     window.addEventListener("keydown", keydown);
     return () => window.removeEventListener("keydown", keydown);
-  }, [terminal, menu, picking, paying, placed, panelOpen, busy]);
+  }, [terminal, menu, picking, paying, placed, panelOpen, busy, editing]);
 
   const itemCount = cart.reduce((n, l) => n + l.quantity, 0);
   const tables = (board?.tables ?? []).filter((t) => t.active);
-  const ready = cart.length > 0 && !!quote && !pricing && (orderType === "counter" || !!tableId);
+  const ready = cart.length > 0 && !!quote && !pricing && !editing && (orderType === "counter" || !!tableId);
 
   async function place(payment: { mode: "later" } | { mode: "now"; method: Method }) {
     setBusy(payment.mode === "later" ? "later" : payment.method);
@@ -205,7 +210,8 @@ export default function Pos({ searchParams, terminal = false }: { searchParams: 
     setPromoDraft("");
     setDiscountOpen(false);
     setDiscountValue("");
-    setQuote(null);
+    setQuoted(null);
+    setEditing(null);
     setPlaced(null);
     setPlaceError(null);
   }
@@ -326,9 +332,10 @@ export default function Pos({ searchParams, terminal = false }: { searchParams: 
                           {priced && priced.options.length > 0 && <div>{priced.options.map((o) => o.name).join(", ")}</div>}
                           {line.note && <div>“{line.note}”</div>}
                         </div>
-                        <div style={{ gridColumn: "1 / -1" }}>
+                        {terminal && item && editing === line.key ? <LineEditor key={line.key} item={asSheetItem(item)} line={line} onCancel={() => setEditing(null)} onSave={updated => { setCart(c => c.map(l => l.key === updated.key ? updated : l)); setEditing(null); }} /> : <div className="row wrap" style={{ gridColumn: "1 / -1" }}>
                           <Stepper size="sm" min={0} value={line.quantity} label={`Quantity of ${item?.name ?? "item"}`} onChange={(q) => setCart((c) => (q === 0 ? c.filter((l) => l.key !== line.key) : c.map((l) => (l.key === line.key ? { ...l, quantity: q } : l))))} />
-                        </div>
+                          {terminal && item && <Button type="button" size="sm" variant="ghost" disabled={!!editing || busy !== null} aria-label={`Edit ${item.name}`} onClick={() => setEditing(line.key)}>Edit</Button>}
+                        </div>}
                       </div>
                     );
                   })}

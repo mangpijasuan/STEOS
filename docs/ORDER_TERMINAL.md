@@ -8,6 +8,8 @@ Phase 1 is an optional staff workspace at `/pos/terminal`, accessible from the s
 - French navy, white and restrained gold accents, scoped to the terminal.
 - The header reports menu/table load state only; it is not live connection or online-ordering telemetry.
 
-The next phases require explicit product decisions and tests: inline modifier editing, durable held tickets, split payment/ticket workflows, corporate accounts and a constrained command palette which previews ambiguous or consequential actions. Existing Clear is a local draft reset, not a void of a submitted sale. No payment or ordering availability changes are introduced here.
+Phase 2 adds inline editing of an unsent ticket line. Staff can change quantity, available modifiers and special instructions or cancel the edit. Required choices are checked before saving; a saved edit must receive a fresh server quote before payment or kitchen submission is enabled. Existing Clear is a local draft reset, not a void of a submitted sale.
+
+The next phases require explicit product decisions and tests: durable held tickets, split payment/ticket workflows, corporate accounts and a constrained command palette which previews ambiguous or consequential actions. No payment or ordering availability changes are introduced here.
 
 Verify with `npm run typecheck`, `npm test`, `npm run build` and `npm run e2e -- e2e/order-terminal.spec.ts e2e/till.spec.ts` against a disposable local database. Test desktop, tablet and phone; no real payment provider is needed.

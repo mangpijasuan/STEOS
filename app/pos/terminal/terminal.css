@@ -38,6 +38,11 @@
 .ds .terminal-layout .menu-section h2 { font-size: 1rem; }
 .ds .terminal-layout .menu-section + .menu-section { margin-top: 16px; }
 .ds .terminal-layout .cart-panel { box-shadow: none; }
+.ds .terminal-line-editor { grid-column: 1 / -1; padding: 10px; background: var(--bg); border: 1px solid var(--border-strong); }
+.ds .terminal-line-editor fieldset { min-width: 0; border: 1px solid var(--border); padding: 8px; }
+.ds .terminal-line-editor legend { font-weight: 650; font-size: .85rem; }
+.ds .terminal-option { display: flex; align-items: center; gap: 8px; min-height: 36px; font-size: .85rem; }
+.ds .terminal-option small { margin-left: auto; }
 @media (min-width: 960px) {
   .ds .terminal-layout { grid-template-columns: 160px minmax(0, 1fr) 340px; }
   .ds .terminal-categories { position: sticky; top: 84px; max-height: calc(100dvh - 100px); overflow: auto; }
