@@ -36,3 +36,21 @@ The following descriptions are ready for the owner to add in `/menu` once the ca
 Pepper Steak is imported at the printed beef price. Confirm whether other protein choices are offered.
 
 Zogam Cafe's storefront look (green palette, logo badge, tagline, favorite dishes and menu search) is stored as branding data on the restaurant, not in code. The importer sets it for new databases, and migration `0015` applied it to existing ones. See [ARCHITECTURE.md](ARCHITECTURE.md). The owner can change its colors, tagline, search and favorites in Hours & settings; the logo stays as set.
+
+## Batch import of the original menu photos
+
+The extraction script has 50 crop rectangles for the six supplied 1275 × 1650 menu pages. Install ImageMagick 7 locally, place the original menu pages in a private folder, and provide paths in this exact category order (rename copies if necessary):
+
+```sh
+node scripts/crop-zogam-photos.mjs zogam-crops seafood.jpeg entrees.jpeg rice.jpeg noodles.jpeg soups.jpeg appetizers.jpeg
+```
+
+The output directory must be new. The photos are taken from the original pages, lightly sharpened and stripped of metadata; they are not AI-generated substitutes. Inspect every image before upload, particularly the soup/salad crops where printed labels have been excluded. Verify the cafe has permission to use these photographs online. Five photos correspond to dishes currently awaiting price confirmation.
+
+For the existing staging restaurant, set `DATABASE_OWNER_URL` securely in the shell and set `ZOGAM_PHOTO_DIR` to the reviewed crop directory (mount it read-only into the container when running there). Preview the operation first:
+
+```sh
+npx tsx scripts/import-zogam-photos.ts
+```
+
+After checking every ADD/KEEP/SKIP line, run the same command with `--apply`. To deliberately replace existing images, preview with `--replace-existing`, then run with both flags. The default keeps existing photographs. The script matches exact dish/category names within Zogam Cafe only, does not create missing items, and does not change prices, branding, or ordering availability. It rolls back the batch on failure. Back up staging before applying.
