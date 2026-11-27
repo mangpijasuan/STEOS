@@ -1,5 +1,6 @@
 "use client";
 
+import { brandCss, hasBranding, type RestaurantBranding } from "@/lib/restaurant-branding";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../../icons";
 import { Alert, Button, Segmented, Sheet, Skeleton, Stepper, useToasts } from "../../ui";
@@ -10,7 +11,7 @@ import { ItemSheet, type CartLine, type Item, type Option, type Group } from "./
 
 type Category = { id: string; name: string; items: Item[] };
 type Store = {
-  restaurant: { name: string; timezone: string; taxRateBps: number; orderingOpen: boolean; openNow: boolean; asap: string | null };
+  restaurant: { name: string; timezone: string; taxRateBps: number; orderingOpen: boolean; openNow: boolean; asap: string | null; branding: RestaurantBranding };
   categories: Category[];
 };
 type Quote = {
@@ -49,7 +50,6 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
   const [cartOpen, setCartOpen] = useState(false);
   const [activeCat, setActiveCat] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const isZogam = slug === "zogam-cafe";
   const { toast, toasts } = useToasts();
 
   // Load menu and pickup times.
@@ -237,8 +237,10 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
   const itemCount = cart.reduce((n, l) => n + l.quantity, 0);
   const totalCents = quote ? quote.totalCents + tipCents : null;
   const query = search.trim().toLowerCase();
-  const categories = isZogam && query ? store.categories.map((c) => ({ ...c, items: c.items.filter((i) => `${i.name} ${i.description ?? ""} ${c.name}`.toLowerCase().includes(query)) })).filter((c) => c.items.length) : store.categories;
-  const featured = isZogam && !query ? ["Pad Thai", "Pineapple Fried Rice", "Green Curry", "Chicken Satay (5 pc)"].map((name) => [...items.values()].find((i) => i.name === name)).filter((i): i is Item => !!i && i.available) : [];
+  const brand = restaurant.branding;
+  const css = brandCss(brand);
+  const categories = brand.search && query ? store.categories.map((c) => ({ ...c, items: c.items.filter((i) => `${i.name} ${i.description ?? ""} ${c.name}`.toLowerCase().includes(query)) })).filter((c) => c.items.length) : store.categories;
+  const featured = brand.featured?.length && !query ? brand.featured.map((name) => [...items.values()].find((i) => i.name === name)).filter((i): i is Item => !!i && i.available) : [];
 
   const status = !restaurant.orderingOpen
     ? { tone: "badge-warning", label: "Ordering paused", detail: "Online ordering is paused right now. Please check back soon." }
@@ -251,16 +253,17 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
         : { tone: "badge", label: "Closed", detail: "No pickup times are available right now." };
 
   return (
-    <div className={isZogam ? "zogam-store" : undefined}>
-      {isZogam && <div className="zogam-top"><div className="container zogam-top-inner">
-        <a href="#zogam-menu" className="zogam-brand" aria-label="Zogam Cafe menu"><img src="/brands/zogam-cafe-badge.png" width={551} height={468} alt="Zogam Cafe Restaurant & Cafe" /></a>
-        <a href="#zogam-menu" className="zogam-menu-link">Menu</a>
+    <div className={hasBranding(brand) ? "rb-store" : undefined}>
+      {css && <style>{css}</style>}
+      {brand.logo && <div className="rb-top"><div className="container rb-top-inner">
+        <a href="#rb-menu" className="rb-brand" aria-label={`${restaurant.name} menu`}><img src={brand.logo.src} width={brand.logo.width} height={brand.logo.height} alt={brand.logo.alt} /></a>
+        <a href="#rb-menu" className="rb-menu-link">Menu</a>
         <Button variant="primary" icon="bag" onClick={() => { setCartOpen(true); if (window.matchMedia("(min-width: 960px)").matches) document.getElementById("store-cart")?.scrollIntoView({ block: "nearest" }); }}>Your order {totalCents !== null ? `· ${money(totalCents)}` : `· ${itemCount}`}</Button>
       </div></div>}
       <header className="store-hero">
         <div className="container">
           <h1>{restaurant.name}</h1>
-          {isZogam && <p className="zogam-tagline">Explore our menu. Make it yours.</p>}
+          {brand.tagline && <p className="rb-tagline">{brand.tagline}</p>}
           <div className="store-meta">
             <span className={`badge ${status.tone}`}>
               <span className="dot" />
@@ -303,10 +306,10 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
       )}
 
       <div className="container store-layout">
-        <main id={isZogam ? "zogam-menu" : undefined}>
-          {isZogam && <div className="zogam-search"><label htmlFor="zogam-search">Explore the menu</label><div className="zogam-search-field"><Icon name="search" size={20} /><input id="zogam-search" className="input" placeholder="Search dishes or ingredients" value={search} onChange={(e) => setSearch(e.target.value)} />{search && <Button size="sm" variant="ghost" onClick={() => setSearch("")}>Clear</Button>}</div></div>}
-          {featured.length > 0 && <section className="zogam-featured" aria-label="Featured dishes"><h2>Explore our favorites</h2><div className="zogam-featured-grid">{featured.map((item) => <button key={item.id} className="zogam-feature-card" disabled={!canOrder} onClick={() => setPicking(item)}>{item.imageUrl && <img src={item.imageUrl} alt="" loading="lazy" />}<span>{item.name}</span><strong>{money(item.priceCents)}</strong><span className="zogam-feature-action">Choose options <Icon name="plus" size={16} /></span></button>)}</div></section>}
-          {isZogam && query && categories.length === 0 && <div className="empty"><p>No dishes match your search.</p><Button onClick={() => setSearch("")}>See all dishes</Button></div>}
+        <main id={brand.logo ? "rb-menu" : undefined}>
+          {brand.search && <div className="rb-search"><label htmlFor="rb-search">Explore the menu</label><div className="rb-search-field"><Icon name="search" size={20} /><input id="rb-search" className="input" placeholder="Search dishes or ingredients" value={search} onChange={(e) => setSearch(e.target.value)} />{search && <Button size="sm" variant="ghost" onClick={() => setSearch("")}>Clear</Button>}</div></div>}
+          {featured.length > 0 && <section className="rb-featured" aria-label="Featured dishes"><h2>Explore our favorites</h2><div className="rb-featured-grid">{featured.map((item) => <button key={item.id} className="rb-feature-card" disabled={!canOrder} onClick={() => setPicking(item)}>{item.imageUrl && <img src={item.imageUrl} alt="" loading="lazy" />}<span>{item.name}</span><strong>{money(item.priceCents)}</strong><span className="rb-feature-action">Choose options <Icon name="plus" size={16} /></span></button>)}</div></section>}
+          {brand.search && query && categories.length === 0 && <div className="empty"><p>No dishes match your search.</p><Button onClick={() => setSearch("")}>See all dishes</Button></div>}
           {store.categories.length === 0 && (
             <div className="empty">
               <Icon name="store" size={36} />

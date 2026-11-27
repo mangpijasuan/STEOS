@@ -3,7 +3,7 @@
 //
 // It creates:
 //   e2e-kitchen  an ordinary restaurant: a menu (one dish with a required choice), open all day, QR tables, owner and staff
-//   zogam-cafe   a minimal restaurant with Zogam Cafe's slug, so the branded storefront code path runs
+//   zogam-cafe   a minimal restaurant with Zogam Cafe's slug and its real branding data, so the branded storefront runs
 // and writes a signed-in session for the owner and the staff member (as Playwright storage state) plus the ids and
 // QR tokens the tests need to e2e/.auth/.
 //
@@ -12,6 +12,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { Client } from "pg";
+import { zogamBranding } from "../scripts/fixtures/zogam-cafe";
 
 const ownerUrl = process.env.DATABASE_OWNER_URL;
 if (!ownerUrl) throw new Error("DATABASE_OWNER_URL is not set");
@@ -27,11 +28,11 @@ function middayZone(now = new Date()): string {
   return offset === 0 ? "Etc/UTC" : `Etc/GMT${offset > 0 ? "-" : "+"}${Math.abs(offset)}`;
 }
 
-async function createRestaurant(client: Client, name: string, slug: string, menu: Record<string, [string, number, string[]?][]>, dineIn: boolean) {
+async function createRestaurant(client: Client, name: string, slug: string, menu: Record<string, [string, number, string[]?][]>, dineIn: boolean, branding: object = {}) {
   const { rows: [restaurant] } = await client.query(
-    `insert into restaurants (name, slug, timezone, tax_rate_bps, dine_in_enabled, pay_later_enabled, min_prep_minutes)
-     values ($1, $2, $3, 875, $4, true, 10) returning id`,
-    [name, slug, middayZone(), dineIn],
+    `insert into restaurants (name, slug, timezone, tax_rate_bps, dine_in_enabled, pay_later_enabled, min_prep_minutes, branding)
+     values ($1, $2, $3, 875, $4, true, 10, $5) returning id`,
+    [name, slug, middayZone(), dineIn, JSON.stringify(branding)],
   );
   const restaurantId = restaurant.id as string;
   await client.query(
@@ -99,7 +100,7 @@ async function main() {
       },
       true,
     );
-    await createRestaurant(client, "Zogam Cafe", "zogam-cafe", { Appetizers: [["Thai Spring Rolls (3 pc)", 495]], Noodles: [["Pad Thai", 1095, ["Pork", "Chicken", "Tofu"]]] }, false);
+    await createRestaurant(client, "Zogam Cafe", "zogam-cafe", { Appetizers: [["Thai Spring Rolls (3 pc)", 495]], Noodles: [["Pad Thai", 1095, ["Pork", "Chicken", "Tofu"]]] }, false, zogamBranding);
 
     await client.query("insert into staff_users (restaurant_id, email, name, role) values ($1, 'owner@e2e.test', 'E2E Owner', 'owner'), ($1, 'staff@e2e.test', 'E2E Staff', 'staff')", [kitchenId]);
     await client.query(

@@ -22,6 +22,7 @@ This guide describes the application with every integration step in place: the a
 
 ## Tenant isolation and access
 
+- **A restaurant's storefront look is data.** `restaurants.branding` (JSON) holds its colors, a logo under `public/brands/`, a tagline, favorite dishes and a menu search box. `lib/restaurant-branding.ts` validates it (hex colors only, logo path under `/brands/`; anything invalid is ignored, so a bad row falls back to the default look) and builds the scoped CSS. Only `brand` is required per color mode; hover, text, tint and dark colors are derived when missing, and explicit values always win. There is no screen to edit it yet, so it is set in the database; this is the restaurant's brand and is separate from the platform's STEOS brand in `lib/branding.ts`.
 - Staff routes resolve the restaurant and staff role from the session. The public storefront resolves the restaurant by slug, a table page by the secret in its QR code, and the order status API by a hash of the private order token.
 - `withTenant()` sets the restaurant ID inside a PostgreSQL transaction. Row-level security uses that ID to restrict row access, and composite foreign keys `(id, restaurant_id)` protect relationships across tenant-scoped tables. That includes the staff member who entered an order, a table's assigned waiter, and a dish's photo, so none of them can point at another restaurant's row.
 - The runtime database role has limited privileges, and the table that holds staff sign-in data is not readable by it at all. SQL migrations use a separate owner connection. Narrow `security definer` functions handle everything that starts without a tenant context or needs data the runtime role cannot read. They are written the same way: a fixed search path, schema-qualified names, and execute revoked from everyone but the runtime role.
@@ -158,6 +159,7 @@ The dashboard headlines sales after refunds and compares them with the period ju
 | `0012` | Photos, and the cleanup that keeps a photo until its last dish stops using it |
 | `0013` | Floors, tables, guest requests, pay-later orders and manual payments, and the tenant staff directory |
 | `0014` | Promo codes, order discounts, the promotion each order used, and the staff member who entered a till order |
+| `0015` | Per-restaurant storefront branding (`restaurants.branding`), returned by the public storefront lookup; Zogam Cafe's look moved from code to data |
 
 ## Known limits
 

@@ -123,3 +123,15 @@ export const zogamMenu: Record<string, readonly Item[]> = {
     ["Extra Shrimp", "", 300],
   ],
 };
+
+/** Zogam Cafe's storefront look, as data. The same values are applied to existing databases by migration 0015. */
+export const zogamBranding = {
+  colors: {
+    light: { brand: "#17623b", hover: "#10492c", ink: "#ffffff", soft: "#e7f1e9", softInk: "#14532d", bg: "#faf8f5" },
+    dark: { brand: "#8ed6a2", hover: "#a5e7b6", ink: "#102a1b", soft: "#193a29", softInk: "#b8e8c6", bg: "#121a15" },
+  },
+  logo: { src: "/brands/zogam-cafe-badge.png", alt: "Zogam Cafe Restaurant & Cafe", width: 551, height: 468 },
+  tagline: "Explore our menu. Make it yours.",
+  featured: ["Pad Thai", "Pineapple Fried Rice", "Green Curry", "Chicken Satay (5 pc)"],
+  search: true,
+};
