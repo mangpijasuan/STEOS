@@ -59,6 +59,65 @@ jobs:
       - name: Build
         run: npm run build
 
+  # Browser tests: the real app in Chromium at phone, tablet and desktop sizes, against a throwaway database with the fake
+  # payment provider. See e2e/ and docs/TESTING.md.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # Throwaway values for this disposable service container, not real credentials.
+      - name: Create roles and the browser-test database
+        run: |
+          psql -v ON_ERROR_STOP=1 <<'SQL'
+          create role siamsil_owner login password 'dev_owner_pw' createdb;
+          create role siamsil_app login password 'dev_app_pw';
+          create database siamsil_e2e owner siamsil_owner;
+          SQL
+
+      - name: Apply migrations
+        run: npm run db:migrate
+        env:
+          DATABASE_OWNER_URL: postgres://siamsil_owner:dev_owner_pw@localhost:5432/siamsil_e2e
+
+      - name: Install the browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser tests
+        run: npm run e2e
+
+      # The report and the traces of any failure, for downloading.
+      - name: Keep the report when a test fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-report
+          path: |
+            e2e/.report
+            e2e/.output
+          retention-days: 7
+
   docker:
     runs-on: ubuntu-latest
     timeout-minutes: 20

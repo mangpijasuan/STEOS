@@ -5,6 +5,8 @@ import { TEST_APP_ROLE, TEST_APP_URL, TEST_OWNER_URL } from "./tests/config";
 export default defineConfig({
   resolve: { alias: { "@": fileURLToPath(new URL(".", import.meta.url)) } },
   test: {
+    // Only the unit and integration tests. The browser tests in e2e/ are run by Playwright (npm run e2e).
+    include: ["tests/**/*.test.ts"],
     globalSetup: ["./tests/global-setup.ts"],
     fileParallelism: false,
     hookTimeout: 30000,
