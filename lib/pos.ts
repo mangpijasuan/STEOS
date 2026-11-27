@@ -11,6 +11,8 @@ import { signRequest } from "./orders";
 import { PromoError, loadPromo, manualRule, normalizeCode, promoRule, redeemPromo } from "./promos";
 import { markOrderPaid, type ManualMethod } from "./tables";
 import type { Store } from "./storefront";
+import type { HeldClaim } from "./held-ticket-input";
+import { finishHeldSubmission, lockHeldForSubmission } from "./held-tickets";
 
 export type PosInput = {
   items: CartLineInput[];
@@ -55,7 +57,7 @@ export async function quotePos(store: Store, input: PosInput, actor: Actor, now 
   }
 }
 
-export async function createPosOrder(store: Store, input: PosInput, actor: Actor, idempotencyKey: string, now = new Date()) {
+export async function createPosOrder(store: Store, input: PosInput, actor: Actor, idempotencyKey: string, now = new Date(), heldClaim?: HeldClaim) {
   const { restaurant } = store;
   if (input.orderType === "dine_in" && !input.tableId) throw new HttpError(422, "Choose a table for a dine-in order");
 
@@ -83,11 +85,14 @@ export async function createPosOrder(store: Store, input: PosInput, actor: Actor
 
   const create = () =>
     withTenant(restaurant.id, async (db) => {
+      const heldActor = { ...actor, restaurantId: restaurant.id };
+      const heldAlreadySubmitted = heldClaim ? await lockHeldForSubmission(db, heldActor, heldClaim) : false;
       const existing = await db.select().from(orders).where(eq(orders.idempotencyKey, idempotencyKey));
       if (existing[0]) {
         if (existing[0].requestFingerprint !== requestFingerprint) throw new HttpError(409, "This request key was already used for a different order");
         return { order: existing[0], created: false };
       }
+      if (heldAlreadySubmitted) throw new HttpError(409, "This held ticket was already submitted");
 
       let tableLabel: string | null = null;
       if (input.orderType === "dine_in") {
@@ -156,6 +161,7 @@ export async function createPosOrder(store: Store, input: PosInput, actor: Actor
         })),
       );
       if (input.payment.mode === "now") await markOrderPaid(db, restaurant.id, order.id, input.payment.method, now, { allowUnaccepted: true });
+      if (heldClaim) await finishHeldSubmission(db, heldActor, heldClaim, order.id);
       return { order, created: true };
     });
 
