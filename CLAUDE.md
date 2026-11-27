@@ -34,6 +34,7 @@
 npm run typecheck      # TypeScript
 npm test               # needs PostgreSQL 16 with a siamsil_test database (see docs/TESTING.md)
 npm run build          # production build
+npm run e2e            # browser tests in Chromium at phone, tablet and desktop sizes (see docs/TESTING.md)
 npm run db:migrate     # apply migrations with the owner connection
 npm run dev            # local server on port 3000
 ```
