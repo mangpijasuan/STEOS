@@ -124,6 +124,9 @@ function OrderBlock({
   const needsPayment = o.paymentMode === "pay_later" && !o.paidAt && o.status !== "awaiting_acceptance";
   const canServe = o.status === "accepted" || o.status === "ready";
   const canCancel = isOwner && (o.status === "accepted" || o.status === "ready");
+  const refundInPerson = o.paymentMode === "pay_later" && !!o.paidAt;
+  // If polling observes payment after cancellation was selected, require a new refund confirmation.
+  const cancelKey = `cancel-${o.id}-${refundInPerson ? "refund" : "order"}`;
 
   const pay = (method: "cash" | "card_terminal") => {
     const key = `pay-${o.id}-${method}`;
@@ -171,15 +174,16 @@ function OrderBlock({
             <>
               {pay("cash")}
               {pay("card_terminal")}
+              {o.totalCents >= 2 && <a className="btn btn-sm" href={`/orders/${o.id}/receipt?split=1`} target="_blank" rel="noreferrer">Split bill</a>}
             </>
           )}
           {canCancel &&
-            (confirm === `cancel-${o.id}` ? (
-              <Button variant="danger" loading={busy === `cancel-${o.id}`} disabled={!!busy} onClick={() => run(`cancel-${o.id}`, () => api(`/api/staff/orders/${o.id}/cancel`, { method: "POST" }), `Order #${o.number} cancelled`)}>
-                {o.paymentMode === "online" ? `Refund ${money(o.totalCents)}?` : o.paidAt ? "Cancel and refund in person?" : "Cancel order?"}
+            (confirm === cancelKey ? (
+              <Button variant="danger" loading={busy === cancelKey} disabled={!!busy} onClick={() => run(cancelKey, () => api(`/api/staff/orders/${o.id}/cancel`, { method: "POST", json: refundInPerson ? { inPersonRefundReturned: true } : {} }), `Order #${o.number} cancelled`)}>
+                {o.paymentMode === "online" ? `Refund ${money(o.totalCents)}?` : refundInPerson ? `Confirm ${money(o.totalCents)} returned in person` : "Cancel order?"}
               </Button>
             ) : (
-              <Button variant="soft-danger" disabled={!!busy} onClick={() => setConfirm(`cancel-${o.id}`)}>Cancel</Button>
+              <Button variant="soft-danger" disabled={!!busy} onClick={() => setConfirm(cancelKey)}>Cancel</Button>
             ))}
       </div>
     </div>

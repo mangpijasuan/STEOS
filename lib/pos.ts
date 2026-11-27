@@ -1,7 +1,8 @@
 // Orders entered by staff at the till: for a table, or for a walk-in taking food away.
 import crypto from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
-import { diningTables, locations, orderItems, orders, payments, restaurants } from "../db/schema";
+import { diningTables, locations, manualSplitTenders, orderItems, orders, payments, restaurants } from "../db/schema";
+import type { Tender } from "./split-tenders";
 import { priceCart, type CartLineInput, type DiscountRule } from "./cart";
 import { withTenant, type Tx } from "./db";
 import { applicationFee, type FeeModel } from "./fees";
@@ -24,7 +25,7 @@ export type PosInput = {
   promoCode?: string;
   /** A discount typed in by the owner. Staff can only use promo codes. */
   discount?: { kind: "percent" | "fixed"; value: number };
-  payment: { mode: "later" } | { mode: "now"; method: ManualMethod };
+  payment: { mode: "later" } | { mode: "now"; method: ManualMethod } | { mode: "split"; tenders: Tender[] };
 };
 
 type Actor = { staffUserId: string; role: "owner" | "staff" };
@@ -78,7 +79,7 @@ export async function createPosOrder(store: Store, input: PosInput, actor: Actor
     if (existing.requestFingerprint !== requestFingerprint) throw new HttpError(409, "This request key was already used for a different order");
     return existing;
   });
-  if (replay) return { id: replay.id, number: replay.number, totalCents: replay.totalCents, discountCents: replay.discountCents, paid: input.payment.mode === "now" };
+  if (replay) return { id: replay.id, number: replay.number, totalCents: replay.totalCents, discountCents: replay.discountCents, paid: input.payment.mode !== "later" };
 
   const { rule, promoId, promoCode } = await discountFor(store, input, actor, now);
   const cart = priceCart(store.menu, input.items, { taxRateBps: restaurant.taxRateBps, tipCents: input.tipCents, discount: rule });
@@ -161,6 +162,7 @@ export async function createPosOrder(store: Store, input: PosInput, actor: Actor
         })),
       );
       if (input.payment.mode === "now") await markOrderPaid(db, restaurant.id, order.id, input.payment.method, now, { allowUnaccepted: true });
+      if (input.payment.mode === "split") await markOrderPaid(db, restaurant.id, order.id, "other", now, { allowUnaccepted: true, split: { parts: input.payment.tenders, key: sha256(idempotencyKey), staffUserId: actor.staffUserId } });
       if (heldClaim) await finishHeldSubmission(db, heldActor, heldClaim, order.id);
       return { order, created: true };
     });
@@ -175,21 +177,27 @@ export async function createPosOrder(store: Store, input: PosInput, actor: Actor
   }
   const { order } = result;
   if (result.created) {
-    log.info("order.placed", { restaurantId: restaurant.id, orderId: order.id, type: input.orderType, byStaff: actor.staffUserId, paid: input.payment.mode === "now" });
+    log.info("order.placed", { restaurantId: restaurant.id, orderId: order.id, type: input.orderType, byStaff: actor.staffUserId, paid: input.payment.mode !== "later" });
   }
-  return { id: order.id, number: order.number, totalCents: order.totalCents, discountCents: order.discountCents, paid: input.payment.mode === "now" };
+  return { id: order.id, number: order.number, totalCents: order.totalCents, discountCents: order.discountCents, paid: input.payment.mode !== "later" };
 }
 
 // ----------------------------------------------------------------- receipt
 export async function getReceipt(db: Tx, orderId: string) {
-  const [o] = await db.select().from(orders).where(eq(orders.id, orderId));
-  if (!o) throw new HttpError(404, "Order not found");
-  const [items, [r], [loc], [table], [pay]] = await Promise.all([
+  // One statement snapshot for the order, payment and tender ledger, even if another till settles concurrently.
+  const settlement = await db.select({ order: orders, payment: { method: payments.method, status: payments.status }, tender: { position: manualSplitTenders.position, method: manualSplitTenders.method, amountCents: manualSplitTenders.amountCents } })
+    .from(orders)
+    .leftJoin(payments, and(eq(payments.orderId, orders.id), eq(payments.restaurantId, orders.restaurantId)))
+    .leftJoin(manualSplitTenders, and(eq(manualSplitTenders.orderId, orders.id), eq(manualSplitTenders.restaurantId, orders.restaurantId)))
+    .where(eq(orders.id, orderId)).orderBy(manualSplitTenders.position);
+  if (!settlement.length) throw new HttpError(404, "Order not found");
+  const { order: o, payment: pay } = settlement[0];
+  const tenders = settlement.flatMap(row => row.tender ? [row.tender] : []);
+  const [items, [r], [loc], [table]] = await Promise.all([
     db.select().from(orderItems).where(eq(orderItems.orderId, orderId)),
     db.select({ name: restaurants.name, timezone: restaurants.timezone }).from(restaurants),
     db.select().from(locations).where(eq(locations.isDefault, true)),
     o.tableId ? db.select({ label: diningTables.label }).from(diningTables).where(eq(diningTables.id, o.tableId)) : Promise.resolve([] as { label: string }[]),
-    db.select({ method: payments.method, status: payments.status }).from(payments).where(eq(payments.orderId, orderId)),
   ]);
   return {
     restaurant: {
@@ -209,6 +217,7 @@ export async function getReceipt(db: Tx, orderId: string) {
     paidAt: o.paidAt?.toISOString() ?? null,
     paymentMethod: pay?.method ?? null,
     paymentStatus: pay?.status ?? null,
+    tenders,
     subtotalCents: o.subtotalCents,
     discountCents: o.discountCents,
     discountLabel: o.discountCents > 0 ? (o.promoCode ? `Promo ${o.promoCode}` : "Discount") : null,

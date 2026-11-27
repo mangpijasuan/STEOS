@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { splitTenderSchema } from "./split-tenders";
 
 const sortOrder = z.number().int().min(0).max(10000);
 const name = (max: number) => z.string().trim().min(1).max(max);
@@ -195,5 +196,5 @@ export const posInput = z.object({
   tipCents: z.number().int().min(0).max(100_000).default(0),
   promoCode: z.string().trim().max(24).optional(),
   discount: z.object({ kind: z.enum(["percent", "fixed"]), value: z.number().int().min(1).max(100_000) }).refine((d) => d.kind !== "percent" || d.value <= 100, "A percentage must be between 1 and 100").optional(),
-  payment: z.discriminatedUnion("mode", [z.object({ mode: z.literal("later") }), z.object({ mode: z.literal("now"), method: z.enum(["cash", "card_terminal", "other"]) })]).default({ mode: "later" }),
+  payment: z.discriminatedUnion("mode", [z.object({ mode: z.literal("later") }), z.object({ mode: z.literal("now"), method: z.enum(["cash", "card_terminal", "other"]) }), z.object({ mode: z.literal("split"), tenders: splitTenderSchema })]).default({ mode: "later" }),
 });

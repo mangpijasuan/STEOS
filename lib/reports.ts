@@ -1,5 +1,5 @@
 import { and, eq, gte, inArray, lt, or } from "drizzle-orm";
-import { menuCategories, menuItems, orderItems, orders, payments, restaurants } from "../db/schema";
+import { manualSplitTenders, menuCategories, menuItems, orderItems, orders, payments, restaurants } from "../db/schema";
 import type { Tx } from "./db";
 import { estimateProcessingCents } from "./fees";
 
@@ -21,7 +21,7 @@ export type Report = {
   platformFeeInvoicedCents: number;
   /** Card fees on online payments, estimated at the standard rate. Stripe's own reports have the exact figure. */
   processingEstimateCents: number;
-  /** Paid orders by how they were paid. */
+  /** Paid orders touched by each method; split orders can appear under more than one method, but cents never overlap. */
   byMethod: Record<"card_online" | "cash" | "card_terminal" | "other", { orders: number; grossCents: number }>;
   /** Paid orders by where they came from. */
   byType: Record<"pickup" | "dine_in" | "counter", { orders: number; grossCents: number }>;
@@ -86,10 +86,20 @@ export async function buildReport(db: Tx, from: Date, to: Date): Promise<Report>
   const platformFeeInvoicedCents = sum(paid.filter((o) => o.feeCollection === "invoice"), (o) => o.fee);
   const byMethod = { card_online: { orders: 0, grossCents: 0 }, cash: { orders: 0, grossCents: 0 }, card_terminal: { orders: 0, grossCents: 0 }, other: { orders: 0, grossCents: 0 } };
   const byType = { pickup: { orders: 0, grossCents: 0 }, dine_in: { orders: 0, grossCents: 0 }, counter: { orders: 0, grossCents: 0 } };
+  const paidIds = paid.map(o => o.id);
+  const tenderRows = paidIds.length ? await db.select({orderId: manualSplitTenders.orderId, method: manualSplitTenders.method, amountCents: manualSplitTenders.amountCents}).from(manualSplitTenders).where(inArray(manualSplitTenders.orderId, paidIds)) : [];
+  const tendersByOrder = new Map<string, typeof tenderRows>();
+  for (const row of tenderRows) { const list = tendersByOrder.get(row.orderId) ?? []; list.push(row); tendersByOrder.set(row.orderId, list); }
   for (const o of paid) {
-    const m = byMethod[o.method && o.method in byMethod ? (o.method as keyof typeof byMethod) : "other"];
-    m.orders += 1;
-    m.grossCents += o.total;
+    const parts = tendersByOrder.get(o.id);
+    if (parts?.length) {
+      const methods = new Set<keyof typeof byMethod>();
+      for (const part of parts) { const method = part.method as keyof typeof byMethod; byMethod[method].grossCents += part.amountCents; methods.add(method); }
+      for (const method of methods) byMethod[method].orders += 1;
+    } else {
+      const m = byMethod[o.method && o.method in byMethod ? (o.method as keyof typeof byMethod) : "other"];
+      m.orders += 1; m.grossCents += o.total;
+    }
     const t = byType[o.orderType in byType ? (o.orderType as keyof typeof byType) : "pickup"];
     t.orders += 1;
     t.grossCents += o.total;
@@ -111,7 +121,6 @@ export async function buildReport(db: Tx, from: Date, to: Date): Promise<Report>
   }
   for (const o of refunded) reportDay(o.at).refundCents += o.total;
 
-  const paidIds = paid.map((o) => o.id);
   const items = paidIds.length
     ? await db
         .select({ name: orderItems.name, quantity: orderItems.quantity, line: orderItems.lineTotalCents })
