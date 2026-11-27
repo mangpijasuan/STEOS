@@ -1,0 +1,31 @@
+import { test, expect } from "@playwright/test";
+
+test("customer appearance follows system and remembers explicit choices", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/r/zogam-cafe");
+  const control = page.getByRole("combobox", { name: "Appearance" });
+  const wrapper = page.locator(".customer-appearance");
+  const store = page.locator(".rb-store");
+  await expect(control).toHaveValue("system");
+  await expect(wrapper).toHaveCSS("color-scheme", "dark");
+  await expect(store).toHaveCSS("--brand", "#8ed6a2");
+  await control.selectOption("light");
+  await expect(wrapper).toHaveCSS("color-scheme", "light");
+  await expect(store).toHaveCSS("--brand", "#17623b");
+  await expect(wrapper).toHaveCSS("--surface", "#ffffff");
+  await page.reload();
+  await expect(control).toHaveValue("light");
+  await expect(store).toHaveCSS("--brand", "#17623b");
+  await page.emulateMedia({ colorScheme: "light" });
+  await control.selectOption("dark");
+  await expect(wrapper).toHaveCSS("color-scheme", "dark");
+  await expect(store).toHaveCSS("--brand", "#8ed6a2");
+  await control.selectOption("system");
+  await expect(wrapper).toHaveCSS("color-scheme", "light");
+  await expect(store).toHaveCSS("--brand", "#17623b");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(wrapper).toHaveCSS("color-scheme", "dark");
+  await expect(store).toHaveCSS("--brand", "#8ed6a2");
+  await expect(control).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});
