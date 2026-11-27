@@ -3,6 +3,7 @@
 import { brandCss, hasBranding, type RestaurantBranding } from "@/lib/restaurant-branding";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../../icons";
+import { CustomerAppearanceControl } from "../../customer-appearance";
 import { Alert, Button, Segmented, Sheet, Skeleton, Stepper, useToasts } from "../../ui";
 import { clockTime, money, plural } from "@/lib/format";
 import Checkout from "./Checkout";
@@ -260,6 +261,7 @@ export default function Storefront({ slug, table }: { slug: string; table?: Tabl
       <div className="rb-top"><div className="container rb-top-inner">
         {brand.logo ? <a href="#rb-menu" className="rb-brand" aria-label={`${restaurant.name} menu`}><img src={brand.logo.src} width={brand.logo.width} height={brand.logo.height} alt={brand.logo.alt} /></a> : <a href="#rb-menu" className="store-v2-wordmark">{restaurant.name}</a>}
         <a href="#rb-menu" className="rb-menu-link">Menu</a>
+        <CustomerAppearanceControl />
         <Button variant="primary" icon="bag" onClick={() => { setCartOpen(true); if (window.matchMedia("(min-width: 960px)").matches) document.getElementById("store-cart")?.scrollIntoView({ block: "nearest" }); }}>Your order {totalCents !== null ? `· ${money(totalCents)}` : `· ${itemCount}`}</Button>
       </div></div>
       <header className="store-hero">

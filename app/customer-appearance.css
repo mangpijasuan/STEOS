@@ -1,0 +1,61 @@
+/* Customer-only palette. Staff and kitchen continue to use their own design system. */
+.ds.customer-appearance {
+  --bg: #f6f8fa;
+  --surface: #ffffff;
+  --surface-2: #eef2f5;
+  --surface-3: #e2e8ee;
+  --border: #dde4e9;
+  --border-strong: #aebbc6;
+  --text: #17232d;
+  --text-2: #435463;
+  --text-3: #596a78;
+}
+.ds.customer-appearance[data-theme="dark"] {
+  --bg: #202a32;
+  --surface: #2b3741;
+  --surface-2: #34434e;
+  --surface-3: #41515d;
+  --border: #465663;
+  --border-strong: #748490;
+  --text: #f4f7fa;
+  --text-2: #d1dce4;
+  --text-3: #b6c5d0;
+}
+@media (prefers-color-scheme: dark) {
+  .ds.customer-appearance:not([data-theme="light"]) {
+    --bg: #202a32;
+    --surface: #2b3741;
+    --surface-2: #34434e;
+    --surface-3: #41515d;
+    --border: #465663;
+    --border-strong: #748490;
+    --text: #f4f7fa;
+    --text-2: #d1dce4;
+    --text-3: #b6c5d0;
+  }
+}
+.ds.customer-appearance .storefront-v2 {
+  background: color-mix(in srgb, var(--bg) 65%, var(--surface) 35%);
+}
+.ds.customer-appearance .storefront-v2 .store-hero {
+  background: color-mix(in srgb, var(--brand-soft) 30%, var(--surface) 70%);
+}
+.ds.customer-appearance .storefront-v2 .store-hero h1 { color: var(--text); }
+.ds.customer-appearance .customer-theme-select {
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font-size: .875rem;
+  max-width: 110px;
+}
+.ds.customer-appearance .rb-top-inner > .customer-theme-select { margin-left: auto; }
+.ds.customer-appearance .rb-top-inner > .btn { margin-left: 0; }
+@media (max-width: 520px) {
+  .ds.customer-appearance .rb-top-inner { flex-wrap: wrap; gap: 8px; padding-block: 8px; }
+  .ds.customer-appearance .customer-theme-select { max-width: 88px; padding-inline: 5px; }
+  .ds.customer-appearance .rb-menu-link { display: none; }
+}

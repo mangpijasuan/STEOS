@@ -101,7 +101,7 @@ export function brandCss(branding: RestaurantBranding): string | null {
   if (!branding.colors) return null;
   const light = completeMode(branding.colors.light, false);
   const dark = completeMode(branding.colors.dark ?? deriveDark(branding.colors.light), true);
-  return `${block(".ds .rb-store", light)}@media (prefers-color-scheme: dark){${block(".ds .rb-store", dark)}}`;
+  return `${block(".ds .rb-store", light)}@media (prefers-color-scheme: dark){${block('.ds:not([data-theme="light"]) .rb-store', dark)}}${block('.ds[data-theme="dark"] .rb-store', dark)}`;
 }
 
 /** True when the storefront needs the branded wrapper at all. */

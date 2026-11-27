@@ -35,7 +35,8 @@ describe("colors", () => {
   it("builds the scoped CSS from validated values, with a dark block", () => {
     const css = brandCss(parseBranding(zogamBranding))!;
     expect(css).toContain(".ds .rb-store{--brand:#17623b;--brand-hover:#10492c;--brand-ink:#ffffff;--brand-soft:#e7f1e9;--brand-soft-ink:#14532d;--bg:#faf8f5}");
-    expect(css).toContain("@media (prefers-color-scheme: dark){.ds .rb-store{--brand:#8ed6a2;");
+    expect(css).toContain('@media (prefers-color-scheme: dark){.ds:not([data-theme="light"]) .rb-store{--brand:#8ed6a2;');
+    expect(css).toContain('.ds[data-theme="dark"] .rb-store{--brand:#8ed6a2;');
     expect(brandCss({})).toBeNull();
     expect(brandCss({ tagline: "Hello" })).toBeNull();
   });
