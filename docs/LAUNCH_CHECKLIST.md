@@ -78,7 +78,7 @@ Generate each secret independently, for example `openssl rand -base64 48`. Never
 
 ## 6. Payments: real Stripe sandbox run
 
-Everything so far was tested with the built-in fake provider and simulated events. That proves the app's own logic, not Stripe's behavior. This section is the first real test. Use test keys and a test connected account.
+Everything so far was tested with the built-in fake provider and simulated events. That proves the app's own logic, not Stripe's behavior. This section is the first real test. Use test keys and a test connected account. [STRIPE_SANDBOX.md](STRIPE_SANDBOX.md) has the step-by-step setup and how to run each scenario below.
 
 Setup:
 

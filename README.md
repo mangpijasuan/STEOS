@@ -144,6 +144,8 @@ In development the sign-in link is printed in the server console instead of bein
 
 ## To run against the Stripe sandbox
 
+The full step-by-step guide, with test cards and every scenario, is [docs/STRIPE_SANDBOX.md](docs/STRIPE_SANDBOX.md). The short version:
+
 1. Create a Stripe test account and enable Connect. Create a test connected account for the demo restaurant and save its id in `restaurants.stripe_account_id`.
 2. Put the test secret and publishable keys in `.env`, and set `PAYMENTS_PROVIDER=stripe`.
 3. Add a Connect webhook endpoint for `/api/webhooks/stripe` listening to `payment_intent.amount_capturable_updated`, `payment_intent.succeeded`, `payment_intent.canceled` `payment_intent.payment_failed`, `refund.created`, `refund.updated`, and `refund.failed`. Put its signing secret in `STRIPE_WEBHOOK_SECRET`. For local testing use `stripe listen --forward-connect-to`.
