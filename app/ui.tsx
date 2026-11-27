@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { branding, footerLines } from "@/lib/branding";
+import { APPEARANCE_LABEL, APPEARANCE_SHORT, nextAppearance, readAppearance, saveAppearance, type Appearance } from "./appearance";
 import { Icon, type IconName } from "./icons";
 
 type Variant = "primary" | "secondary" | "success" | "danger" | "soft-danger" | "ghost";
@@ -254,11 +255,36 @@ const NAV: { group: string; items: { href: string; label: string; icon: IconName
   },
 ];
 
+const APPEARANCE_ICON: Record<Appearance, IconName> = { auto: "monitor", light: "sun", dark: "moon" };
+
+/** One button that steps through Match device, Light and Dark. The choice is remembered in this browser. */
+function AppearanceButton({ withLabel }: { withLabel?: boolean }) {
+  const [value, setValue] = useState<Appearance>("auto");
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setValue(readAppearance());
+  }, []);
+  function step() {
+    const next = nextAppearance(value);
+    saveAppearance(next);
+    setValue(next);
+  }
+  const label = `Appearance: ${APPEARANCE_LABEL[value]}. Press to change.`;
+  return withLabel ? (
+    <button type="button" className="side-link" onClick={step} title={label} aria-label={label}>
+      <Icon name={APPEARANCE_ICON[value]} size={20} />
+      <span className="nav-text">Theme: {APPEARANCE_SHORT[value]}</span>
+    </button>
+  ) : (
+    <Button variant="ghost" size="sm" icon={APPEARANCE_ICON[value]} aria-label={label} title={label} onClick={step} />
+  );
+}
+
 /**
  * Staff navigation. A side menu on large screens (full width on wide screens, a slim icon rail on tablets,
  * collapsible and remembered per device) and the compact top bar on phones.
  */
-export function StaffTopbar({ current, me }: { current: string; me: Me | null }) {
+export function StaffTopbar({ current, me, fixedTheme }: { current: string; me: Me | null; fixedTheme?: boolean }) {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -312,6 +338,7 @@ export function StaffTopbar({ current, me }: { current: string; me: Me | null })
           ))}
         </nav>
         <div className="side-foot">
+          {!fixedTheme && <AppearanceButton withLabel />}
           <button type="button" className="side-link" onClick={toggleSide} title="Collapse or expand the menu">
             <Icon name="chevronLeft" size={20} className="side-collapse" />
             <span className="nav-text">Collapse</span>
@@ -320,7 +347,7 @@ export function StaffTopbar({ current, me }: { current: string; me: Me | null })
             <div className="side-user">
               <span className="avatar" aria-hidden="true">{initials}</span>
               <span className="nav-text side-who">
-                <span className="strong">{me.name || me.email.split("@")[0]}</span>
+                <span className="strong" title={me.name || me.email}>{me.name || me.email.split("@")[0]}</span>
                 <span className="subtle">{me.role === "owner" ? "Owner" : "Staff"}</span>
               </span>
               <Button variant="ghost" size="sm" icon="logout" aria-label="Sign out" className="nav-text" loading={busy} onClick={signOut} />
@@ -342,6 +369,7 @@ export function StaffTopbar({ current, me }: { current: string; me: Me | null })
               </a>
             ))}
           </nav>
+          {!fixedTheme && <AppearanceButton />}
           {me && <Button variant="ghost" size="sm" icon="logout" aria-label="Sign out" loading={busy} onClick={signOut} />}
         </div>
       </header>
