@@ -3,6 +3,7 @@ import { businessHours, locations, restaurants } from "../db/schema";
 import type { Tx } from "./db";
 import { HttpError } from "./http";
 import { isValidHHMM, type HoursPeriod } from "./hours";
+import { applyBrandingEdit, colorProblem, parseBranding, type BrandingEdit } from "./restaurant-branding";
 
 export async function getSettings(db: Tx) {
   const rows = await db
@@ -67,4 +68,19 @@ export async function replaceHours(db: Tx, restaurantId: string, periods: HoursP
     await db.insert(businessHours).values(periods.map((p) => ({ restaurantId, locationId, weekday: p.weekday, opens: p.opens, closes: p.closes })));
   }
   return getHours(db);
+}
+
+export async function getBranding(db: Tx) {
+  const rows = await db.select({ branding: restaurants.branding }).from(restaurants);
+  if (!rows[0]) throw new HttpError(404, "Not found");
+  return parseBranding(rows[0].branding);
+}
+
+/** Saves the owner's storefront look. Colors that would be hard to read are refused with a plain message. */
+export async function updateBranding(db: Tx, restaurantId: string, edit: BrandingEdit) {
+  const problem = colorProblem(edit);
+  if (problem) throw new HttpError(400, problem);
+  const next = applyBrandingEdit(await getBranding(db), edit);
+  await db.update(restaurants).set({ branding: next }).where(eq(restaurants.id, restaurantId));
+  return next;
 }

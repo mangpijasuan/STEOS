@@ -4,8 +4,9 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Icon } from "../icons";
 import { Alert, Button, Skeleton, StaffTopbar, api, useMe, useToasts } from "../ui";
 import type { HoursPeriod } from "@/lib/hours";
+import { StorefrontLook } from "./StorefrontLook";
 
-type Settings = { timezone: string; acceptingOrders: boolean; minPrepMinutes: number; maxAdvanceDays: number; taxRateBps: number; dineInEnabled: boolean; payLaterEnabled: boolean };
+type Settings = { slug: string; timezone: string; acceptingOrders: boolean; minPrepMinutes: number; maxAdvanceDays: number; taxRateBps: number; dineInEnabled: boolean; payLaterEnabled: boolean };
 type Period = HoursPeriod & { key: string };
 
 // Monday first, the way a restaurant thinks about a week. weekday 0 is Sunday, as the server stores it.
@@ -241,6 +242,8 @@ export default function Manage() {
               </div>
               <div><Button type="submit" variant="primary" loading={saving === "hours"} disabled={saving !== null}>Save weekly hours</Button></div>
             </form>
+
+            <StorefrontLook slug={settings.slug} toast={toast} />
 
             <section className="card row-between wrap" aria-labelledby="menu-link">
               <div>
