@@ -2,7 +2,7 @@
 
 A one-page list for the owner. Print it, write in the blanks, and return it. Nothing is charged and nothing goes live until you have confirmed these and approved a test.
 
-Why these: STEOS was set up from the printed menu pages. Where the printed page left a price unclear, the dish was imported **with no price** so it cannot be ordered by mistake. Customers will not see these dishes until a price is entered. The rest of the menu (every other dish, price and choice) you will check yourself on screen once you can sign in.
+Why these: STEOS was set up from the printed menu pages. Where the printed page left a price unclear, the dish was **left out of the online menu** so nobody can order it at the wrong price. It will appear once you give us a price. The rest of the menu (every other dish, price and choice) you will check yourself on screen once you can sign in.
 
 ## 1. Prices and choices
 
