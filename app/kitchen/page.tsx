@@ -23,6 +23,8 @@ type Order = {
   tableLabel: string | null;
   paymentMode: "online" | "pay_later";
   paidAt: string | null;
+  arrivedAt: string | null;
+  arrivedNote: string | null;
   items: Line[];
 };
 type Settings = { acceptingOrders: boolean; timezone: string };
@@ -107,7 +109,9 @@ export default function Kitchen() {
 
   const waiting = orders.filter((o) => o.status === "awaiting_acceptance").sort((a, b) => a.number - b.number);
   const cooking = orders.filter((o) => o.status === "accepted").sort((a, b) => new Date(a.pickupAt).getTime() - new Date(b.pickupAt).getTime());
-  const ready = orders.filter((o) => o.status === "ready").sort((a, b) => a.number - b.number);
+  // A guest who has arrived for a ready order is waiting at the door, so they come first.
+  const ready = orders.filter((o) => o.status === "ready").sort((a, b) => Number(!!b.arrivedAt) - Number(!!a.arrivedAt) || a.number - b.number);
+  const arrivals = orders.filter((o) => o.arrivedAt && (o.status === "accepted" || o.status === "ready"));
 
   // Sound: a double beep right away for a new order, repeated until every waiting order is answered.
   useEffect(() => {
@@ -126,6 +130,26 @@ export default function Kitchen() {
       osc.stop(ctx.currentTime + delay + 0.18);
     });
   }, [waiting.length, soundOn, now]);
+
+  // A guest arriving gets one soft two-note chime (not the repeating new-order beep), when sound is on.
+  const seenArrivals = useRef<Set<string> | null>(null);
+  const arrivalKey = arrivals.map((o) => o.id).sort().join(",");
+  useEffect(() => {
+    const ids = new Set(arrivalKey ? arrivalKey.split(",") : []);
+    const seen = seenArrivals.current;
+    seenArrivals.current = ids;
+    if (!seen || !soundOn || !audio.current || ![...ids].some((id) => !seen.has(id))) return;
+    const ctx = audio.current;
+    [0, 0.2].forEach((delay, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = i === 0 ? 660 : 990;
+      gain.gain.value = 0.15;
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(ctx.currentTime + delay);
+      osc.stop(ctx.currentTime + delay + 0.16);
+    });
+  }, [arrivalKey, soundOn]);
 
   function toggleSound() {
     if (soundOn) return setSoundOn(false);
@@ -384,6 +408,14 @@ function Ticket({ order, variant, timezone, children }: { order: Order; variant:
           </div>
         )}
       </div>
+      {order.arrivedAt && (order.status === "accepted" || order.status === "ready") && (
+        <div className="ticket-arrived" role="status">
+          <Icon name="bell" size={16} />
+          <strong>Guest is here</strong>
+          <span>{clockTime(order.arrivedAt, timezone)}</span>
+          {order.arrivedNote && <span className="ticket-arrived-note">“{order.arrivedNote}”</span>}
+        </div>
+      )}
       <ul className="ticket-items">
         {order.items.map((l, i) => (
           <li key={i}>
