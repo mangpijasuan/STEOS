@@ -27,6 +27,7 @@ How STEOS runs in production. For a step-by-step launch, work through the launch
 | `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, `STRIPE_WEBHOOK_SECRET` | Stripe. Use test keys until launch |
 | `TRUSTED_CLIENT_IP_HEADER` | A single-IP header the ingress overwrites on every request. Set it only once the origin refuses direct traffic |
 | `ALERT_WEBHOOK_URL` | Optional Slack-compatible alerts, throttled |
+| `ROBOTS_NOINDEX` | Set to `true` on staging only. `/robots.txt` then disallows everything, so search engines do not list a test site. Leave it unset in production. This only asks well-behaved crawlers to stay away; it is not access control (see below) |
 | `ORDER_WORKER_URL` | Optional override for the worker (HTTPS, or loopback HTTP) |
 
 Existing names are kept as they are because production depends on them; see [REBRANDING_MIGRATION.md](REBRANDING_MIGRATION.md).

@@ -42,6 +42,8 @@ This guide gets STEOS running on a Coolify server as a staging site. Do staging 
 
    Leave `TRUSTED_CLIENT_IP_HEADER` empty until Cloudflare is in front and the origin refuses direct traffic.
 
+   On staging only, also set `ROBOTS_NOINDEX=true` so search engines do not index the test site. For stronger protection, put staging behind a login or an allow-list at Cloudflare (for example Cloudflare Access) and add a response header `X-Robots-Tag: noindex, nofollow` there; neither needs a code change.
+
 4. Run the migration job below before enabling traffic. `/api/live` must return 200, `/api/ready` must return 200 when the database responds, and `/api/health` must report operational checks. Missing trusted proxy configuration causes HTTP 503 on `/api/health`; it is a production launch blocker, not a liveness failure.
 
 ## 3. Migrations and the first restaurant
