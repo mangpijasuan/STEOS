@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { Client } from "pg";
 import { z } from "zod";
 import { MAX_IMAGE_BYTES, sniffImageType } from "../lib/images";
-import { zogamMenu } from "./fixtures/zogam-cafe";
+import { zogamBranding, zogamMenu } from "./fixtures/zogam-cafe";
 
 const photoFilename = (name: string) => `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-$/, "")}.jpg`;
 
@@ -17,10 +17,11 @@ async function main() {
   try {
     await client.query("begin");
     const tenant = await client.query<{ id: string }>(
-      `insert into restaurants (name, slug, accepting_orders)
-       values ('Zogam Cafe', 'zogam-cafe', false)
+      `insert into restaurants (name, slug, accepting_orders, branding)
+       values ('Zogam Cafe', 'zogam-cafe', false, $1)
        on conflict (slug) do nothing
        returning id`,
+      [JSON.stringify(zogamBranding)],
     );
     const restaurantId = tenant.rows[0]?.id;
     if (!restaurantId) {

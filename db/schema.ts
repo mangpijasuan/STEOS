@@ -1,6 +1,7 @@
 // Typed mirror of db/migrations. The SQL migrations are the source of truth
 // (constraints, row-level security and composite keys live there).
 import { boolean, integer, jsonb, pgTable, smallint, text, time, timestamp, uuid } from "drizzle-orm/pg-core";
+import type { RestaurantBranding } from "../lib/restaurant-branding";
 
 const timestamps = {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -20,6 +21,7 @@ export const restaurants = pgTable("restaurants", {
   acceptingOrders: boolean("accepting_orders").notNull().default(true),
   dineInEnabled: boolean("dine_in_enabled").notNull().default(false),
   payLaterEnabled: boolean("pay_later_enabled").notNull().default(true),
+  branding: jsonb("branding").$type<RestaurantBranding>().notNull().default({}),
   nextOrderNumber: integer("next_order_number").notNull().default(1),
   platformFeeBps: integer("platform_fee_bps").notNull().default(600),
   feeModel: text("fee_model").notNull().default("all_in"),

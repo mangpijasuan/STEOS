@@ -34,3 +34,5 @@ The following descriptions are ready for the owner to add in `/menu` once the ca
 | Seafood Specials | Lemon Fish | Steamed whole fish with fresh chili, garlic and lemon. Served with jasmine rice. | Market price. |
 
 Pepper Steak is imported at the printed beef price. Confirm whether other protein choices are offered.
+
+Zogam Cafe's storefront look (green palette, logo badge, tagline, favorite dishes and menu search) is stored as branding data on the restaurant, not in code. The importer sets it for new databases, and migration `0015` applied it to existing ones. See [ARCHITECTURE.md](ARCHITECTURE.md).

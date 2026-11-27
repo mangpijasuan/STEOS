@@ -33,7 +33,7 @@ describe("hours", () => {
     const store: Store = {
       restaurant: {
         id: "test", name: "Test", slug: "test", timezone: TZ, taxRateBps: 0, status: "active",
-        minPrepMinutes: 20, maxAdvanceDays: 2, acceptingOrders: true, defaultLocationId: null,
+        minPrepMinutes: 20, maxAdvanceDays: 2, acceptingOrders: true, defaultLocationId: null, branding: {},
       },
       periods: daily("11:00", "21:00"),
       menu: [],

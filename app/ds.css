@@ -395,7 +395,7 @@
 /* ============================================================ platform brand
    STEOS's own screens (home, sign-in, staff and owner screens, the kitchen) carry data-brand="platform" and use the
    approved navy and gold from lib/branding.ts. Restaurant-facing pages (the storefront, table page and order status) do
-   not, so each restaurant keeps its own look; Zogam Cafe overrides the same tokens with its green below.
+   not, so each restaurant keeps its own look; a restaurant's branding data overrides the same tokens on its own storefront (see .rb-store below).
    Dark mode swaps the roles: navy on dark is unreadable, so gold becomes the main accent there. */
 .ds[data-brand="platform"] {
   --brand: #183153;
@@ -702,56 +702,46 @@ body:has(.sidebar) { padding-left: 0 !important; }
 .ds .add-fab:hover { background: var(--brand); color: var(--brand-ink); border-color: transparent; }
 .ds .add-fab:active { transform: scale(0.92); }
 
-/* Zogam Cafe storefront: tenant-scoped branding, not the staff design system. */
-.ds .zogam-store {
-  --brand: #17623b;
-  --brand-hover: #10492c;
-  --brand-ink: #fff;
-  --brand-soft: #e7f1e9;
-  --brand-soft-ink: #14532d;
-  --bg: #faf8f5;
-  background: var(--bg); color: var(--text); min-height: 100dvh;
-}
-@media (prefers-color-scheme: dark) {
-  .ds .zogam-store { --brand: #8ed6a2; --brand-hover: #a5e7b6; --brand-ink: #102a1b; --brand-soft: #193a29; --brand-soft-ink: #b8e8c6; --bg: #121a15; }
-}
-.ds .zogam-top { background: var(--surface); border-bottom: 1px solid var(--border); }
-.ds .zogam-top-inner { display: flex; align-items: center; gap: 22px; min-height: 88px; }
+/* A restaurant's own storefront branding: tenant-scoped, not the staff design system. The colors come from the restaurant's
+   data (lib/restaurant-branding.ts writes a scoped block that sets --brand and friends on .rb-store); only layout lives here. */
+.ds .rb-store { background: var(--bg); color: var(--text); min-height: 100dvh; }
+.ds .rb-top { background: var(--surface); border-bottom: 1px solid var(--border); }
+.ds .rb-top-inner { display: flex; align-items: center; gap: 22px; min-height: 88px; }
 /* The logo is dark artwork on white, so it always sits on a white badge. The badge is a trimmed copy of the logo (the whitespace
    around it removed) at a fixed height that fits inside the bar, with rounded corners and a hairline ring, so on a dark theme it
    reads as a deliberate badge and not a white rectangle touching the edges of the bar. */
-.ds .zogam-brand { display: flex; align-items: center; justify-content: center; flex: none; height: 64px; padding: 5px 9px; background: #fff; border-radius: 14px; box-shadow: 0 0 0 1px rgb(0 0 0 / 0.1); }
-.ds .zogam-brand img { height: 100%; width: auto; display: block; }
-@media (prefers-color-scheme: dark) { .ds .zogam-brand { box-shadow: 0 0 0 1px rgb(255 255 255 / 0.18), 0 2px 10px rgb(0 0 0 / 0.35); } }
-.ds .zogam-menu-link { font-size: 1.05rem; font-weight: 800; text-transform: uppercase; color: var(--text); border-bottom: 3px solid var(--brand); padding-block: 10px; }
-.ds .zogam-top-inner > .btn { margin-left: auto; }
-.ds .zogam-store .store-hero { padding-block: 28px; background: var(--brand-soft); }
-.ds .zogam-store .store-hero h1 { font-size: clamp(2rem, 4vw, 3.25rem); color: var(--brand-soft-ink); font-weight: 850; }
-.ds .zogam-tagline { margin-bottom: 14px; color: var(--text-2); }
-.ds .zogam-store .catnav { background: var(--surface); }
-.ds .zogam-store .chip[aria-current="true"] { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); }
+.ds .rb-brand { display: flex; align-items: center; justify-content: center; flex: none; height: 64px; padding: 5px 9px; background: #fff; border-radius: 14px; box-shadow: 0 0 0 1px rgb(0 0 0 / 0.1); }
+.ds .rb-brand img { height: 100%; width: auto; display: block; }
+@media (prefers-color-scheme: dark) { .ds .rb-brand { box-shadow: 0 0 0 1px rgb(255 255 255 / 0.18), 0 2px 10px rgb(0 0 0 / 0.35); } }
+.ds .rb-menu-link { font-size: 1.05rem; font-weight: 800; text-transform: uppercase; color: var(--text); border-bottom: 3px solid var(--brand); padding-block: 10px; }
+.ds .rb-top-inner > .btn { margin-left: auto; }
+.ds .rb-store .store-hero { padding-block: 28px; background: var(--brand-soft); }
+.ds .rb-store .store-hero h1 { font-size: clamp(2rem, 4vw, 3.25rem); color: var(--brand-soft-ink); font-weight: 850; }
+.ds .rb-tagline { margin-bottom: 14px; color: var(--text-2); }
+.ds .rb-store .catnav { background: var(--surface); }
+.ds .rb-store .chip[aria-current="true"] { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); }
 /* One width for the top bar, header, section chips and menu, so their left edges line up on wide screens. */
-.ds .zogam-store .container { max-width: 1320px; }
-.ds .zogam-store #zogam-menu { min-width: 0; scroll-margin-top: 72px; }
-.ds .zogam-search { display: grid; gap: 8px; margin-bottom: 24px; }
-.ds .zogam-search > label { font-weight: 800; font-size: 1.2rem; }
-.ds .zogam-search-field { display: flex; align-items: center; gap: 10px; padding: 4px 12px; border: 1px solid var(--border); background: var(--surface); border-radius: 12px; }
-.ds .zogam-search-field .input { border: 0; box-shadow: none; min-width: 0; flex: 1; background: transparent; }
-.ds .zogam-featured { margin-bottom: 32px; }
-.ds .zogam-featured h2, .ds .zogam-store .menu-section h2 { font-weight: 850; letter-spacing: -.025em; }
-.ds .zogam-featured-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; align-items: start; }
-.ds .zogam-feature-card { display: flex; flex-direction: column; gap: 8px; text-align: left; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); padding: 14px; color: var(--text); overflow: hidden; cursor: pointer; }
-.ds .zogam-feature-card > img { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 8px; }
-.ds .zogam-feature-card > span:first-of-type { font-weight: 750; }
-.ds .zogam-feature-card:disabled { cursor: default; }
-.ds .zogam-feature-action { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 4px; color: var(--brand); font-size: .85rem; font-weight: 700; }
-.ds .zogam-store .add-fab { background: var(--brand); color: var(--brand-ink); border-color: transparent; }
-.ds .zogam-store .add-fab:hover { background: var(--brand-hover); }
-.ds .zogam-store .item-card { border-radius: 14px; }
-.ds .zogam-store .item-card:not(.has-photo):not(.row) .item-body { padding-right: 38px; }
-.ds .zogam-store .item-card:disabled { opacity: 1; }
-@media (min-width: 1100px) { .ds .zogam-featured-grid { grid-template-columns: repeat(4, minmax(0,1fr)); } }
-@media (max-width: 520px) { .ds .zogam-top-inner { gap: 12px; min-height: 72px; } .ds .zogam-brand { height: 50px; padding: 4px 7px; border-radius: 12px; } .ds .zogam-menu-link { font-size: .875rem; } .ds .zogam-top-inner > .btn { padding-inline: 10px; font-size: .85rem; } .ds .zogam-store .menu-grid.photos { grid-template-columns: repeat(2,minmax(0,1fr)); } .ds .zogam-store .item-card.has-photo .item-body { padding-right: 14px; padding-bottom: 50px; } }
+.ds .rb-store .container { max-width: 1320px; }
+.ds .rb-store #rb-menu { min-width: 0; scroll-margin-top: 72px; }
+.ds .rb-search { display: grid; gap: 8px; margin-bottom: 24px; }
+.ds .rb-search > label { font-weight: 800; font-size: 1.2rem; }
+.ds .rb-search-field { display: flex; align-items: center; gap: 10px; padding: 4px 12px; border: 1px solid var(--border); background: var(--surface); border-radius: 12px; }
+.ds .rb-search-field .input { border: 0; box-shadow: none; min-width: 0; flex: 1; background: transparent; }
+.ds .rb-featured { margin-bottom: 32px; }
+.ds .rb-featured h2, .ds .rb-store .menu-section h2 { font-weight: 850; letter-spacing: -.025em; }
+.ds .rb-featured-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; align-items: start; }
+.ds .rb-feature-card { display: flex; flex-direction: column; gap: 8px; text-align: left; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); padding: 14px; color: var(--text); overflow: hidden; cursor: pointer; }
+.ds .rb-feature-card > img { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: 8px; }
+.ds .rb-feature-card > span:first-of-type { font-weight: 750; }
+.ds .rb-feature-card:disabled { cursor: default; }
+.ds .rb-feature-action { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 4px; color: var(--brand); font-size: .85rem; font-weight: 700; }
+.ds .rb-store .add-fab { background: var(--brand); color: var(--brand-ink); border-color: transparent; }
+.ds .rb-store .add-fab:hover { background: var(--brand-hover); }
+.ds .rb-store .item-card { border-radius: 14px; }
+.ds .rb-store .item-card:not(.has-photo):not(.row) .item-body { padding-right: 38px; }
+.ds .rb-store .item-card:disabled { opacity: 1; }
+@media (min-width: 1100px) { .ds .rb-featured-grid { grid-template-columns: repeat(4, minmax(0,1fr)); } }
+@media (max-width: 520px) { .ds .rb-top-inner { gap: 12px; min-height: 72px; } .ds .rb-brand { height: 50px; padding: 4px 7px; border-radius: 12px; } .ds .rb-menu-link { font-size: .875rem; } .ds .rb-top-inner > .btn { padding-inline: 10px; font-size: .85rem; } .ds .rb-store .menu-grid.photos { grid-template-columns: repeat(2,minmax(0,1fr)); } .ds .rb-store .item-card.has-photo .item-body { padding-right: 14px; padding-bottom: 50px; } }
 .ds .platform-footer { margin-top: 48px; padding: 20px 16px 28px; text-align: center; color: var(--text-3); font-size: 0.8125rem; line-height: 1.6; }
 .ds .platform-footer p { margin: 0; }
 .ds .testpay { border: 1.5px dashed var(--border-strong); border-radius: var(--radius); padding: 14px; background: var(--surface-2); }

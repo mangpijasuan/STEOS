@@ -6,6 +6,7 @@ import { HttpError } from "./http";
 import { computeSlots, isOpenNow, type HoursPeriod } from "./hours";
 import { imageUrl } from "./images";
 import { getMenu } from "./menu";
+import { parseBranding, type RestaurantBranding } from "./restaurant-branding";
 
 export type PublicRestaurant = {
   id: string;
@@ -18,6 +19,7 @@ export type PublicRestaurant = {
   maxAdvanceDays: number;
   acceptingOrders: boolean;
   defaultLocationId: string | null;
+  branding: RestaurantBranding;
 };
 
 export type Store = { restaurant: PublicRestaurant; menu: MenuTree; periods: HoursPeriod[] };
@@ -54,6 +56,7 @@ export async function loadStore(slug: string): Promise<Store> {
     maxAdvanceDays: row.max_advance_days,
     acceptingOrders: row.accepting_orders,
     defaultLocationId: row.default_location_id,
+    branding: parseBranding(row.branding),
   };
 
   const { menu, periods } = await withTenant(restaurant.id, async (db) => {
@@ -101,6 +104,7 @@ export function toPublicStore(store: Store, now = new Date()) {
       orderingOpen: orderingEnabled(restaurant),
       openNow: open,
       minPrepMinutes: restaurant.minPrepMinutes,
+      branding: restaurant.branding,
       // The earliest pickup right now, or null if nothing can be ordered.
       asap: asap?.toISOString() ?? null,
     },
