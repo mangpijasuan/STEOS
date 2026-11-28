@@ -3,8 +3,8 @@ import { expectNoSidewaysScroll, watchProblems } from "./helpers";
 
 const FOOTER = "One Platform. Every Business.";
 const PAGES: [path: string, title: string, platformPage: boolean][] = [
-  ["/", "Siamsil", true],
-  ["/login", "Siamsil", true],
+  ["/", "Siamsil Restaurant", true],
+  ["/login", "Siamsil Restaurant", true],
   ["/r/e2e-kitchen", "E2E Kitchen", false],
   ["/r/zogam-cafe", "Zogam Cafe", false],
 ];
@@ -17,7 +17,10 @@ for (const [path, title, platformPage] of PAGES) {
     await expect(page).toHaveTitle(title);
     await expectNoSidewaysScroll(page);
     // The platform footer is on the platform's own pages only; a restaurant's storefront carries the restaurant's brand.
-    if (platformPage) await expect(page.getByText(FOOTER)).toBeVisible();
+    if (platformPage) {
+      await expect(page.getByText(FOOTER)).toBeVisible();
+      await expect(page.getByText("Siamsil Restaurant", {exact:true})).toBeVisible();
+    }
     else await expect(page.getByText(FOOTER)).toHaveCount(0);
     expect(problems.list()).toEqual([]);
   });

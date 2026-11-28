@@ -17,8 +17,10 @@ const withoutComments = (code: string) => code.replace(/\/\*[\s\S]*?\*\//g, "").
 
 describe("the platform's identity", () => {
   it("is the approved configuration", () => {
-    expect(branding.name).toBe("Siamsil");
-    expect(branding.fullName).toBe("Siamsil Enterprise Operating System");
+    expect(branding.name).toBe("Siamsil Restaurant");
+    expect(branding.fullName).toBe("Siamsil Restaurant");
+    expect(branding.shortName).toBe("Siamsil");
+    expect(branding.modules).toEqual({pos:"Siamsil POS",kitchen:"Siamsil KDS",ordering:"Siamsil Ordering",payments:"Payments powered by Stripe"});
     expect(branding.company).toBe("Siamsil Technologies");
     expect(branding.tagline).toBe("One Platform. Every Business.");
     expect(branding.domain).toBeNull();
@@ -28,10 +30,10 @@ describe("the platform's identity", () => {
   });
 
   it("builds titles, labels, subjects and footers from it", () => {
-    expect(pageTitle("Kitchen")).toBe("Kitchen · Siamsil");
+    expect(pageTitle("Kitchen")).toBe("Kitchen · Siamsil Restaurant");
     expect(feeLabel).toBe("Siamsil fee");
-    expect(signInSubject).toBe("Sign in to Siamsil");
-    expect(metaDescription).toBe("Siamsil by Siamsil Technologies: One Platform. Every Business.");
+    expect(signInSubject).toBe("Sign in to Siamsil Restaurant");
+    expect(metaDescription).toBe("Siamsil Restaurant by Siamsil Technologies: One Platform. Every Business.");
     expect(copyrightYear).toBe(2026);
     expect(legalName).toBe("Siamsil Technologies");
     expect(footerLines).toEqual(["© 2026 Siamsil Technologies. All rights reserved.", "One Platform. Every Business."]);
@@ -69,7 +71,7 @@ describe("nothing hard-codes the platform name, and the old name STEOS is gone f
   const files = [...sourceFiles("app"), ...sourceFiles("lib"), ...sourceFiles("scripts")].filter((f) => f !== path.join("lib", "branding.ts"));
 
   it("no screen, library or script file names the product in a string or in page text", () => {
-    const offenders = files.filter((f) => /\bSTEOS\b/.test(withoutComments(fs.readFileSync(path.join(root, f), "utf8"))));
+    const offenders = files.filter((f) => /\b(?:STEOS|Siamsil Restaurant|Siamsil POS|Siamsil KDS|Siamsil Ordering)\b/.test(withoutComments(fs.readFileSync(path.join(root, f), "utf8"))));
     expect(offenders).toEqual([]);
   });
 

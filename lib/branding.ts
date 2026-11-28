@@ -9,8 +9,15 @@
 // import this file) to the platform's own screens only, and `tests/branding.test.ts` checks the two stay in step.
 
 export const branding = {
-  name: "Siamsil",
-  fullName: "Siamsil Enterprise Operating System",
+  name: "Siamsil Restaurant",
+  fullName: "Siamsil Restaurant",
+  shortName: "Siamsil",
+  modules: {
+    pos: "Siamsil POS",
+    kitchen: "Siamsil KDS",
+    ordering: "Siamsil Ordering",
+    payments: "Payments powered by Stripe",
+  },
   company: "Siamsil Technologies",
   tagline: "One Platform. Every Business.",
   domain: null,
@@ -36,11 +43,11 @@ export const legalName = branding.company;
 /** The year the footer shows. Fixed on purpose: it is the year of first publication, not "today". */
 export const copyrightYear = 2026;
 
-/** "Kitchen · Siamsil": the browser tab title for a platform page. */
+/** Browser tab title for a platform page. */
 export const pageTitle = (page: string) => `${page} · ${branding.name}`;
 
 /** "Siamsil fee": the label for the platform's fee in pricing and reports. */
-export const feeLabel = `${branding.name} fee`;
+export const feeLabel = `${branding.shortName} fee`;
 
 /** The subject of the sign-in email. */
 export const signInSubject = `Sign in to ${branding.name}`;

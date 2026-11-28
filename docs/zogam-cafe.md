@@ -1,10 +1,10 @@
 # Zogam Cafe menu pilot
 
-Zogam Cafe's storefront is at `/r/zogam-cafe`. A separate cafe website can link its **View Menu** and **Order Pickup** buttons to this page. Both customers and the kitchen then use the menu maintained in Siamsil.
+Zogam Cafe's storefront is at `/r/zogam-cafe`. A separate cafe website can link its **View Menu** and **Order Pickup** buttons to this page. Both customers and the kitchen then use the menu maintained in Siamsil Restaurant.
 
 ## Set up the pilot
 
-Run the import on a staging database with the image and menu migrations applied. Use the cafe owner's confirmed sign-in address. Each staff email in Siamsil is currently tied to one restaurant.
+Run the import on a staging database with the image and menu migrations applied. Use the cafe owner's confirmed sign-in address. Each staff email in Siamsil Restaurant is currently tied to one restaurant.
 
 ```sh
 npm run db:migrate

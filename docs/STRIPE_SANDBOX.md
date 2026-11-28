@@ -1,10 +1,10 @@
 # Stripe sandbox guide
 
-How to run Siamsil against a real Stripe **test** account for the first time, and how to prove each payment scenario works. This is section 6 of [LAUNCH_CHECKLIST.md](LAUNCH_CHECKLIST.md) written as steps. Everything so far was tested with the built-in fake provider, which proves Siamsil's own logic but not Stripe's behavior.
+How to run Siamsil Restaurant against a real Stripe **test** account for the first time, and how to prove each payment scenario works. This is section 6 of [LAUNCH_CHECKLIST.md](LAUNCH_CHECKLIST.md) written as steps. Everything so far was tested with the built-in fake provider, which proves Siamsil's own logic but not Stripe's behavior.
 
 **Test mode only.** Use keys that start with `sk_test_` and `pk_test_`. Never put a live key in staging, in the repository, in chat or in a pull request. Moving to live keys needs the founder's approval and is not part of this guide.
 
-## How Siamsil uses Stripe
+## How Siamsil Restaurant uses Stripe
 
 - **Direct charges on the restaurant's own connected account.** The payment lives on the restaurant's Stripe account and Siamsil takes an application fee. The restaurant's account pays Stripe's card fees.
 - **Authorize first, capture on accept.** The card is authorized (a hold) when the customer pays. The kitchen has five minutes to accept; accepting captures the money. Declining or letting the five minutes pass releases the hold.
