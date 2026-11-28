@@ -1,4 +1,4 @@
-# STEOS production launch checklist
+# Siamsil Restaurant production launch checklist
 
 What has to be true before the first real customer pays for a real order, starting with Zogam Cafe. Work top to bottom. A box is ticked only when someone has seen the result, not when the step was merely done.
 

@@ -1,10 +1,10 @@
 # Zogam Cafe menu pilot
 
-Zogam Cafe's storefront is at `/r/zogam-cafe`. A separate cafe website can link its **View Menu** and **Order Pickup** buttons to this page. Both customers and the kitchen then use the menu maintained in STEOS.
+Zogam Cafe's storefront is at `/r/zogam-cafe`. A separate cafe website can link its **View Menu** and **Order Pickup** buttons to this page. Both customers and the kitchen then use the menu maintained in Siamsil Restaurant.
 
 ## Set up the pilot
 
-Run the import on a staging database with the image and menu migrations applied. Use the cafe owner's confirmed sign-in address. Each staff email in STEOS is currently tied to one restaurant.
+Run the import on a staging database with the image and menu migrations applied. Use the cafe owner's confirmed sign-in address. Each staff email in Siamsil Restaurant is currently tied to one restaurant.
 
 ```sh
 npm run db:migrate
@@ -19,7 +19,7 @@ To include photos on first import, set `ZOGAM_PHOTO_DIR` to a folder of JPEGs ap
 
 Sign in through `/login` with the owner's email, then open `/menu`. Select a category and dish, update its name, description, price or choices, and save. Use the dish's photo control to add or replace its picture. Saved changes appear in the storefront and in `GET /api/r/zogam-cafe/menu`.
 
-The pilot transcribes the six provided menu pages. Printed protein surcharges, hot pot sizes, and curry and sauce choices use the existing STEOS choice editor. The printed “Add Order” entries are separate products in **Sides & Extras**. Verify the printed pickup prices, choices, ingredient descriptions, and availability with the cafe. Confirm opening hours and tax in `/manage` and test pickup checkout before opening ordering.
+The pilot transcribes the six provided menu pages. Printed protein surcharges, hot pot sizes, and curry and sauce choices use the existing Siamsil choice editor. The printed “Add Order” entries are separate products in **Sides & Extras**. Verify the printed pickup prices, choices, ingredient descriptions, and availability with the cafe. Confirm opening hours and tax in `/manage` and test pickup checkout before opening ordering.
 
 ## Items awaiting price confirmation
 

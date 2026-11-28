@@ -1,4 +1,4 @@
-// Light or dark for STEOS's own screens, chosen per person and remembered in this browser. "auto" follows the device.
+// Light or dark for Siamsil's own screens, chosen per person and remembered in this browser. "auto" follows the device.
 
 export type Appearance = "auto" | "light" | "dark";
 

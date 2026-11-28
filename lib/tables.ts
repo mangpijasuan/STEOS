@@ -250,7 +250,7 @@ export type ManualMethod = "cash" | "card_terminal" | "other";
 
 /**
  * Records that the restaurant collected payment itself (cash, or its own card machine) for a pay-later order.
- * STEOS's fee for these orders is invoiced, not taken from a card payment.
+ * Siamsil's fee for these orders is invoiced, not taken from a card payment.
  */
 export async function markOrderPaid(db: Tx, restaurantId: string, orderId: string, method: ManualMethod, now = new Date(), opts: { allowUnaccepted?: boolean } = {}) {
   const [order] = await db.select().from(orders).where(eq(orders.id, orderId)).for("update");

@@ -1,5 +1,5 @@
 // A restaurant's own storefront look, stored as data (restaurants.branding) so a new restaurant needs no code change.
-// This is the RESTAURANT's brand. The platform's own brand (STEOS) lives in lib/branding.ts and is never mixed with it.
+// This is the RESTAURANT's brand. The platform's own brand (Siamsil) lives in lib/branding.ts and is never mixed with it.
 //
 // Everything is validated before it reaches a page: colors must be #rrggbb, the logo must be a file under /brands/, and any
 // value that does not fit is dropped, so a bad row can never break a storefront or inject styles.

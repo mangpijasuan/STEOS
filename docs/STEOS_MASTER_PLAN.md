@@ -1,6 +1,6 @@
-# STEOS master plan
+# Siamsil Restaurant — master plan
 
-**STEOS** (Siamsil Technologies Enterprise Operating System) is one multi-tenant platform with configurable business modules. *One Platform. Every Business.* It is a product of Siamsil Technologies and was previously named SROS.
+**Siamsil Restaurant** is the first industry product on the shared Siamsil platform, formerly SROS and STEOS. *One Platform. Every Business.* It is a product of Siamsil Technologies and was previously named SROS.
 
 This page is the short version of the plan. The detail is in [PRODUCT_VISION.md](PRODUCT_VISION.md), [PRODUCT_ROADMAP.md](PRODUCT_ROADMAP.md) and [ARCHITECTURE.md](ARCHITECTURE.md).
 
@@ -26,8 +26,8 @@ A platform a business runs for itself: its own storefront, customers, payments a
 ## Sequence
 
 1. Launch Zogam Cafe for real and learn from it.
-2. Complete merchant onboarding and recurring subscription billing.
-3. Retail foundations: a universal product catalog, barcodes, convenience-store pilot.
+2. Validate the existing percentage-based fee options with actual customer and support costs; improve onboarding. Subscription billing requires founder approval.
+3. Retail foundations are deferred until Restaurant meets expansion gates; then validate a universal catalog and barcodes.
 4. Inventory and suppliers, then finance, then the enterprise modules, then intelligence.
 
 Full ERP, advanced accounting, fuel integration, payroll and manufacturing are deferred until the first commercial platform is stable.
