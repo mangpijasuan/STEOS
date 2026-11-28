@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { businessHours, locations, restaurants } from "../db/schema";
 import type { Tx } from "./db";
 import { HttpError } from "./http";
-import { isValidHHMM, type HoursPeriod } from "./hours";
+import { isValidClosing, isValidHHMM, type HoursPeriod } from "./hours";
 import { applyBrandingEdit, colorProblem, parseBranding, type BrandingEdit } from "./restaurant-branding";
 
 export async function getSettings(db: Tx) {
@@ -53,7 +53,7 @@ export async function getHours(db: Tx): Promise<HoursPeriod[]> {
 /** Replaces every opening period of the default location. Periods on the same day may not overlap. */
 export async function replaceHours(db: Tx, restaurantId: string, periods: HoursPeriod[]): Promise<HoursPeriod[]> {
   for (const p of periods) {
-    if (!isValidHHMM(p.opens) || !isValidHHMM(p.closes)) throw new HttpError(400, "Times must look like 09:30");
+    if (!isValidHHMM(p.opens) || !isValidClosing(p.closes)) throw new HttpError(400, "Times must look like 09:30 (a closing time can also be 24:00, which is midnight)");
     if (p.closes <= p.opens) throw new HttpError(400, "Closing time must be after opening time");
   }
   for (let day = 0; day < 7; day++) {

@@ -100,9 +100,10 @@ export const settingsUpdate = z.object({
 });
 
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+const closing = z.string().regex(/^(([01]\d|2[0-3]):[0-5]\d|24:00)$/); // a closing time may be 24:00: midnight
 export const hoursInput = z.object({
   periods: z
-    .array(z.object({ weekday: z.number().int().min(0).max(6), opens: hhmm, closes: hhmm }))
+    .array(z.object({ weekday: z.number().int().min(0).max(6), opens: hhmm, closes: closing }))
     .max(28),
 });
 

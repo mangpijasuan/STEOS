@@ -61,3 +61,35 @@ test("the owner can brand the storefront and guests see it", async ({ page, brow
   }
   expect(problems.list()).toEqual([]);
 });
+
+// Owners can close at midnight: a time field cannot say 24:00, so each period has an "Until midnight" tick box.
+test("the owner can set a period to close at midnight and it is saved", async ({ page }) => {
+  const problems = watchProblems(page);
+  const original = (await (await page.request.get("/api/staff/hours")).json()).periods;
+  try {
+    await page.goto("/manage");
+    const monday = page.getByRole("group", { name: "Monday" });
+    const midnight = monday.getByRole("checkbox", { name: "Until midnight" }).first();
+    const closes = monday.getByLabel("Monday period 1 closes");
+    await expect(midnight).not.toBeChecked();
+    await midnight.check();
+    await expect(closes, "the closing time field is off while closing at midnight").toBeDisabled();
+    await expect(closes).toHaveValue("Midnight");
+    await expectNoSidewaysScroll(page);
+    await page.getByRole("button", { name: "Save weekly hours" }).click();
+    await expect(page.getByText("Weekly hours saved")).toBeVisible();
+
+    await page.reload();
+    await expect(page.getByRole("group", { name: "Monday" }).getByRole("checkbox", { name: "Until midnight" }).first()).toBeChecked();
+    const saved = (await (await page.request.get("/api/staff/hours")).json()).periods as { weekday: number; closes: string }[];
+    expect(saved.find((p) => p.weekday === 1)?.closes).toBe("24:00");
+
+    // Turning it off gives back an ordinary closing time.
+    await page.getByRole("group", { name: "Monday" }).getByRole("checkbox", { name: "Until midnight" }).first().uncheck();
+    await expect(page.getByRole("group", { name: "Monday" }).getByLabel("Monday period 1 closes")).toHaveValue("23:45");
+  } finally {
+    const res = await page.request.put("/api/staff/hours", { data: { periods: original } });
+    expect(res.ok()).toBe(true);
+  }
+  expect(problems.list()).toEqual([]);
+});
