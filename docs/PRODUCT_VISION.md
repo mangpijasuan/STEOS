@@ -1,6 +1,6 @@
-# STEOS product vision
+# Siamsil product vision
 
-STEOS is an all-in-one business operating system, sold as multi-tenant software. A business signs up, says what kind of business it is, and gets the modules it needs on one platform with one login, one customer list and one set of reports. The target market is the United States first, then worldwide.
+Siamsil is an all-in-one business operating system, sold as multi-tenant software. A business signs up, says what kind of business it is, and gets the modules it needs on one platform with one login, one customer list and one set of reports. The target market is the United States first, then worldwide.
 
 ## Who it is for
 
@@ -12,22 +12,22 @@ All of these are modules of one platform, not separate products. Status is hones
 
 | Module | Responsibility | Status |
 | --- | --- | --- |
-| STEOS Core | Platform foundation, tenants, staff accounts, roles | Built |
-| STEOS Commerce | Online ordering and e-commerce | Built for restaurants (storefront, pickup, QR dine-in, checkout) |
-| STEOS POS | In-person sales | Built for restaurants (till, receipts, discounts, manual payments) |
-| STEOS Kitchen | Restaurant kitchen operations | Built |
-| STEOS Payments | Payment processing and reconciliation | Built on Stripe Connect; sandbox testing and dispute handling pending |
-| STEOS Customers | CRM and loyalty | Not built (promo codes only) |
-| STEOS Inventory | Products, stock and inventory | Not built (menu items only) |
-| STEOS Supply | Suppliers and procurement | Not built |
-| STEOS Finance | Accounting and bookkeeping | Not built (reports only) |
-| STEOS Workforce | Employees and scheduling | Not built (staff accounts only) |
-| STEOS Website | Merchant websites | Not built (branded storefront only) |
-| STEOS Logistics | Delivery and fulfillment | Not built; decided not to start now |
-| STEOS Learning | Employee training | Not built |
-| STEOS Safety | Safety and compliance | Not built |
-| STEOS Enterprise | ERP and multi-location management | Not built (one default location per tenant) |
-| STEOS Intelligence | AI and business automation | Not built |
+| Siamsil Core | Platform foundation, tenants, staff accounts, roles | Built |
+| Siamsil Commerce | Online ordering and e-commerce | Built for restaurants (storefront, pickup, QR dine-in, checkout) |
+| Siamsil POS | In-person sales | Built for restaurants (till, receipts, discounts, manual payments) |
+| Siamsil Kitchen | Restaurant kitchen operations | Built |
+| Siamsil Payments | Payment processing and reconciliation | Built on Stripe Connect; sandbox testing and dispute handling pending |
+| Siamsil Customers | CRM and loyalty | Not built (promo codes only) |
+| Siamsil Inventory | Products, stock and inventory | Not built (menu items only) |
+| Siamsil Supply | Suppliers and procurement | Not built |
+| Siamsil Finance | Accounting and bookkeeping | Not built (reports only) |
+| Siamsil Workforce | Employees and scheduling | Not built (staff accounts only) |
+| Siamsil Website | Merchant websites | Not built (branded storefront only) |
+| Siamsil Logistics | Delivery and fulfillment | Not built; decided not to start now |
+| Siamsil Learning | Employee training | Not built |
+| Siamsil Safety | Safety and compliance | Not built |
+| Siamsil Enterprise | ERP and multi-location management | Not built (one default location per tenant) |
+| Siamsil Intelligence | AI and business automation | Not built |
 
 ## How a business is configured
 

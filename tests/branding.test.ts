@@ -17,24 +17,24 @@ const withoutComments = (code: string) => code.replace(/\/\*[\s\S]*?\*\//g, "").
 
 describe("the platform's identity", () => {
   it("is the approved configuration", () => {
-    expect(branding.name).toBe("STEOS");
-    expect(branding.fullName).toBe("Siamsil Technologies Enterprise Operating System");
+    expect(branding.name).toBe("Siamsil");
+    expect(branding.fullName).toBe("Siamsil Enterprise Operating System");
     expect(branding.company).toBe("Siamsil Technologies");
     expect(branding.tagline).toBe("One Platform. Every Business.");
     expect(branding.domain).toBeNull();
-    expect(branding.logo).toEqual({ light: null, dark: null });
+    expect(branding.logo).toEqual({ light: "/brand/siamsil-mark.svg", dark: "/brand/siamsil-mark-reversed.svg" });
     expect(branding.colors).toEqual({ primary: "#183153", secondary: "#D4AF37", white: "#FFFFFF" });
-    expect(branding.poweredBy).toEqual({ enabled: false, text: "Powered by STEOS" });
+    expect(branding.poweredBy).toEqual({ enabled: false, text: "Powered by Siamsil" });
   });
 
   it("builds titles, labels, subjects and footers from it", () => {
-    expect(pageTitle("Kitchen")).toBe("Kitchen · STEOS");
-    expect(feeLabel).toBe("STEOS fee");
-    expect(signInSubject).toBe("Sign in to STEOS");
-    expect(metaDescription).toBe("STEOS by Siamsil Technologies: One Platform. Every Business.");
+    expect(pageTitle("Kitchen")).toBe("Kitchen · Siamsil");
+    expect(feeLabel).toBe("Siamsil fee");
+    expect(signInSubject).toBe("Sign in to Siamsil");
+    expect(metaDescription).toBe("Siamsil by Siamsil Technologies: One Platform. Every Business.");
     expect(copyrightYear).toBe(2026);
     expect(legalName).toBe("Siamsil Technologies");
-    expect(footerLines).toEqual(["© 2026 Siamsil Technologies. All rights reserved.", "STEOS is a product of Siamsil Technologies."]);
+    expect(footerLines).toEqual(["© 2026 Siamsil Technologies. All rights reserved.", "One Platform. Every Business."]);
   });
 
   it("is not applied to a restaurant's storefront, which keeps its own brand", () => {
@@ -65,7 +65,7 @@ describe("the platform colors", () => {
   });
 });
 
-describe("nothing hard-codes the platform name", () => {
+describe("nothing hard-codes the platform name, and the old name STEOS is gone from code", () => {
   const files = [...sourceFiles("app"), ...sourceFiles("lib"), ...sourceFiles("scripts")].filter((f) => f !== path.join("lib", "branding.ts"));
 
   it("no screen, library or script file names the product in a string or in page text", () => {

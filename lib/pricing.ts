@@ -63,9 +63,9 @@ export type Estimate = {
   platformFeeCents: number;
   processingCents: number;
   monthlyFeeCents: number;
-  /** What the restaurant pays in total each month: STEOS fee, card fees and any subscription. */
+  /** What the restaurant pays in total each month: Siamsil fee, card fees and any subscription. */
   restaurantCostCents: number;
-  /** What STEOS keeps: its fee plus any subscription. Card fees go to Stripe. */
+  /** What Siamsil keeps: its fee plus any subscription. Card fees go to Stripe. */
   srosRevenueCents: number;
   /** Restaurant cost as a share of sales, in basis points. */
   effectiveRateBps: number;
