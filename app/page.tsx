@@ -1,4 +1,5 @@
 import { branding } from "@/lib/branding";
+import { BrandMark } from "./brand-mark";
 import { Icon } from "./icons";
 import { PlatformFooter } from "./ui";
 import "./ds.css";
@@ -9,7 +10,7 @@ export default function Home() {
       <header className="topbar">
         <div className="container topbar-inner">
           <span className="brandmark">
-            <span className="logo">{branding.name.charAt(0)}</span> {branding.name}
+            <BrandMark size={34} /> {branding.name}
           </span>
           <span className="grow" />
           <a className="btn btn-sm" href="/login">Staff sign in</a>
@@ -23,8 +24,9 @@ export default function Home() {
         </section>
         <section className="features" aria-label="What you get">
           {[
-            { icon: "store", title: "Your own storefront", body: "A fast menu page customers can order from on any phone, with pickup times that respect your hours." },
-            { icon: "chef", title: "A kitchen screen that works", body: "New orders ring, show a countdown, and take one tap to accept. Built for a tablet on the pass." },
+            { icon: "store", title: branding.modules.ordering, body: "A fast menu page customers can order from on any phone, with pickup times that respect your hours." },
+            { icon: "chef", title: branding.modules.kitchen, body: "New orders ring, show a countdown, and take one tap to accept. Built for a tablet on the pass." },
+            { icon: "store", title: branding.modules.pos, body: "Record in-person orders, discounts and manual payments, and print receipts." },
             { icon: "chart", title: "Honest numbers", body: "Sales, tax, tips and fees in one report. You see what you keep, down to the cent." },
           ].map((f) => (
             <div key={f.title} className="card stack" style={{ "--gap": "8px" } as React.CSSProperties}>

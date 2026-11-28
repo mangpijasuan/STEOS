@@ -1,15 +1,15 @@
 # Stripe sandbox guide
 
-How to run STEOS against a real Stripe **test** account for the first time, and how to prove each payment scenario works. This is section 6 of [LAUNCH_CHECKLIST.md](LAUNCH_CHECKLIST.md) written as steps. Everything so far was tested with the built-in fake provider, which proves STEOS's own logic but not Stripe's behavior.
+How to run Siamsil Restaurant against a real Stripe **test** account for the first time, and how to prove each payment scenario works. This is section 6 of [LAUNCH_CHECKLIST.md](LAUNCH_CHECKLIST.md) written as steps. Everything so far was tested with the built-in fake provider, which proves Siamsil's own logic but not Stripe's behavior.
 
 **Test mode only.** Use keys that start with `sk_test_` and `pk_test_`. Never put a live key in staging, in the repository, in chat or in a pull request. Moving to live keys needs the founder's approval and is not part of this guide.
 
-## How STEOS uses Stripe
+## How Siamsil Restaurant uses Stripe
 
-- **Direct charges on the restaurant's own connected account.** The payment lives on the restaurant's Stripe account and STEOS takes an application fee. The restaurant's account pays Stripe's card fees.
+- **Direct charges on the restaurant's own connected account.** The payment lives on the restaurant's Stripe account and Siamsil takes an application fee. The restaurant's account pays Stripe's card fees.
 - **Authorize first, capture on accept.** The card is authorized (a hold) when the customer pays. The kitchen has five minutes to accept; accepting captures the money. Declining or letting the five minutes pass releases the hold.
 - **Refunds** are full refunds started by the owner (cancel after accept). The refund is "pending" until Stripe confirms it with a `refund.*` event.
-- **Card details never reach STEOS.** They go from the customer's browser to Stripe.
+- **Card details never reach Siamsil.** They go from the customer's browser to Stripe.
 - **Pay-later orders at a table and cash at the till never touch Stripe.** They are not part of this test.
 
 ## What you need
@@ -93,16 +93,16 @@ Stripe's own testing page is the authority for card numbers and may add more, in
 
 ## Scenarios
 
-For each one, write down what you did, what you saw in STEOS and what you saw in the Stripe Dashboard (Payments and, on the connected account, the payment's timeline). A scenario passes only if both sides agree. Tick it off in [LAUNCH_CHECKLIST.md](LAUNCH_CHECKLIST.md).
+For each one, write down what you did, what you saw in Siamsil and what you saw in the Stripe Dashboard (Payments and, on the connected account, the payment's timeline). A scenario passes only if both sides agree. Tick it off in [LAUNCH_CHECKLIST.md](LAUNCH_CHECKLIST.md).
 
 ### A. Successful order
 
 1. As a customer, order a dish for pickup and pay with `4242 4242 4242 4242`.
 2. **Stripe:** the payment shows as **Uncaptured** (authorized), with an application fee.
-3. **STEOS kitchen:** the order appears with a five-minute countdown. Accept it with a prep time.
+3. **Siamsil kitchen:** the order appears with a five-minute countdown. Accept it with a prep time.
 4. **Stripe:** the payment becomes **Succeeded** (captured).
-5. **STEOS:** the customer's order page shows paid; the order receipt and `/reports` include it.
-6. Check the application fee in Stripe against the fee STEOS saved on the order (Pricing page plan).
+5. **Siamsil:** the customer's order page shows paid; the order receipt and `/reports` include it.
+6. Check the application fee in Stripe against the fee Siamsil saved on the order (Pricing page plan).
 
 ### B. Declined card, then retry
 
@@ -114,7 +114,7 @@ For each one, write down what you did, what you saw in STEOS and what you saw in
 
 1. Place and authorize an order (as in A, steps 1 to 3), then **Decline** it in the kitchen.
 2. **Stripe:** the authorization is **Canceled**; nothing is charged.
-3. **STEOS:** the customer is told nothing was charged.
+3. **Siamsil:** the customer is told nothing was charged.
 
 ### D. Order expiry
 
@@ -125,21 +125,21 @@ For each one, write down what you did, what you saw in STEOS and what you saw in
 ### E. Delayed or repeated webhook
 
 1. In the Stripe Dashboard, open the webhook endpoint's event list and **resend** an event that was already delivered (for example the authorization event of order A).
-2. **Pass:** STEOS answers successfully but nothing changes twice: no second kitchen order, no duplicate payment record.
+2. **Pass:** Siamsil answers successfully but nothing changes twice: no second kitchen order, no duplicate payment record.
 3. To test lateness, temporarily disable the endpoint, place an order, re-enable it, and let Stripe's retry deliver the event. The order must then appear exactly once.
 
 ### F. Cancel after accept (owner refund)
 
 1. Take an order as far as accepted and paid (scenario A).
 2. As the owner, cancel the order in the kitchen. A full refund starts.
-3. **STEOS:** the order shows the refund as pending, then confirmed after the `refund.*` event arrives, and the customer's page shows it.
-4. **Stripe:** one full refund; the application fee is refunded too (STEOS asks Stripe for that).
+3. **Siamsil:** the order shows the refund as pending, then confirmed after the `refund.*` event arrives, and the customer's page shows it.
+4. **Stripe:** one full refund; the application fee is refunded too (Siamsil asks Stripe for that).
 5. Run it once more and confirm that repeating the cancel (double-click, or reload and retry) never creates a second refund.
 
 ### G. Failed refund
 
 1. Make a refund fail using the method in Stripe's testing documentation (see the note under Test cards).
-2. **Pass:** STEOS shows the order as needing attention and sends an operational alert; it does not claim the money was refunded.
+2. **Pass:** Siamsil shows the order as needing attention and sends an operational alert; it does not claim the money was refunded.
 
 ### H. Promo code on a card order
 
@@ -149,14 +149,14 @@ For each one, write down what you did, what you saw in STEOS and what you saw in
 
 ### I. Reports match Stripe
 
-At the end of the session, compare `/reports` for the test period with the Stripe Dashboard: sales, refunds and fees must agree. Stripe has the exact card fees; STEOS shows an estimate (2.9% + 30 cents), so card fees will differ slightly and that is expected. Sales and refunds must match exactly.
+At the end of the session, compare `/reports` for the test period with the Stripe Dashboard: sales, refunds and fees must agree. Stripe has the exact card fees; Siamsil shows an estimate (2.9% + 30 cents), so card fees will differ slightly and that is expected. Sales and refunds must match exactly.
 
 ### Also try (not in the checklist's list, but cheap now)
 
 - **3D Secure:** pay with `4000 0025 0000 3155` and complete the challenge. The order must still arrive once.
 - **Closing the tab mid-payment:** start paying, close the tab after authorizing, and reopen the order link. The order should still be there and in the right state.
-- **Partial or dashboard refunds:** refund an order directly in the Stripe Dashboard. STEOS does not reconcile refunds made outside the app yet; note what the app shows. This is a known gap in [LAUNCH_CHECKLIST.md](LAUNCH_CHECKLIST.md).
-- **Disputes:** STEOS has no dispute handling yet. Note it, do not test it.
+- **Partial or dashboard refunds:** refund an order directly in the Stripe Dashboard. Siamsil does not reconcile refunds made outside the app yet; note what the app shows. This is a known gap in [LAUNCH_CHECKLIST.md](LAUNCH_CHECKLIST.md).
+- **Disputes:** Siamsil has no dispute handling yet. Note it, do not test it.
 
 ## If something goes wrong
 
@@ -170,7 +170,7 @@ At the end of the session, compare `/reports` for the test period with the Strip
 | Orders never expire | The worker is not running; check `/api/health` |
 | Stripe rejects payments from the account | The test connected account's card payments capability is not active yet |
 
-STEOS also sends an operational alert when a Stripe webhook is rejected, so check the alert channel as well.
+Siamsil also sends an operational alert when a Stripe webhook is rejected, so check the alert channel as well.
 
 ## When you are done
 

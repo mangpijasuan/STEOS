@@ -1,4 +1,18 @@
-# SROS to STEOS rebranding and migration
+# Siamsil Restaurant — branding and migration
+
+## Current decision
+
+Siamsil Technologies is the corporate brand. Siamsil Restaurant is the first commercial industry product. Siamsil is the shared short brand; SROS and STEOS are historical names. Siamsil POS, Siamsil KDS (Kitchen Display System) and Siamsil Ordering are integrated module identities, not separately available products. Payments are powered by Stripe; Siamsil Pay is a future product name only. Siamsil Retail, Church, Safety, Language and Literature belong to the wider corporate vision, not this repository's active release scope.
+
+Retain "One Platform. Every Business." for business software. Use the shared navy-and-gold mark and keep merchant storefront identity independent. Keep "Powered by Siamsil" off by default. Legal suffix, trademark clearance and final production logos remain founder decisions.
+
+This branding follow-up is stacked on PR #50. It aligns `lib/branding.ts`, metadata, tests, home and sign-in with the full product name. The short brand remains in the fee label and optional merchant attribution. Module labels on the home page describe existing functionality, not separate subscriptions. No change to fee calculations, domains, credentials or data. Existing repository name is `Siamsil-Restaurant`; update local remotes if needed. Keep `steos-staging.siamsil.org`, `sr_session`, database/roles, routes, webhook endpoints and browser storage keys until a separately approved migration. Preserve historical release records.
+
+## Historical record
+
+The following records the earlier SROS-to-STEOS and STEOS-to-Siamsil changes. References to former names, logos and URLs below describe those changes at the time; they are not current instructions.
+
+## SROS to STEOS rebranding and migration
 
 STEOS replaces the working name SROS. (The first draft of the directive spelled it "STOS"; the founder confirmed **STEOS** as the official name.) This page records what was audited, what changed, what was deliberately left alone and what still needs the founder's approval. SROS remains the historical project name only.
 
@@ -51,3 +65,33 @@ Everything here is text and documentation on one branch. Revert the pull request
 ## Later, with approval
 
 Add the logo and domain once they exist; switch on "Powered by" for restaurant storefronts if the founder wants it; rename the local storage keys with a migration; rename the internal revenue field; move the package name; and, only if there is a customer reason, introduce new database role names through a planned migration.
+
+## STEOS to Siamsil
+
+The founder renamed the product from STEOS to **Siamsil** and adopted the Siamsil mark: a ring around four tiles in navy and gold. This section records that second rename. The sections above describe the SROS to STEOS rename and stay as written, because they are history.
+
+### What changed
+
+- `lib/branding.ts`: name `Siamsil`, full name "Siamsil Enterprise Operating System", logo paths, "Powered by Siamsil", and the footer. Page titles, the sign-in email subject, the fee label ("Siamsil fee") and the page description follow from it.
+- The footer's second line used to read "STEOS is a product of Siamsil Technologies." It now shows the tagline, "One Platform. Every Business.", because "Siamsil is a product of Siamsil Technologies" reads badly. The first line is unchanged. **Founder to approve the wording.**
+- The mark replaces the "S" tile in the sidebar, the phone header, the home page and sign-in (`app/brand-mark.tsx`). It switches to white and gold on the dark theme, because navy is unreadable on midnight navy. Files for places that need one are in `public/brand/`.
+- Browser tab icon, `favicon.ico` and the phone home-screen icon were redrawn from the mark.
+- `tests/branding.test.ts` now checks the Siamsil values and that no code or page text says STEOS.
+- README, CLAUDE.md, AGENTS.md, `package.json`, the Dockerfile comment and every document that named the product.
+
+### What was deliberately left unchanged
+
+| What | Why |
+| --- | --- |
+| Local storage keys `steos:appearance` and `steos:customer-appearance` | Renaming resets each person's saved choice. Rename later with a read-old-write-new step. |
+| Staging hostname `steos-staging.siamsil.org`, and the GitHub repository name `STEOS` | Hosting and repository settings are the founder's. See [DOMAINS.md](DOMAINS.md). |
+| Container names `steos-smoke-*` in the CI script | Internal and invisible. |
+| `docs/STEOS_MASTER_PLAN.md` | Renaming the file breaks links and history. The title inside says Siamsil. |
+| `docs/releases/v1.0.0-rc.1.md` | A record of a past release. |
+| Everything listed as unchanged in the sections above (database and role names, the `sr_session` cookie, routes, environment variables) | Production depends on them. |
+
+### Still to do (founder)
+
+- **The logo file.** The mark in the app is a redraw of the supplied picture, not a designer's final file. The supplied image has issues (soft edges, hard-to-read lettering, no dark version, and the "Kitchen Display System" subtitle that does not belong on the platform's main logo). Get a vector set before printing anything. The wordmark is typeset text, not the supplied lettering.
+- **Trademark and ownership** of the name and the mark. Check before you spend on printing.
+- **Where the old name still shows:** the staging address, the GitHub repository name, any Stripe statement descriptor or Connect branding, the Resend sender display name, and anything printed or sent already. None of these is set by this repository.

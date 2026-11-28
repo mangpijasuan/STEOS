@@ -9,7 +9,7 @@ const button = (page: Page, name: RegExp) => page.getByRole("button", { name }).
 const NAVY = "#0a111f"; // the platform's dark background
 const LIGHT = "#f7f5f2";
 
-// Anyone can pick Light or Dark for STEOS's own screens; the choice is remembered in the browser and wins over the device.
+// Anyone can pick Light or Dark for Siamsil's own screens; the choice is remembered in the browser and wins over the device.
 test.describe("on a light device", () => {
   test.use({ colorScheme: "light" });
 

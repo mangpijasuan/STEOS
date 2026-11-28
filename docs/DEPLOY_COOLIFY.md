@@ -1,6 +1,6 @@
-# Deploying STEOS with Coolify
+# Deploying Siamsil with Coolify
 
-This guide gets STEOS running on a Coolify server as a staging site. Do staging first, on its own subdomain, and only move to the real address after the [launch checklist](LAUNCH_CHECKLIST.md) is done. It was checked against the `Dockerfile` in this repository; the Coolify menu names are from memory of Coolify v4, so check them against your version.
+This guide gets Siamsil Restaurant running on a Coolify server as a staging site. Do staging first, on its own subdomain, and only move to the real address after the [launch checklist](LAUNCH_CHECKLIST.md) is done. It was checked against the `Dockerfile` in this repository; the Coolify menu names are from memory of Coolify v4, so check them against your version.
 
 ## What runs
 

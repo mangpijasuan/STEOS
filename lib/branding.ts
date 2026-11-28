@@ -4,19 +4,27 @@
 // This is the PLATFORM's brand. A restaurant's storefront keeps its own brand (name, logo, colors); nothing here is
 // applied to it. `tests/branding.test.ts` fails if a screen or library file hard-codes the platform name instead.
 //
-// Values are the founder's approved defaults. `domain` and `logo` are not set yet. `colors` are proposed defaults; they
+// Values are the founder's approved defaults. `domain` is not set yet. `colors` are proposed defaults; they
 // are applied by app/ds.css (the `data-brand="platform"` block, which has to repeat the hex values because CSS cannot
 // import this file) to the platform's own screens only, and `tests/branding.test.ts` checks the two stay in step.
 
 export const branding = {
-  name: "STEOS",
-  fullName: "Siamsil Technologies Enterprise Operating System",
+  name: "Siamsil Restaurant",
+  fullName: "Siamsil Restaurant",
+  shortName: "Siamsil",
+  modules: {
+    pos: "Siamsil POS",
+    kitchen: "Siamsil KDS",
+    ordering: "Siamsil Ordering",
+    payments: "Payments powered by Stripe",
+  },
   company: "Siamsil Technologies",
   tagline: "One Platform. Every Business.",
   domain: null,
+  // Files in /public/brand. The mark is drawn in app/brand-mark.tsx; these are for places that need a file.
   logo: {
-    light: null,
-    dark: null,
+    light: "/brand/siamsil-mark.svg",
+    dark: "/brand/siamsil-mark-reversed.svg",
   },
   colors: {
     primary: "#183153",
@@ -25,7 +33,7 @@ export const branding = {
   },
   poweredBy: {
     enabled: false,
-    text: "Powered by STEOS",
+    text: "Powered by Siamsil",
   },
 } as const;
 
@@ -35,11 +43,11 @@ export const legalName = branding.company;
 /** The year the footer shows. Fixed on purpose: it is the year of first publication, not "today". */
 export const copyrightYear = 2026;
 
-/** "Kitchen · STEOS": the browser tab title for a platform page. */
+/** Browser tab title for a platform page. */
 export const pageTitle = (page: string) => `${page} · ${branding.name}`;
 
-/** "STEOS fee": the label for the platform's fee in pricing and reports. */
-export const feeLabel = `${branding.name} fee`;
+/** "Siamsil fee": the label for the platform's fee in pricing and reports. */
+export const feeLabel = `${branding.shortName} fee`;
 
 /** The subject of the sign-in email. */
 export const signInSubject = `Sign in to ${branding.name}`;
@@ -47,7 +55,7 @@ export const signInSubject = `Sign in to ${branding.name}`;
 /** The two footer lines for the platform's own pages (home, sign-in). */
 export const footerLines = [
   `© ${copyrightYear} ${legalName.replace(/\.$/, "")}. All rights reserved.`,
-  `${branding.name} is a product of ${branding.company}.`,
+  branding.tagline,
 ] as const;
 
 /** The short description used in page metadata. */
