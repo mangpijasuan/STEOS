@@ -7,8 +7,12 @@ test("terminal filters the menu and prepares an order without placing it", async
   await page.goto("/pos/terminal");
   await expect(page.getByRole("heading", { name: "Order terminal" })).toBeVisible();
   const search = page.getByRole("searchbox", { name: "Search the menu" });
-  await page.keyboard.press("/");
-  await expect(search).toBeFocused();
+  // The "/" shortcut is attached after the terminal finishes loading, and it ignores the key while the page is busy.
+  // Pressing once right after the heading appears can land before that, so press again until the search box has focus.
+  await expect(async () => {
+    await page.keyboard.press("/");
+    await expect(search).toBeFocused({ timeout: 1000 });
+  }).toPass({ timeout: 20_000 });
   await search.fill("Chicken rice bowl");
   await page.getByRole("button", { name: /Chicken rice bowl/ }).click();
   const review = page.getByRole("button", { name: /Review order/ });

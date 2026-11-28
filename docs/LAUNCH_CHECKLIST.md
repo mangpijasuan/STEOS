@@ -50,7 +50,7 @@ Plan on record: Contabo server, Coolify to deploy, Cloudflare in front. Adjust i
 - [ ] Two roles exist with strong, different passwords: `siamsil_owner` (migrations only, never at runtime) and `siamsil_app` (the running app, subject to row-level security). The database is owned by `siamsil_owner`. *Founder*
 - [ ] `DATABASE_URL` uses `siamsil_app`; `DATABASE_OWNER_URL` uses `siamsil_owner` and is available only where migrations run. *Founder, Claude*
 - [ ] Migrations ran with `npm run db:migrate` during the deployment window, before the new app took traffic. *Claude*
-- [ ] The tenant-isolation tests pass against the production database version: `tests/tenant-isolation.test.ts`. *Claude*
+- [x] The tenant-isolation tests pass against the production database version: `tests/tenant-isolation.test.ts`. *Claude* _(seen 2026-11-27 on PostgreSQL 16.15, `main` 24ffaf5; see [LAUNCH_EVIDENCE.md](LAUNCH_EVIDENCE.md))_
 - [ ] Automatic backups run at least daily, are stored off the database server, and the retention period is written down. *Founder*
 - [ ] A backup has been restored into a separate empty database, the app started against it, and a known order was found. Until a restore has worked, there is no backup. *Founder, Claude*
 
@@ -68,12 +68,12 @@ Generate each secret independently, for example `openssl rand -base64 48`. Never
 
 - [ ] `RESEND_API_KEY` is set and the sender domain in `LOGIN_FROM_EMAIL` is verified in Resend. *Founder*
 - [ ] A real sign-in link was requested from the production site, arrived in an inbox (and not in spam), and signed in successfully. Check at least one Gmail and one other provider. *Founder*
-- [ ] Requesting links repeatedly is throttled, and a spent link cannot be reused. *Claude*
+- [x] Requesting links repeatedly is throttled, and a spent link cannot be reused. *Claude* _(seen 2026-11-27: 6th request returned 429; link single-use test passed; see [LAUNCH_EVIDENCE.md](LAUNCH_EVIDENCE.md))_
 
 ## 5. Background worker
 
 - [ ] `npm run worker:orders` runs under a process supervisor and restarts after a crash, or a scheduler calls `POST /api/internal/expire-orders` every minute with `Authorization: Bearer $CRON_SECRET`. *Founder, Claude*
-- [ ] `/api/health` reports a recent worker heartbeat, and goes degraded when the worker is stopped for more than five minutes (stop it on purpose and confirm). *Claude*
+- [x] `/api/health` reports a recent worker heartbeat, and goes degraded when the worker is stopped for more than five minutes (stop it on purpose and confirm). *Claude* _(seen 2026-11-27: 503 about five minutes after the last heartbeat; production-mode build, local database; see [LAUNCH_EVIDENCE.md](LAUNCH_EVIDENCE.md))_
 - [ ] The worker uses the app's `CRON_SECRET` and HTTPS or loopback; disable the inherited HTTP container healthcheck for the worker and monitor heartbeat. Neither web nor worker receives `DATABASE_OWNER_URL`. *Claude*
 
 ## 6. Payments: real Stripe sandbox run

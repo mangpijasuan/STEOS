@@ -1,6 +1,6 @@
 // Opening hours and pickup slots. All times are handled in the restaurant's time zone, including daylight saving.
 
-export type HoursPeriod = { weekday: number; opens: string; closes: string }; // "HH:MM", weekday 0 = Sunday
+export type HoursPeriod = { weekday: number; opens: string; closes: string }; // "HH:MM" ("24:00" allowed for closes: midnight), weekday 0 = Sunday
 
 export const SLOT_MINUTES = 15;
 const MAX_SLOTS = 200;
@@ -117,4 +117,12 @@ export function computeSlots({ now, timeZone, periods, minPrepMinutes, maxAdvanc
 
 export function isValidHHMM(value: string): boolean {
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
+/** The closing time that means "until midnight". A period may close at 24:00, which is the end of that day. */
+export const MIDNIGHT = "24:00";
+
+/** An opening time is a normal clock time. A closing time may also be 24:00 (midnight). */
+export function isValidClosing(value: string): boolean {
+  return value === MIDNIGHT || isValidHHMM(value);
 }
