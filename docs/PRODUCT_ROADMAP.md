@@ -1,6 +1,6 @@
-# STEOS product roadmap
+# Siamsil product roadmap
 
-Founder-approved 90-day strategy. Dates are targets, not promises; each phase depends on the preceding release gates. STEOS is the working product name pending commercial trademark clearance.
+Founder-approved 90-day strategy. Dates are targets, not promises; each phase depends on the preceding release gates. Siamsil is the working product name pending commercial trademark clearance.
 
 ## Strategy
 

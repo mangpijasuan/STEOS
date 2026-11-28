@@ -21,9 +21,9 @@ export const estimateProcessingCents = (totalCents: number) =>
   halfUp(totalCents * STRIPE_PERCENT_BPS, 10000) + STRIPE_FIXED_CENTS;
 
 /**
- * Application fee taken by STEOS on a direct charge. The restaurant's own Stripe account pays the card processing.
- * - platform_plus_processing: STEOS fee is feeBps of the food subtotal; the restaurant also pays processing.
- * - all_in: the restaurant's total cost is about feeBps of the subtotal, so STEOS takes that target minus the
+ * Application fee taken by Siamsil on a direct charge. The restaurant's own Stripe account pays the card processing.
+ * - platform_plus_processing: Siamsil fee is feeBps of the food subtotal; the restaurant also pays processing.
+ * - all_in: the restaurant's total cost is about feeBps of the subtotal, so Siamsil takes that target minus the
  *   estimated processing, never below zero.
  */
 export function applicationFee(opts: { subtotalCents: number; totalCents: number; feeBps: number; model: FeeModel }): FeeSnapshot {

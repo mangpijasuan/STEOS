@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { branding, footerLines } from "@/lib/branding";
+import { BrandMark } from "./brand-mark";
 import { APPEARANCE_LABEL, APPEARANCE_SHORT, nextAppearance, readAppearance, saveAppearance, type Appearance } from "./appearance";
 import { Icon, type IconName } from "./icons";
 
@@ -40,7 +41,7 @@ export function Button({
   );
 }
 
-/** The platform footer for pages that are STEOS's own (home, sign-in). Restaurant storefronts carry the restaurant's brand instead. */
+/** The platform footer for pages that are Siamsil's own (home, sign-in). Restaurant storefronts carry the restaurant's brand instead. */
 export function PlatformFooter() {
   return (
     <footer className="platform-footer">
@@ -320,7 +321,7 @@ export function StaffTopbar({ current, me, fixedTheme }: { current: string; me: 
       <aside className="sidebar" aria-label="Main">
         <div className="side-head">
           <a className="brandmark" href="/dashboard" title="Dashboard">
-            <span className="logo">S</span>
+            <BrandMark size={34} />
             <span className="nav-text side-name">{me?.restaurantName || branding.name}</span>
           </a>
         </div>
@@ -359,7 +360,7 @@ export function StaffTopbar({ current, me, fixedTheme }: { current: string; me: 
       <header className="topbar mobile-only">
         <div className="container topbar-inner">
           <a className="brandmark" href="/dashboard" aria-label="Dashboard">
-            <span className="logo">S</span>
+            <BrandMark size={34} />
             <span className="sr-only">{branding.name}</span>
           </a>
           <nav className="nav grow" aria-label="Staff">

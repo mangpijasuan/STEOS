@@ -1,8 +1,8 @@
-/* STEOS design system, scoped.
+/* Siamsil design system, scoped.
    Everything here applies only inside an element with class "ds" (see app/menu/layout.tsx), so screens that have
    not been moved to the design system keep their current look. To move a screen over, wrap it in .ds.
    Brand: change the --brand* variables in the first block. */
-/* STEOS design system. Every screen uses these tokens and classes; no page carries its own colors.
+/* Siamsil design system. Every screen uses these tokens and classes; no page carries its own colors.
    Change the brand by editing --brand* below. Light and dark themes are both defined; the kitchen
    screen always uses dark (data-theme="dark") because it runs all day on a tablet near the line. */
 .ds {
@@ -394,7 +394,7 @@
 }
 
 /* ============================================================ platform brand
-   STEOS's own screens (home, sign-in, staff and owner screens, the kitchen) carry data-brand="platform" and use the
+   Siamsil's own screens (home, sign-in, staff and owner screens, the kitchen) carry data-brand="platform" and use the
    approved navy and gold from lib/branding.ts. Restaurant-facing pages (the storefront, table page and order status) do
    not, so each restaurant keeps its own look; a restaurant's branding data overrides the same tokens on its own storefront (see .rb-store below).
    Dark mode swaps the roles: navy on dark is unreadable, so gold becomes the main accent there. */
@@ -407,8 +407,10 @@
   --series: #183153;
   --accent: #d4af37;
   --logo-ink: #d4af37;
+  --mark-a: #183153;
+  --mark-b: #c8921f;
 }
-/* Dark mode for STEOS's own screens: midnight navy surfaces with the gold accent. Applied when the device is dark, or when the
+/* Dark mode for Siamsil's own screens: midnight navy surfaces with the gold accent. Applied when the device is dark, or when the
    person chose Dark in Appearance; a chosen Light wins over a dark device. */
 @media (prefers-color-scheme: dark) {
   .ds[data-brand="platform"]:where(:not([data-theme="light"], :root[data-appearance="light"] .ds)) {
@@ -428,6 +430,8 @@
     --brand-soft-ink: #f1dc94;
     --series: #d4af37;
     --logo-ink: #17120a;
+    --mark-a: #ffffff;
+    --mark-b: #e0ae3c;
   }
 }
 .ds[data-brand="platform"][data-theme="dark"],
@@ -448,8 +452,11 @@
   --brand-soft-ink: #f1dc94;
   --series: #d4af37;
   --logo-ink: #17120a;
+  --mark-a: #ffffff;
+  --mark-b: #e0ae3c;
 }
 .ds[data-brand="platform"] .logo { color: var(--logo-ink); }
+.ds .brand-mark { flex: none; display: block; }
 .ds[data-brand="platform"] .side-link[aria-current="page"] { box-shadow: inset 3px 0 0 var(--accent); }
 
 /* ============================================================ till, menu cards and receipt */

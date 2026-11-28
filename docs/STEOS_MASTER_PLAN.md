@@ -1,6 +1,6 @@
-# STEOS master plan
+# Siamsil master plan
 
-**STEOS** (Siamsil Technologies Enterprise Operating System) is one multi-tenant platform with configurable business modules. *One Platform. Every Business.* It is a product of Siamsil Technologies and was previously named SROS.
+**Siamsil** (Siamsil Enterprise Operating System; formerly STEOS) is one multi-tenant platform with configurable business modules. *One Platform. Every Business.* It is a product of Siamsil Technologies and was previously named SROS.
 
 This page is the short version of the plan. The detail is in [PRODUCT_VISION.md](PRODUCT_VISION.md), [PRODUCT_ROADMAP.md](PRODUCT_ROADMAP.md) and [ARCHITECTURE.md](ARCHITECTURE.md).
 

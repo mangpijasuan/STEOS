@@ -2,7 +2,7 @@
   "name": "siamsil-restaurant",
   "version": "1.0.0-rc.1",
   "private": true,
-  "description": "STEOS (Siamsil Technologies Enterprise Operating System), a multi-tenant business platform. Formerly SROS.",
+  "description": "Siamsil (Siamsil Enterprise Operating System), a multi-tenant business platform. Formerly STEOS and SROS.",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState, type FormEvent } from "react";
 import { Alert, Button, PlatformFooter } from "../ui";
+import { BrandMark } from "../brand-mark";
 import { Icon } from "../icons";
 
 const COOLDOWN_S = 30;
@@ -50,7 +51,7 @@ export default function Login({ searchParams }: { searchParams: Promise<{ error?
     <main className="auth-wrap">
       <div className="auth-card stack" style={{ "--gap": "20px" } as React.CSSProperties}>
         <div className="stack" style={{ alignItems: "center", textAlign: "center", "--gap": "10px" } as React.CSSProperties}>
-          <span className="logo">S</span>
+          <BrandMark size={52} />
           <h1 style={{ fontSize: "1.6rem" }}>Staff sign in</h1>
           <p className="muted">We'll email you a link. No password to remember.</p>
         </div>

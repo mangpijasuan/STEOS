@@ -1,4 +1,4 @@
-# Production image for STEOS (used by Coolify or any Docker host).
+# Production image for Siamsil (used by Coolify or any Docker host).
 #
 # The image keeps the full node_modules, including `tsx`, so the same image can run the web app, the order worker and the
 # one-off database commands:

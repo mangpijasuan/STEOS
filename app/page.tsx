@@ -1,4 +1,5 @@
 import { branding } from "@/lib/branding";
+import { BrandMark } from "./brand-mark";
 import { Icon } from "./icons";
 import { PlatformFooter } from "./ui";
 import "./ds.css";
@@ -9,7 +10,7 @@ export default function Home() {
       <header className="topbar">
         <div className="container topbar-inner">
           <span className="brandmark">
-            <span className="logo">{branding.name.charAt(0)}</span> {branding.name}
+            <BrandMark size={34} /> {branding.name}
           </span>
           <span className="grow" />
           <a className="btn btn-sm" href="/login">Staff sign in</a>

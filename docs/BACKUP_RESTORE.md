@@ -1,6 +1,6 @@
 # Backup and restore
 
-The database is the only place STEOS keeps customer and order data. Photos are stored in it too. Until a backup has been restored into an empty database and the app has been started against the copy, there is no backup. This is section 7 of [LAUNCH_CHECKLIST.md](LAUNCH_CHECKLIST.md) written as steps.
+The database is the only place Siamsil keeps customer and order data. Photos are stored in it too. Until a backup has been restored into an empty database and the app has been started against the copy, there is no backup. This is section 7 of [LAUNCH_CHECKLIST.md](LAUNCH_CHECKLIST.md) written as steps.
 
 ## What to back up
 
