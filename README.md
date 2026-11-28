@@ -1,6 +1,6 @@
 # Siamsil Restaurant
 
-**Siamsil Restaurant** is the restaurant software product of Siamsil Technologies, built on a shared multi-tenant platform. The short brand in PR #50 is Siamsil. *One Platform. Every Business.*
+**Siamsil Restaurant** is the restaurant software product of Siamsil Technologies, built on a shared multi-tenant platform. Siamsil is the short brand. *One Platform. Every Business.*
 
 Today it runs restaurant ordering: a storefront, a staff kitchen queue, QR dine-in, a till, Stripe Connect payments, and owner controls for menus, hours, pricing and reports. Other business types are planned as modules of the same platform; see [docs/PRODUCT_VISION.md](docs/PRODUCT_VISION.md) and [docs/STEOS_MASTER_PLAN.md](docs/STEOS_MASTER_PLAN.md). The project was previously named SROS and STEOS; see [docs/REBRANDING_MIGRATION.md](docs/REBRANDING_MIGRATION.md).
 

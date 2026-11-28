@@ -3,7 +3,7 @@
 ## Product identity
 
 - The corporate brand is **Siamsil Technologies**; the restaurant product is **Siamsil Restaurant**. Siamsil is the shared brand. SROS and STEOS are historical names. Tagline: *One Platform. Every Business.*
-- **Runtime identity is centralized in `lib/branding.ts`.** PR #50 currently uses the short name Siamsil; aligning the full product display name is a separate code change. Never hard-code product strings; preserve merchant branding.
+- **Runtime identity is centralized in `lib/branding.ts`.** Use the full product name for platform identity, and the short brand for fee labels and optional merchant attribution. Never hard-code product strings; preserve merchant branding.
 - Siamsil POS, Siamsil KDS and Siamsil Ordering are integrated module identities. Describe payment functionality as payments powered by Stripe; Siamsil Pay is a planned name only. Other industry products are deferred.
 
 - Footer for Siamsil's own pages (home, sign-in): "© 2026 Siamsil Technologies. All rights reserved." (the legal-name suffix is added only after the registered name is verified) and the tagline "One Platform. Every Business." Restaurant storefronts carry the restaurant's brand, not Siamsil's.
