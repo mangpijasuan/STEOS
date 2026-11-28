@@ -1,4 +1,4 @@
-# Siamsil security
+# Siamsil Restaurant security
 
 What is protected, how, and what is not done yet. If you find a vulnerability, tell the founder privately and do not open a public issue.
 

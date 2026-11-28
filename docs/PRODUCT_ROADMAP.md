@@ -1,6 +1,6 @@
-# Siamsil product roadmap
+# Siamsil Restaurant — product roadmap
 
-Founder-approved 90-day strategy. Dates are targets, not promises; each phase depends on the preceding release gates. Siamsil is the working product name pending commercial trademark clearance.
+Founder-approved 90-day strategy. Dates are targets, not promises; each phase depends on the preceding release gates. Siamsil Restaurant is the selected product name pending commercial trademark clearance.
 
 ## Strategy
 
@@ -13,8 +13,8 @@ One Platform. Every Business. Start with independent restaurants operating their
 | Days 1–15 | Code release and staging | Integrated CI, secure HTTPS staging, least-privilege database roles, health and worker checks, tested backup restore, verified email |
 | Days 16–30 | Zogam sandbox pilot | Owner confirms menu, prices, hours and tax; mobile pickup, kitchen, QR and till acceptance tests; Stripe sandbox authorization, capture, refunds, webhook retries and reconciliation |
 | Days 31–45 | First commercial pickup launch | Founder and restaurant approve fees, entity and payment setup, legal policies, security and operational gates; small live order and refund; monitor first week and reconcile daily |
-| Days 46–60 | Delivery integration | DoorDash Drive and Uber Direct subject to production access; customer chooses courier or pickup, quote expiry, delivery fee disclosure, dispatch, tracking and cancellation tested; no launch without approval |
-| Days 61–90 | Expand to 3–5 restaurants | Learn from pilot, configurable tenant branding and timezone, documented onboarding, agreed fee collection and reconciliation, support and retention metrics |
+| Days 46–60 | Stabilize pickup pilot | Reconcile actual orders and refunds; measure support time and restaurant satisfaction; delivery remains deferred |
+| Days 61–90 | Validate additional restaurant demand | Learn from pilot, configurable tenant branding and timezone, documented onboarding, agreed fee collection and reconciliation, support and retention metrics |
 
 ## Current baseline
 
@@ -30,7 +30,7 @@ Merged: pickup authorization/capture, QR pay now/later, till discounts and recei
 
 ## After pilot stability
 
-Prioritize repeat ordering and opt-in loyalty, then recurring billing and merchant onboarding improvements based on customer demand. Retail/barcodes, universal catalog, inventory/supply, finance, enterprise and intelligence are future modules, not 90-day commitments. No rewrite, large redesign, proprietary payment processor or shared card vault.
+Prioritize repeat ordering and opt-in loyalty, then merchant onboarding improvements; recurring billing only after founder approval based on customer demand. Retail/barcodes, universal catalog, inventory/supply, finance, enterprise and intelligence are future modules, not 90-day commitments. No rewrite, large redesign, proprietary payment processor or shared card vault.
 
 ## Founder decisions
 
@@ -39,3 +39,5 @@ Confirm six dish prices, owner email, timezone, tax and hours, fee plans and col
 ## Operating discipline
 
 Small tested changes, independent review, founder approval for merges and financial decisions. Track actual orders, completion rate, payment discrepancies, restaurant savings, contribution margin and support burden. No phase is complete until its exit criteria are evidenced.
+
+The proposed [90-day execution plan](90_DAY_EXECUTION_PLAN.md) (PR #52, pending merge) is the detailed launch tracker; the proposed [product names](PRODUCT_NAMES.md) (PR #51) should be reviewed against the naming decision in [REBRANDING_MIGRATION.md](REBRANDING_MIGRATION.md). No independent commercial product before ten paying restaurant locations, three reliable months, documented support/onboarding, positive contribution margin and no critical payment/security issues. These are expansion gates, not forecast claims.

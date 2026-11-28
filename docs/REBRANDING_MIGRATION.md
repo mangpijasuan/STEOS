@@ -1,4 +1,18 @@
-# SROS to STEOS rebranding and migration
+# Siamsil Restaurant — branding and migration
+
+## Current decision
+
+Siamsil Technologies is the corporate brand. Siamsil Restaurant is the first commercial industry product. Siamsil is the shared brand and short display name currently proposed by PR #50; SROS and STEOS are historical names. Siamsil POS, Siamsil KDS (Kitchen Display System) and Siamsil Ordering are integrated module identities, not separately available products. Payments are powered by Stripe; Siamsil Pay is a future product name only. Siamsil Retail, Church, Safety, Language and Literature belong to the wider corporate vision, not this repository's active release scope.
+
+Retain "One Platform. Every Business." for business software. Use the shared navy-and-gold mark and keep merchant storefront identity independent. Keep "Powered by Siamsil" off by default. Legal suffix, trademark clearance and final production logos remain founder decisions.
+
+This documentation follow-up is stacked on PR #50. It does not alter runtime branding, fees, domains, credentials or data. The code on #50 uses the short name Siamsil; a separate implementation must align `lib/branding.ts`, metadata, tests and UI with the agreed product hierarchy. Existing repository name is `Siamsil-Restaurant`; update local remotes if needed. Keep `steos-staging.siamsil.org`, `sr_session`, database/roles, routes, webhook endpoints and browser storage keys until a separately approved migration. Preserve historical release records.
+
+## Historical record
+
+The following records the earlier SROS-to-STEOS and STEOS-to-Siamsil changes. References to former names, logos and URLs below describe those changes at the time; they are not current instructions.
+
+## SROS to STEOS rebranding and migration
 
 STEOS replaces the working name SROS. (The first draft of the directive spelled it "STOS"; the founder confirmed **STEOS** as the official name.) This page records what was audited, what changed, what was deliberately left alone and what still needs the founder's approval. SROS remains the historical project name only.
 

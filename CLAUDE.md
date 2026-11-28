@@ -2,10 +2,10 @@
 
 ## Product identity
 
-- The product is **Siamsil** (full name: **Siamsil Enterprise Operating System**), made by the company **Siamsil Technologies**. Tagline: *One Platform. Every Business.* The founder renamed it from Siamsil to Siamsil and adopted the Siamsil mark (a ring around four tiles, navy and gold).
-- **The platform's name, tagline, company, footer, page titles, email subject and fee label live in one file, `lib/branding.ts`.** Import from it; never type the product name into a screen, email or library string. `tests/branding.test.ts` fails if you do. A restaurant's storefront keeps its own brand and does not use it.
-- The product and the company share the name Siamsil. Say "Siamsil Technologies" when you mean the company (legal text, copyright, contracts) and "Siamsil" for the product. It is not a separate legal entity.
-- **SROS and Siamsil are historical names.** Use Siamsil in anything a person reads: UI text, emails, docs, comments, test names, pull requests. Do not reintroduce SROS or Siamsil, except in the places listed as intentionally unchanged in [docs/REBRANDING_MIGRATION.md](docs/REBRANDING_MIGRATION.md).
+- The corporate brand is **Siamsil Technologies**; the restaurant product is **Siamsil Restaurant**. Siamsil is the shared brand. SROS and STEOS are historical names. Tagline: *One Platform. Every Business.*
+- **Runtime identity is centralized in `lib/branding.ts`.** PR #50 currently uses the short name Siamsil; aligning the full product display name is a separate code change. Never hard-code product strings; preserve merchant branding.
+- Siamsil POS, Siamsil KDS and Siamsil Ordering are integrated module identities. Describe payment functionality as payments powered by Stripe; Siamsil Pay is a planned name only. Other industry products are deferred.
+
 - Footer for Siamsil's own pages (home, sign-in): "© 2026 Siamsil Technologies. All rights reserved." (the legal-name suffix is added only after the registered name is verified) and the tagline "One Platform. Every Business." Restaurant storefronts carry the restaurant's brand, not Siamsil's.
 - Brand colors: French navy, white and gold, with optional red accents. The restaurant storefronts have their own per-restaurant branding (Zogam Cafe is forest green).
 - Siamsil is one multi-tenant platform with configurable modules, not a separate app per industry. Today only the restaurant modules are built. See [docs/PRODUCT_VISION.md](docs/PRODUCT_VISION.md) and [docs/STEOS_MASTER_PLAN.md](docs/STEOS_MASTER_PLAN.md).

@@ -1,6 +1,6 @@
-# Siamsil architecture
+# Siamsil Restaurant architecture
 
-Siamsil (formerly STEOS and, before that, SROS) is a multi-tenant platform that today runs restaurant ordering. Customers order for pickup from a restaurant's storefront or from their seat by scanning a table's QR code, paying by card or at the table. Staff run the kitchen, the table board and a till, and owners manage the menu, photos, hours, promotions, pricing and reports. Everything runs in a single Next.js application. TypeScript modules provide shared pricing, scheduling, order and payment logic. PostgreSQL is the system of record for orders, payment history and photos, and Stripe Connect processes card payments on each restaurant's connected account.
+Siamsil Restaurant (formerly STEOS and, before that, SROS) is a multi-tenant platform that today runs restaurant ordering. Customers order for pickup from a restaurant's storefront or from their seat by scanning a table's QR code, paying by card or at the table. Staff run the kitchen, the table board and a till, and owners manage the menu, photos, hours, promotions, pricing and reports. Everything runs in a single Next.js application. TypeScript modules provide shared pricing, scheduling, order and payment logic. PostgreSQL is the system of record for orders, payment history and photos, and Stripe Connect processes card payments on each restaurant's connected account.
 
 This guide describes the application with every integration step in place: the audited payment and sign-in work, photos and the menu editor, tables and dine-in, the till and promotions, the dashboard, and the design system. [`docs/PHASE_4_INTEGRATION.md`](PHASE_4_INTEGRATION.md) records how and in what order those arrived.
 
@@ -10,7 +10,7 @@ This guide describes the application with every integration step in place: the a
 | --- | --- | --- |
 | Customer storefront | Browse the menu, choose pickup, apply a promo code, request a quote, open checkout, and track the order | [Storefront](../app/r), [checkout and quote routes](../app/api/r), [order status](../app/order) |
 | Table ordering | Order from a seat by scanning a table's QR code, pay now or at the table, and ask a waiter for help | [Table page](../app/t), [table routes](../app/api/t) |
-| Kitchen | Accept or decline new orders, move them to ready and served, and refund | [Kitchen](../app/kitchen) |
+| KDS | Accept or decline new orders, move them to ready and served, and refund | [Kitchen](../app/kitchen) |
 | Tables and till | The live table board, QR cards, in-person payments, and orders entered by staff | [Tables](../app/tables), [till](../app/pos), [staff API](../app/api/staff) |
 | Owner tools | Menu and photos, hours and ordering settings, promo codes, pricing plans, and sales reports, according to role | [Menu](../app/menu), [hours and settings](../app/manage), [promos](../app/promos), [pricing](../app/pricing), [reports](../app/reports) |
 | Dashboard and orders | Live counts, performance against the previous period, and searchable order history | [Dashboard](../app/dashboard), [orders](../app/orders) |
@@ -175,7 +175,7 @@ Siamsil is one modular monolith. The module names in [PRODUCT_VISION.md](PRODUCT
 | Module | Code |
 | --- | --- |
 | Core | `db/`, `lib/db.ts`, `lib/branding.ts` (the platform's identity), `lib/auth.ts`, `lib/settings.ts`, `lib/ratelimit.ts`, `lib/log.ts`, `lib/alerts.ts`, `app/login`, `app/manage` |
-| Commerce | `lib/cart.ts`, `lib/hours.ts`, `lib/storefront.ts`, `lib/orders.ts`, `lib/menu.ts`, `lib/images.ts`, `app/r`, `app/order`, `app/menu`, `app/api/r` |
+| Ordering | `lib/cart.ts`, `lib/hours.ts`, `lib/storefront.ts`, `lib/orders.ts`, `lib/menu.ts`, `lib/images.ts`, `app/r`, `app/order`, `app/menu`, `app/api/r` |
 | POS | `lib/pos.ts`, `lib/promos.ts`, `app/pos`, receipts under `app/orders` |
 | Kitchen | `app/kitchen`, `lib/tables.ts` and `app/tables` (dine-in and table service), `app/t` |
 | Payments | `lib/payments/`, `lib/fees.ts`, `lib/pricing.ts`, `app/api/webhooks` |
